@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PartShelf V2 - 电子元器件库存管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --secondary-color: #6c757d;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 0;
+            margin-bottom: 50px;
+        }
+        
+        .hero-section h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .hero-section .lead {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+        
+        .feature-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        
+        .tech-badge {
+            font-size: 0.9rem;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 20px;
+        }
+        
+        .screenshot-section {
+            background-color: #f8f9fa;
+            padding: 60px 0;
+            margin: 50px 0;
+        }
+        
+        .btn-github {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border-radius: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-github:hover {
+            background-color: #555;
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .stats-section {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 60px 0;
+            margin: 50px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        footer {
+            background-color: #343a40;
+            color: white;
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-microchip"></i> PartShelf V2
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">功能特性</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#tech-stack">技术栈</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#screenshots">界面预览</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#installation">安装使用</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="https://github.com/FASUZO/PartShelf-V2" target="_blank">
+                            <i class="fab fa-github"></i> GitHub
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero 区域 -->
+    <section class="hero-section">
+        <div class="container text-center">
+            <h1><i class="fas fa-microchip"></i> PartShelf V2</h1>
+            <p class="lead">现代化的电子元器件库存管理系统</p>
+            <p class="mb-4">智能批量导入 · 一键出库 · 库存历史追踪 · 模块化架构</p>
+            <div class="mt-4">
+                <a href="https://github.com/FASUZO/PartShelf-V2" class="btn btn-github btn-lg me-3" target="_blank">
+                    <i class="fab fa-github"></i> 查看源代码
+                </a>
+                <a href="#installation" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-rocket"></i> 快速开始
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 统计数据 -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">8+</div>
+                    <div>核心功能模块</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">100%</div>
+                    <div>中文注释覆盖</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">Docker</div>
+                    <div>一键部署支持</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">MIT</div>
+                    <div>开源许可证</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 功能特性 -->
+    <section id="features" class="container mb-5">
+        <h2 class="text-center mb-5">✨ 功能特性</h2>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-boxes feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">库存管理</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> 添加、编辑和删除电子元件</li>
+                        <li><i class="fas fa-check text-success"></i> 实时库存数量跟踪</li>
+                        <li><i class="fas fa-check text-success"></i> 按类型、封装、制造商分类</li>
+                        <li><i class="fas fa-check text-success"></i> 单件入库/出库操作</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-file-import feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">批量操作</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> CSV/Excel 批量导入</li>
+                        <li><i class="fas fa-check text-success"></i> 一键批量出库</li>
+                        <li><i class="fas fa-check text-success"></i> 智能零件匹配算法</li>
+                        <li><i class="fas fa-check text-success"></i> 数据导出功能</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-history feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">历史记录</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> 完整的库存操作历史</li>
+                        <li><i class="fas fa-check text-success"></i> 操作类型追踪</li>
+                        <li><i class="fas fa-check text-success"></i> 数量变化记录</li>
+                        <li><i class="fas fa-check text-success"></i> 操作备注支持</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-search feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">高级筛选</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> 多条件组合搜索</li>
+                        <li><i class="fas fa-check text-success"></i> 可筛选字段搜索</li>
+                        <li><i class="fas fa-check text-success"></i> 表头排序功能</li>
+                        <li><i class="fas fa-check text-success"></i> 分页显示</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-paint-brush feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">用户界面</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> 响应式设计</li>
+                        <li><i class="fas fa-check text-success"></i> 现代化 UI</li>
+                        <li><i class="fas fa-check text-success"></i> 流畅动画效果</li>
+                        <li><i class="fas fa-check text-success"></i> 实时操作反馈</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card feature-card p-4">
+                    <div class="text-center">
+                        <i class="fas fa-cubes feature-icon"></i>
+                    </div>
+                    <h4 class="text-center">模块化架构</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> 前端 8 个功能模块</li>
+                        <li><i class="fas fa-check text-success"></i> 清晰的代码结构</li>
+                        <li><i class="fas fa-check text-success"></i> 易于维护和扩展</li>
+                        <li><i class="fas fa-check text-success"></i> 完整的中文注释</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 技术栈 -->
+    <section id="tech-stack" class="screenshot-section">
+        <div class="container">
+            <h2 class="text-center mb-5">🛠️ 技术栈</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="mb-4"><i class="fas fa-server"></i> 后端技术</h4>
+                    <div class="mb-3">
+                        <span class="badge bg-primary tech-badge">Python 3.8+</span>
+                        <span class="badge bg-success tech-badge">FastAPI</span>
+                        <span class="badge bg-info tech-badge">SQLAlchemy</span>
+                        <span class="badge bg-warning tech-badge">SQLite</span>
+                        <span class="badge bg-danger tech-badge">Pydantic</span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h4 class="mb-4"><i class="fas fa-desktop"></i> 前端技术</h4>
+                    <div class="mb-3">
+                        <span class="badge bg-primary tech-badge">HTML5</span>
+                        <span class="badge bg-success tech-badge">CSS3</span>
+                        <span class="badge bg-warning tech-badge">JavaScript ES6+</span>
+                        <span class="badge bg-info tech-badge">Bootstrap 5</span>
+                        <span class="badge bg-danger tech-badge">Font Awesome</span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h4 class="mb-4"><i class="fas fa-tools"></i> 工具和部署</h4>
+                    <div>
+                        <span class="badge bg-dark tech-badge">Docker</span>
+                        <span class="badge bg-secondary tech-badge">Docker Compose</span>
+                        <span class="badge bg-primary tech-badge">pandas</span>
+                        <span class="badge bg-success tech-badge">openpyxl</span>
+                        <span class="badge bg-info tech-badge">Uvicorn</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 界面预览 -->
+    <section id="screenshots" class="container mb-5">
+        <h2 class="text-center mb-5">📸 界面预览</h2>
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center p-5 bg-light">
+                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                        <h5>库存管理主界面</h5>
+                        <p class="text-muted">支持筛选、排序、批量操作</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center p-5 bg-light">
+                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                        <h5>批量出库功能</h5>
+                        <p class="text-muted">智能匹配，一键操作</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center p-5 bg-light">
+                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                        <h5>库存历史记录</h5>
+                        <p class="text-muted">完整的操作追踪</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center p-5 bg-light">
+                        <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                        <h5>元件详情页面</h5>
+                        <p class="text-muted">详细信息展示和管理</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert-info mt-4">
+            <i class="fas fa-info-circle"></i> 
+            <strong>提示：</strong> 您可以在项目运行后添加实际截图到 <code>screenshots/</code> 目录
+        </div>
+    </section>
+
+    <!-- 安装使用 -->
+    <section id="installation" class="screenshot-section">
+        <div class="container">
+            <h2 class="text-center mb-5">🚀 快速开始</h2>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fab fa-docker"></i> Docker 部署（推荐）</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code># 克隆项目
+git clone https://github.com/FASUZO/PartShelf-V2.git
+cd PartShelf-V2
+
+# 启动服务
+docker-compose up -d
+
+# 访问应用
+# http://localhost:8000</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fab fa-python"></i> 本地开发</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre class="bg-dark text-light p-3 rounded"><code># 安装依赖
+pip install -r requirements.txt
+
+# 启动服务
+uvicorn app.main:app --reload
+
+# 访问应用
+# http://localhost:8000</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-5">
+                <a href="https://github.com/FASUZO/PartShelf-V2/blob/main/README.md" class="btn btn-primary btn-lg" target="_blank">
+                    <i class="fas fa-book"></i> 查看完整文档
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 贡献指南 -->
+    <section class="container mb-5">
+        <div class="card">
+            <div class="card-body text-center p-5">
+                <h2 class="mb-4">🤝 参与贡献</h2>
+                <p class="lead mb-4">欢迎贡献代码、报告问题或提出建议！</p>
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <ol class="text-start">
+                            <li>Fork 本仓库</li>
+                            <li>创建功能分支 (<code>git checkout -b feature/AmazingFeature</code>)</li>
+                            <li>提交更改 (<code>git commit -m 'Add some AmazingFeature'</code>)</li>
+                            <li>推送到分支 (<code>git push origin feature/AmazingFeature</code>)</li>
+                            <li>提交 Pull Request</li>
+                        </ol>
+                    </div>
+                </div>
+                <a href="https://github.com/FASUZO/PartShelf-V2/issues" class="btn btn-outline-primary btn-lg mt-3" target="_blank">
+                    <i class="fas fa-bug"></i> 报告问题
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer>
+        <div class="container text-center">
+            <p class="mb-2">
+                <i class="fas fa-heart text-danger"></i> 
+                Made with passion by <a href="https://github.com/FASUZO" target="_blank" class="text-white">FASUZO</a>
+            </p>
+            <p class="mb-0">
+                <i class="fas fa-code"></i> with Python, FastAPI & Bootstrap
+            </p>
+            <p class="mt-3 mb-0">
+                <a href="https://github.com/FASUZO/PartShelf-V2" class="text-white me-3" target="_blank">
+                    <i class="fab fa-github fa-lg"></i>
+                </a>
+                <a href="mailto:fasuzo@qq.com" class="text-white">
+                    <i class="fas fa-envelope fa-lg"></i>
+                </a>
+            </p>
+            <p class="mt-3 mb-0 text-muted">
+                <small>&copy; 2025 PartShelf V2. Licensed under MIT License.</small>
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // 导航栏滚动效果
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('shadow');
+            } else {
+                navbar.classList.remove('shadow');
+            }
+        });
+    </script>
+</body>
+</html>
