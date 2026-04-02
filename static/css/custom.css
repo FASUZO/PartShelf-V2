@@ -1,0 +1,420 @@
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --danger-color: #dc3545;
+    --bg-color: #f8f9fa;
+    --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --hover-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.25s ease;
+}
+
+body {
+    background-color: var(--bg-color);
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Navbar Enhancements */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+    background-color: #343a40 !important; /* Ensure dark bg */
+}
+
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Card Styling */
+.card {
+    border: none;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.3s ease-in-out;
+    border-radius: 0.5rem;
+}
+
+.card:hover {
+    box-shadow: var(--hover-shadow);
+}
+
+/* Table Styling */
+.table-container {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: var(--card-shadow);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.table thead th {
+    border-top: none;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Button Enhancements */
+.btn {
+    border-radius: 0.25rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    filter: brightness(90%);
+}
+
+/* Form Controls */
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Sortable Headers */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 1.5em !important;
+}
+
+.sortable:hover {
+    background-color: #f1f3f5;
+    color: var(--primary-color);
+}
+
+.sortable .fa-sort {
+    position: absolute;
+    right: 0.5em;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.3;
+}
+
+.sortable.active .fa-sort {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+/* Pagination */
+.pagination .page-link {
+    border: none;
+    color: #495057;
+    margin: 0 2px;
+    border-radius: 4px;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+.pagination .page-link:hover {
+    background-color: #e9ecef;
+    color: var(--primary-color);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+tr.animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Skeleton Loading */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Table Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: nowrap;
+}
+
+.action-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.2rem;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.action-btn-stock-in {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.action-btn-stock-in:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.action-btn-stock-out {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+}
+
+.action-btn-stock-out:hover {
+    background-color: #bb2d3b;
+    border-color: #b02a37;
+}
+
+/* Quantity Badge */
+.quantity-badge {
+    font-size: 0.875rem;
+    padding: 0.35em 0.65em;
+    transition: all var(--transition-fast);
+}
+
+/* Table Row Hover Effect */
+.table-hover tbody tr {
+    transition: background-color var(--transition-fast);
+}
+
+/* Modal Enhancements */
+.modal-content {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+}
+
+.modal.fade .modal-dialog {
+    transition: transform var(--transition-normal) ease-out;
+}
+
+/* Toast Enhancements */
+.toast {
+    border-radius: 0.375rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    animation: slideInRight 0.3s ease-out;
+}
+
+/* Input Focus Enhancements */
+.form-control, .form-select {
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* Card Hover Lift Effect */
+.card {
+    transition: box-shadow var(--transition-normal), transform var(--transition-normal);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+/* Pagination Button Hover */
+.pagination .page-link {
+    transition: all var(--transition-fast);
+}
+
+/* Smooth Scroll */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Button Ripple Effect Base */
+.btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::after {
+    width: 200px;
+    height: 200px;
+}
+
+/* Performance: GPU Acceleration for animations */
+.animate-fade-in,
+.toast,
+.card,
+.btn {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* Dropdown Search Styles */
+.dropdown-search {
+    position: relative;
+}
+
+.dropdown-search-input {
+    width: 100%;
+    cursor: pointer;
+}
+
+.dropdown-search select {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 9999 !important;
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.dropdown-search select option {
+    padding: 0.5rem;
+    cursor: pointer;
+}
+
+.dropdown-search select option:hover,
+.dropdown-search select option:checked {
+    background-color: #e9ecef;
+}
+
+/* Ensure filter collapse is above table */
+#advancedFilterCollapse {
+    position: relative;
+    z-index: 100;
+}
+
+#advancedFilterCollapse.collapse.show {
+    z-index: 100;
+}
+
+/* Table container z-index */
+.table-container {
+    position: relative;
+    z-index: 1;
+}
+
+/* History Table Styles */
+#inventoryHistoryModal .modal-body {
+    padding: 1.5rem;
+}
+
+#inventoryHistoryBody tr {
+    transition: background-color 0.15s ease;
+}
+
+#inventoryHistoryBody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Batch Stock Out Preview */
+#batchStockOutPreview .table {
+    font-size: 0.875rem;
+}
+
+#batchStockOutPreview .table th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 10;
+}
+
+/* Modal Enhancements */
+.modal-xl {
+    max-width: 1140px;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+/* Button text nowrap fix */
+.btn {
+    white-space: nowrap;
+}
+
+/* Navbar button text fix */
+.navbar .btn {
+    min-width: fit-content;
+    overflow: visible;
+}
+
+.navbar .btn .btn-text {
+    display: inline-block;
+    white-space: nowrap;
+}

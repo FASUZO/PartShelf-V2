@@ -1,0 +1,132 @@
+# ==================== Python ====================
+# 字节编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# 分发/打包
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.qoder/
+.cursor/
+.cursorrules
+
+# ==================== 环境变量 ====================
+.env
+.env.local
+.env.production
+.env.example
+
+# ==================== 数据库 ====================
+# SQLite 数据库文件（如果不想上传数据库）
+# *.db
+# *.sqlite
+# *.sqlite3
+
+# 数据库备份
+*.db.backup
+*.sqlite.backup
+
+# ==================== Docker ====================
+# Docker 相关（保留 Dockerfile 和 docker-compose.yml）
+.dockerignore
+
+# ==================== 操作系统 ====================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ==================== 日志文件 ====================
+*.log
+logs/
+*.log.*
+
+# ==================== 测试和覆盖率 ====================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ==================== Jupyter Notebook ====================
+.ipynb_checkpoints
+
+# ==================== 其他 ====================
+# 临时文件
+*.tmp
+*.temp
+tmp/
+temp/
+
+# 压缩包（如果需要可以保留）
+*.zip
+*.tar.gz
+*.rar
+
+# 文档（可选，根据需要调整）
+# DEPLOYMENT.md
+# *.md except README.md
+
+# Node modules（如果前端使用 npm）
+node_modules/
+
+# ==================== 敏感信息 ====================
+# 密钥文件
+*.pem
+*.key
+*.crt
+
+# 密码文件
+passwords.txt
+secrets/
+
+# ==================== 特定于项目 ====================
+# 如果需要忽略数据库，取消下面的注释
+# db/*.db
+# db/*.sqlite3
+
+# 数据导出文件
+exports/
+downloads/
+
+# 用户上传的文件（如果有）
+uploads/
+media/

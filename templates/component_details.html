@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <title>组件详情</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="../static/css/bootstrap.css" rel="stylesheet">
+    <link href="../static/css/custom.css" rel="stylesheet">
+    <script src="../static/js/bootstrap.bundle.js"></script>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  </head>
+  <body>
+
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-dark bg-dark fixed-top">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/"><i class="fas fa-microchip"></i> PartShelf</a>
+        <a class="btn btn-outline-light" href="/inventory"><i class="fas fa-arrow-left"></i> 返回库存</a>
+      </div>
+    </nav>
+
+    <div class="container mt-5 pt-5">
+      <div class="row">
+        <div class="col-md-8">
+          <h2 id="part-name" class="mb-1">组件名称</h2>
+          <h5 class="text-muted mb-3" id="part-manufacturer">制造商</h5>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <strong>零件ID:</strong> <span id="part-id"></span><br>
+              <strong>类型:</strong> <span id="part-type"></span><br>
+              <strong>封装:</strong> <span id="part-package"></span><br>
+              <strong>LC编号:</strong> <span id="part-lc-number">-</span><br>
+            </div>
+            <div class="col-md-6">
+                <strong>数量:</strong> <span id="part-quantity"></span><br>
+                <strong>有库存:</strong> <span id="in-stock-status" class="text-success">是</span><br>
+                <strong>单价:</strong> <span id="part-price">-</span><br>
+              </div>              
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+          <strong>描述</strong>
+        </div>
+        <div class="card-body">
+          <p id="part-description" class="mb-0 text-muted"></p>
+        </div>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <strong>零件选项</strong>
+        </div>
+        <div class="card-body">
+
+            <!-- 更新数量 -->
+            <div class="mb-4">
+              <h6 class="fw-bold">更新数量</h6>
+              <div class="input-group input-group-sm mb-2">
+                <select class="form-select" id="operationMode" style="max-width: 120px;">
+                  <option value="set">直接设置</option>
+                  <option value="add">增加</option>
+                  <option value="subtract">减少</option>
+                </select>
+                <input type="number" id="updateQuantity" class="form-control" placeholder="输入数量">
+                <button class="btn btn-primary" id="updateQuantityBtn">更新</button>
+              </div>
+              <small class="text-muted" id="operationHint">将数量直接设置为输入值</small>
+            </div>
+          
+            <!-- 其他操作 -->
+            <hr>
+            <div class="d-grid gap-2 d-md-block">
+              <button class="btn btn-info btn-sm me-2" id="viewHistoryBtn"><i class="fas fa-history"></i> 查看使用历史</button>
+              <button class="btn btn-success btn-sm me-2" id="exportDetailsBtn"><i class="fas fa-download"></i> 导出详情</button>
+              <button class="btn btn-danger btn-sm" id="deletePartBtn"><i class="fas fa-trash"></i> 删除零件</button>
+            </div>
+          </div>
+          
+
+    </div>
+    <footer class="text-center py-2 bg-dark text-light fixed-bottom">
+    <small>&copy; 2025 PartShelf。保留所有权利。</small>
+  </footer>
+      
+  </body>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const partId = urlParams.get("id") || urlParams.get("part_id");
+
+    if (!partId) {
+        alert("缺少零件ID参数");
+        window.location.href = "/inventory";
+    } else {
+        // 加载零件详情
+        fetch(`/api/inventory/get_part_by_id?part_id=${partId}`)
+          .then(res => {
+              if (!res.ok) {
+                  throw new Error('Network response was not ok');
+              }
+              return res.json();
+          })
+          .then(data => {
+            document.getElementById("part-id").textContent = data.id;
+            document.getElementById("part-name").textContent = data.name || '未知';
+            document.getElementById("part-manufacturer").textContent = data.manufacturer || '未知';
+            document.getElementById("part-type").textContent = data.part_type || '未知';
+            document.getElementById("part-package").textContent = data.package || '未知';
+            document.getElementById("part-quantity").textContent = data.quantity !== null && data.quantity !== undefined ? data.quantity : '0';
+            document.getElementById("part-description").textContent = data.description || '暂无描述';
+            
+            // 设置LC编号
+            document.getElementById("part-lc-number").textContent = data.lc_number || '-';
+            
+            // 设置单价
+            if (data.price) {
+              document.getElementById("part-price").textContent = '¥' + data.price;
+            } else {
+              document.getElementById("part-price").textContent = '-';
+            }
+            
+            const quantity = data.quantity || 0;
+    
+            const inStockSpan = document.getElementById('in-stock-status');
+            if (quantity > 0) {
+              inStockSpan.textContent = '是';
+              inStockSpan.classList.remove('text-danger');
+              inStockSpan.classList.add('text-success');
+            } else {
+              inStockSpan.textContent = '否';
+              inStockSpan.classList.remove('text-success');
+              inStockSpan.classList.add('text-danger');
+            }
+        })
+          .catch(error => {
+            console.error("加载组件详情时出错:", error);
+            alert("加载组件详情失败: " + error.message);
+          });
+    }
+
+    // 更新数量函数
+    function updateQuantity() {
+        const newQuantity = document.getElementById('updateQuantity').value.trim();
+        const operationMode = document.getElementById('operationMode').value;
+        
+        if (!newQuantity || isNaN(newQuantity)) {
+            alert('请输入有效数量');
+            return;
+        }
+
+        // 使用 FormData 提交
+        const formData = new FormData();
+        formData.append('part_id', partId);
+        
+        // 根据操作模式计算 quantity_change
+        let quantityChange;
+        if (operationMode === 'add') {
+            quantityChange = parseInt(newQuantity);
+        } else if (operationMode === 'subtract') {
+            quantityChange = -parseInt(newQuantity);
+        } else {
+            // set 模式：计算差值
+            const currentQty = parseInt(document.getElementById('part-quantity').textContent) || 0;
+            quantityChange = parseInt(newQuantity) - currentQty;
+        }
+        
+        formData.append('quantity_change', quantityChange);
+        formData.append('remark', '详情页更新');
+
+        fetch('/api/inventory/update_quantity', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.detail || '更新数量失败');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            alert('数量更新成功！');
+            location.reload(); 
+        })
+        .catch(error => {
+            console.error('错误:', error);
+            alert('更新数量时出错: ' + error.message);
+        });
+    }
+
+    // 查看使用历史
+    function viewHistory() {
+        const modalHtml = `
+            <div class="modal fade" id="historyModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header bg-info text-white">
+                            <h5 class="modal-title"><i class="fas fa-history"></i> 使用历史</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive" style="max-height: 500px;">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>时间</th>
+                                            <th>操作</th>
+                                            <th>数量变化</th>
+                                            <th>操作前</th>
+                                            <th>操作后</th>
+                                            <th>备注</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="historyBody">
+                                        <tr><td colspan="6" class="text-center">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = modalHtml;
+        document.body.appendChild(tempDiv.firstElementChild);
+        
+        const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+        modal.show();
+        
+        loadPartHistory();
+        
+        document.getElementById('historyModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    }
+    
+    function loadPartHistory() {
+        fetch(`/api/inventory/inventory_history?part_id=${partId}&page=1&page_size=50`)
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('historyBody');
+                const historyList = data.data || [];
+                
+                if (historyList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无历史记录</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = historyList.map(h => {
+                    const typeBadge = {
+                        'in': '<span class="badge bg-success">入库</span>',
+                        'out': '<span class="badge bg-danger">出库</span>',
+                        'adjust': '<span class="badge bg-warning text-dark">调整</span>'
+                    }[h.operation_type] || '<span class="badge bg-secondary">未知</span>';
+                    
+                    const changeColor = h.quantity_change > 0 ? 'text-success' : (h.quantity_change < 0 ? 'text-danger' : 'text-muted');
+                    const changeSign = h.quantity_change > 0 ? '+' : '';
+                    
+                    return `
+                        <tr>
+                            <td>${formatDateTime(h.created_at)}</td>
+                            <td>${typeBadge}</td>
+                            <td class="${changeColor} fw-bold">${changeSign}${h.quantity_change}</td>
+                            <td>${h.quantity_before}</td>
+                            <td>${h.quantity_after}</td>
+                            <td>${h.remark || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            })
+            .catch(error => {
+                console.error('加载历史失败:', error);
+                document.getElementById('historyBody').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>';
+            });
+    }
+    
+    function formatDateTime(isoString) {
+        if (!isoString) return '-';
+        const date = new Date(isoString);
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // 导出详情为CSV
+    function exportDetails() {
+        const partData = {
+            id: document.getElementById('part-id').textContent,
+            name: document.getElementById('part-name').textContent,
+            manufacturer: document.getElementById('part-manufacturer').textContent,
+            type: document.getElementById('part-type').textContent,
+            package: document.getElementById('part-package').textContent,
+            quantity: document.getElementById('part-quantity').textContent,
+            price: document.getElementById('part-price').textContent,
+            lc_number: document.getElementById('part-lc-number').textContent,
+            description: document.getElementById('part-description').textContent
+        };
+        
+        const csvContent = [
+            ['字段', '值'],
+            ['ID', partData.id],
+            ['名称', partData.name],
+            ['制造商', partData.manufacturer],
+            ['类型', partData.type],
+            ['封装', partData.package],
+            ['数量', partData.quantity],
+            ['单价', partData.price],
+            ['LC编号', partData.lc_number],
+            ['描述', partData.description]
+        ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `零件详情_${partData.name}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // 删除零件
+    function deletePart() {
+        const confirmed = window.confirm("您确定要删除这个零件吗?");
+        if (!confirmed) return;
+
+        fetch(`/api/inventory/delete_part?part_id=${partId}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('删除零件失败');
+            }
+            alert('删除成功！');
+            window.location.href = '/inventory';
+        })
+        .catch(error => {
+            console.error('错误:', error);
+            alert('删除零件时出错');
+        });
+    }
+
+    // 更新操作模式提示
+    function updateOperationHint() {
+        const operationMode = document.getElementById('operationMode').value;
+        const hintElement = document.getElementById('operationHint');
+        
+        switch(operationMode) {
+            case 'add':
+                hintElement.textContent = '在当前数量基础上增加输入的数量';
+                break;
+            case 'subtract':
+                hintElement.textContent = '在当前数量基础上减少输入的数量';
+                break;
+            case 'set':
+            default:
+                hintElement.textContent = '将数量直接设置为输入值';
+                break;
+        }
+    }
+
+    // 绑定事件
+    document.getElementById('updateQuantityBtn').addEventListener('click', updateQuantity);
+    document.getElementById('operationMode').addEventListener('change', updateOperationHint);
+    document.getElementById('viewHistoryBtn').addEventListener('click', viewHistory);
+    document.getElementById('exportDetailsBtn').addEventListener('click', exportDetails);
+    document.getElementById('deletePartBtn').addEventListener('click', deletePart);
+
+    // 初始化提示
+    updateOperationHint();
+
+  </script>
+
+  </html>

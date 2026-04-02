@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>项目 - PartShelf</title>
+    <link href="../static/css/bootstrap.css" rel="stylesheet">
+    <link href="../static/css/custom.css" rel="stylesheet">
+    <script src="../static/js/bootstrap.bundle.js"></script>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+            <i class="fas fa-microchip"></i> PartShelf
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDarkNavbar" aria-controls="offcanvasDarkNavbar" aria-label="切换导航">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="offcanvasDarkNavbar" aria-labelledby="offcanvasDarkNavbarLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasDarkNavbarLabel">菜单</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
+          </div>
+          <div class="offcanvas-body">
+            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+              <li class="nav-item">
+                <a class="nav-link active" href="/inventory"><i class="fas fa-boxes"></i> 我的库存</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/projects"><i class="fas fa-project-diagram"></i> 我的项目</a>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fas fa-tools"></i> 操作
+                </a>
+                <ul class="dropdown-menu dropdown-menu-dark">
+                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentModal"><i class="fas fa-plus"></i> 添加零件</a></li>
+                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentOrderModal"><i class="fas fa-file-import"></i> 导入文件</a></li>
+                  <li><a class="dropdown-item" href="/api/inventory/export_csv" target="_blank"><i class="fas fa-file-csv"></i> 导出 CSV</a></li>
+                  <li><a class="dropdown-item" href="/api/inventory/export_excel" target="_blank"><i class="fas fa-file-excel"></i> 导出 Excel</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#pageSettingsModal"><i class="fas fa-cog"></i> 分页设置</a></li>
+                </ul>
+              </li>
+            </ul>
+            <div class="d-flex align-items-center ms-2">
+                <input class="form-control me-2" type="search" id="searchInput" placeholder="搜索零件名称、描述或参数..." aria-label="搜索">
+                <button class="btn btn-primary me-2 text-nowrap" id="searchButton" type="button">
+                  <i class="fas fa-search"></i> 搜索
+                </button>
+                <button class="btn btn-outline-light text-nowrap collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilterCollapse" aria-expanded="false">
+                  <i class="fas fa-filter"></i> 筛选
+                </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+      
+      <div class="container mt-5 pt-5">
+        <div class="row mb-4">
+            <div class="col-12 d-flex justify-content-between align-items-center">
+                <h2><i class="fas fa-project-diagram text-primary"></i> 我的项目</h2>
+                <button class="btn btn-primary" onclick="openCreateProjectModal()">
+                    <i class="fas fa-plus"></i> 新建项目
+                </button>
+            </div>
+        </div>
+        
+        <div class="row" id="projectsList">
+            <!-- Projects will be loaded here -->
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2 text-muted">正在加载项目列表...</p>
+            </div>
+        </div>
+      </div>
+      
+      <!-- Create Project Modal -->
+      <div class="modal fade" id="createProjectModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新建项目</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createProjectForm">
+                        <div class="mb-3">
+                            <label for="projectName" class="form-label">项目名称 *</label>
+                            <input type="text" class="form-control" id="projectName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="projectDesc" class="form-label">项目描述</label>
+                            <textarea class="form-control" id="projectDesc" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('createProjectForm').dispatchEvent(new Event('submit'))">创建</button>
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <script src="../static/js/projects.js"></script>
+  </body>
+</html>

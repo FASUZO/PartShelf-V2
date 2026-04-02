@@ -1,0 +1,18 @@
+services:
+  partshelf:
+    build: .
+    container_name: partshelf
+    ports:
+      - "1999:8000"
+    restart: unless-stopped
+    volumes:
+      - ./db:/app/db
+    environment:
+      - DATABASE_URL=sqlite:////app/db/partshelf.db
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
