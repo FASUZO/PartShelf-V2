@@ -168,6 +168,8 @@
           <div class="modal-body">
             <form id="editPartForm">
               <input type="hidden" id="editPartId" name="part_id">
+              <input type="hidden" id="editPartCategoryId" name="category_id">
+              <input type="hidden" id="editPartSubcategoryId" name="subcategory_id">
               <div class="row g-3">
                   <div class="col-md-6">
                     <label for="editPartName" class="form-label">零件名称 *</label>
@@ -177,6 +179,19 @@
                     <label for="editPartManufacturer" class="form-label">制造商 *</label>
                     <input type="text" class="form-control" id="editPartManufacturer" name="manufacturer" required>
                   </div>
+                  <div class="col-md-6">
+                    <label for="editPartCategory" class="form-label">类别</label>
+                    <select class="form-select" id="editPartCategory">
+                      <option value="">-- 选择类别 --</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="editPartSubcategory" class="form-label">子类别</label>
+                    <select class="form-select" id="editPartSubcategory">
+                      <option value="">-- 无 --</option>
+                    </select>
+                  </div>
+                  <div id="editParamTemplateFields" class="col-12"></div>
                   <div class="col-md-6">
                     <label for="editPartPackage" class="form-label">封装 *</label>
                     <input type="text" class="form-control" id="editPartPackage" name="package" required>
@@ -195,11 +210,6 @@
                   <div class="col-12">
                     <label for="editPartDescription" class="form-label">描述</label>
                     <textarea class="form-control" id="editPartDescription" name="description" rows="2"></textarea>
-                  </div>
-                  <div class="col-12">
-                    <label for="editPartOther" class="form-label">参数 (JSON格式)</label>
-                    <textarea class="form-control" id="editPartOther" name="other" rows="4" placeholder='{"阻值":"10K","功率":"0.25W","精度":"1%"}'></textarea>
-                    <div class="form-text">请输入JSON格式的参数数据，例如: {"阻值":"10K","功率":"0.25W"}</div>
                   </div>
               </div>
               <div class="modal-footer mt-4 px-0 pb-0">

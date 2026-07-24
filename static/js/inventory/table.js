@@ -144,7 +144,15 @@ async function editPart(id) {
         document.getElementById('editPartPrice').value = data.price || '';
         document.getElementById('editPartLcNumber').value = data.lc_number || '';
         document.getElementById('editPartDescription').value = data.description || '';
-        document.getElementById('editPartOther').value = data.other || '';
+        document.getElementById('editPartCategoryId').value = data.category_id || '';
+        document.getElementById('editPartSubcategoryId').value = data.subcategory_id || '';
+        
+        // 加载类别和子类别选项
+        populateEditCategorySelect(data.category_id);
+        populateEditSubcategorySelect(data.category_id, data.subcategory_id);
+        
+        // 加载参数模板并预填参数值
+        loadEditParamTemplate(data.category_id, data.subcategory_id, data.other);
         
         // 显示编辑模态框
         const modal = new bootstrap.Modal(document.getElementById('editPartModal'));
@@ -303,6 +311,125 @@ async function deleteDetailPart() {
     }
 }
 
+// 填充编辑模态框的类别下拉
+function populateEditCategorySelect(selectedCatId) {
+    const select = document.getElementById('editPartCategory');
+    if (!select) return;
+    
+    // 保留第一个 placeholder option
+    const firstOpt = select.options[0];
+    select.innerHTML = '';
+    if (firstOpt) select.appendChild(firstOpt);
+    
+    const categories = getCategories();
+    categories.forEach(function(cat) {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        if (cat.id == selectedCatId) opt.selected = true;
+        select.appendChild(opt);
+    });
+    
+    // 绑定类别变化事件
+    select.addEventListener('change', function() {
+        const catId = parseInt(this.value) || null;
+        document.getElementById('editPartCategoryId').value = catId || '';
+        populateEditSubcategorySelect(catId, null);
+        loadEditParamTemplate(catId, null, null);
+    });
+}
+
+// 填充编辑模态框的子类别下拉
+function populateEditSubcategorySelect(catId, selectedSubcatId) {
+    const select = document.getElementById('editPartSubcategory');
+    if (!select) return;
+    
+    const firstOpt = select.options[0];
+    select.innerHTML = '';
+    if (firstOpt) select.appendChild(firstOpt);
+    
+    if (!catId) return;
+    
+    const subcats = getSubcategoriesByCategoryId(catId);
+    subcats.forEach(function(sub) {
+        const opt = document.createElement('option');
+        opt.value = sub.id;
+        opt.textContent = sub.name;
+        if (sub.id == selectedSubcatId) opt.selected = true;
+        select.appendChild(opt);
+    });
+    
+    // 绑定子类别变化事件
+    select.addEventListener('change', function() {
+        const subcatId = parseInt(this.value) || null;
+        document.getElementById('editPartSubcategoryId').value = subcatId || '';
+        const catId = parseInt(document.getElementById('editPartCategory').value) || null;
+        loadEditParamTemplate(catId, subcatId, null);
+    });
+}
+
+// 加载编辑模态框的参数模板
+function loadEditParamTemplate(catId, subcatId, existingParams) {
+    const container = document.getElementById('editParamTemplateFields');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // 查找最匹配的模板
+    let templates = [];
+    if (subcatId) {
+        templates = getTemplatesForSubcategory(subcatId);
+    }
+    if (templates.length === 0 && catId) {
+        templates = getTemplatesForCategory(catId);
+    }
+    if (templates.length === 0) return;
+    
+    const tpl = templates[0];
+    let fields = [];
+    try {
+        const def = JSON.parse(tpl.definition_json || '{}');
+        fields = def.fields || [];
+    } catch (e) {
+        return;
+    }
+    if (fields.length === 0) return;
+    
+    // 解析已有参数
+    let params = {};
+    if (existingParams) {
+        try {
+            params = JSON.parse(existingParams);
+        } catch (e) {
+            // 忽略解析错误
+        }
+    }
+    
+    // 渲染参数字段
+    let html = '<div class="row g-2">';
+    fields.forEach(function(field) {
+        const value = params[field] || '';
+        html += '<div class="col-md-4">' +
+            '<label class="form-label">' + escapeHtml(field) + '</label>' +
+            '<input type="text" class="form-control edit-param-field" data-param-name="' + escapeHtml(field) + '" value="' + escapeHtml(value) + '">' +
+            '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// 序列化编辑模态框的参数字段
+function serializeEditParamFields() {
+    const fields = document.querySelectorAll('#editParamTemplateFields .edit-param-field');
+    if (fields.length === 0) return null;
+    const params = {};
+    fields.forEach(function(f) {
+        if (f.value.trim()) {
+            params[f.dataset.paramName] = f.value.trim();
+        }
+    });
+    return Object.keys(params).length > 0 ? JSON.stringify(params) : null;
+}
+
 // 保存编辑的器件信息
 async function saveEditPart() {
     const partId = document.getElementById('editPartId').value;
@@ -315,7 +442,7 @@ async function saveEditPart() {
     formData.append('price', document.getElementById('editPartPrice').value || '');
     formData.append('lc_number', document.getElementById('editPartLcNumber').value || '');
     formData.append('description', document.getElementById('editPartDescription').value || '');
-    formData.append('other', document.getElementById('editPartOther').value || '');
+    formData.append('other', serializeEditParamFields() || '');
     
     try {
         const response = await fetch('/api/inventory/update_part', {
@@ -394,3 +521,7 @@ window.exportDetailDetails = exportDetailDetails;
 window.deleteDetailPart = deleteDetailPart;
 window.parsePartParams = parsePartParams;
 window.populateParamsTable = populateParamsTable;
+window.populateEditCategorySelect = populateEditCategorySelect;
+window.populateEditSubcategorySelect = populateEditSubcategorySelect;
+window.loadEditParamTemplate = loadEditParamTemplate;
+window.serializeEditParamFields = serializeEditParamFields;
