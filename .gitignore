@@ -79,7 +79,7 @@ $RECYCLE.BIN/
 logs/
 *.log.*
 
-# ==================== 测试和覆盖率 ====================
+# ==================== 测试和调试 ====================
 .pytest_cache/
 .coverage
 htmlcov/
@@ -91,6 +91,25 @@ fix_*.py
 test_*.py
 run_test.py
 full_test.py
+add_test_*.py
+update_*.py
+run_*.py
+
+# ==================== 临时脚本 ====================
+start.sh
+*.sh
+
+# ==================== 文档和报告 ====================
+docs/compose/
+Agent.md
+DEPLOYMENT.md
+
+# ==================== 其他临时文件 ====================
+*.tmp
+*.temp
+*.log
+*.bak
+*.swp
 
 # ==================== Jupyter Notebook ====================
 .ipynb_checkpoints
