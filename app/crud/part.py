@@ -55,3 +55,9 @@ def delete_part(db: Session, part_to_delete: Part):
     # 删除零件
     db.delete(part_to_delete)
     db.commit()
+
+def update_part(db: Session, part: Part):
+    """更新零件信息"""
+    db.commit()
+    db.refresh(part)
+    return part

@@ -157,6 +157,61 @@
       </div>
     </div>
 
+    <!-- 编辑零件模态框 -->
+    <div class="modal fade" id="editPartModal" tabindex="-1" aria-labelledby="editPartModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title" id="editPartModalLabel"><i class="fas fa-edit"></i> 编辑零件</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body">
+            <form id="editPartForm">
+              <input type="hidden" id="editPartId" name="part_id">
+              <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="editPartName" class="form-label">零件名称 *</label>
+                    <input type="text" class="form-control" id="editPartName" name="name" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="editPartManufacturer" class="form-label">制造商 *</label>
+                    <input type="text" class="form-control" id="editPartManufacturer" name="manufacturer" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="editPartPackage" class="form-label">封装 *</label>
+                    <input type="text" class="form-control" id="editPartPackage" name="package" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="editPartPrice" class="form-label">单价</label>
+                    <div class="input-group">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" step="0.01" class="form-control" id="editPartPrice" name="price">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="editPartLcNumber" class="form-label">LC编号</label>
+                    <input type="text" class="form-control" id="editPartLcNumber" name="lc_number">
+                  </div>
+                  <div class="col-12">
+                    <label for="editPartDescription" class="form-label">描述</label>
+                    <textarea class="form-control" id="editPartDescription" name="description" rows="2"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <label for="editPartOther" class="form-label">参数 (JSON格式)</label>
+                    <textarea class="form-control" id="editPartOther" name="other" rows="4" placeholder='{"阻值":"10K","功率":"0.25W","精度":"1%"}'></textarea>
+                    <div class="form-text">请输入JSON格式的参数数据，例如: {"阻值":"10K","功率":"0.25W"}</div>
+                  </div>
+              </div>
+              <div class="modal-footer mt-4 px-0 pb-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-warning">保存修改</button>
+              </div>
+            </form> 
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 导入文件模态框 -->
     <div class="modal fade" id="addComponentOrderModal" tabindex="-1" aria-labelledby="addComponentOrderModalLabel" aria-hidden="true">
       <div class="modal-dialog">

@@ -352,6 +352,44 @@ class InventoryService:
         delete_part(db, part_to_delete)
 
     @staticmethod
+    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None):
+        """更新零件信息"""
+        from app.crud.part import update_part
+        from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
+        from app.crud.package import get_package_by_name, create_part_package
+        
+        part = get_part_by_id(db, part_id)
+        if part is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Part with id = {part_id} does not exist"
+            )
+        
+        # 获取或创建制造商
+        db_manufacturer = get_manufacturer_by_name(db, manufacturer)
+        if not db_manufacturer:
+            db_manufacturer = create_manufacturer(db, manufacturer)
+        
+        # 获取或创建封装
+        db_package = get_package_by_name(db, package)
+        if not db_package:
+            db_package = create_part_package(db, package)
+        
+        # 更新零件信息
+        part.name = name
+        part.manufacturer_id = db_manufacturer.id
+        part.package_id = db_package.id
+        part.price = price if price else None
+        part.lc_number = lc_number if lc_number else None
+        part.description = description if description else None
+        part.other = other if other else None
+        
+        db.commit()
+        db.refresh(part)
+        
+        return {"success": True, "message": "零件更新成功"}
+
+    @staticmethod
     def get_all_manufacturers(db: Session):
         """获取所有制造商"""
         from app.crud.manufacturer import get_all_manufacturers as crud_get_all_manufacturers

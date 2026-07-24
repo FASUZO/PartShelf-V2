@@ -176,6 +176,21 @@ def get_part_by_id(part_id: int = Query(..., description="ID of the part to retr
     """根据ID获取零件详情"""
     return InventoryService.get_part_by_id(db, part_id)
 
+@router.post("/update_part")
+def update_part(
+    part_id: int = Form(...),
+    name: str = Form(...),
+    manufacturer: str = Form(...),
+    package: str = Form(...),
+    price: str = Form(None),
+    lc_number: str = Form(None),
+    description: str = Form(None),
+    other: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    """更新零件信息"""
+    return InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other)
+
 @router.get("/search")
 def search_in_inventory(search_key:str, db: Session = Depends(get_db)):
     """搜索零件"""

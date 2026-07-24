@@ -96,6 +96,9 @@ function updateTable(data) {
                     <button class="btn btn-sm btn-outline-info action-btn" onclick="viewDetails(${item.id})" title="详情">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button class="btn btn-sm btn-outline-warning action-btn" onclick="editPart(${item.id})" title="编辑">
+                        <i class="fas fa-edit"></i>
+                    </button>
                 </div>
             </td>
         `;
@@ -123,6 +126,33 @@ function viewDetails(id) {
     const modal = new bootstrap.Modal(document.getElementById('componentDetailModal'));
     modal.show();
     loadComponentDetails(id);
+}
+
+// 编辑器件（打开编辑模态框）
+async function editPart(id) {
+    try {
+        const response = await fetch(`/api/inventory/get_part_by_id?part_id=${id}`);
+        if (!response.ok) throw new Error('加载失败');
+
+        const data = await response.json();
+        
+        // 填充编辑表单
+        document.getElementById('editPartId').value = data.id;
+        document.getElementById('editPartName').value = data.name || '';
+        document.getElementById('editPartManufacturer').value = data.manufacturer || '';
+        document.getElementById('editPartPackage').value = data.package || '';
+        document.getElementById('editPartPrice').value = data.price || '';
+        document.getElementById('editPartLcNumber').value = data.lc_number || '';
+        document.getElementById('editPartDescription').value = data.description || '';
+        document.getElementById('editPartOther').value = data.other || '';
+        
+        // 显示编辑模态框
+        const modal = new bootstrap.Modal(document.getElementById('editPartModal'));
+        modal.show();
+    } catch (error) {
+        console.error('加载器件数据失败:', error);
+        alert('加载器件数据失败: ' + error.message);
+    }
 }
 
 // 加载器件详情数据
@@ -273,6 +303,40 @@ async function deleteDetailPart() {
     }
 }
 
+// 保存编辑的器件信息
+async function saveEditPart() {
+    const partId = document.getElementById('editPartId').value;
+    const formData = new FormData();
+    
+    formData.append('part_id', partId);
+    formData.append('name', document.getElementById('editPartName').value);
+    formData.append('manufacturer', document.getElementById('editPartManufacturer').value);
+    formData.append('package', document.getElementById('editPartPackage').value);
+    formData.append('price', document.getElementById('editPartPrice').value || '');
+    formData.append('lc_number', document.getElementById('editPartLcNumber').value || '');
+    formData.append('description', document.getElementById('editPartDescription').value || '');
+    formData.append('other', document.getElementById('editPartOther').value || '');
+    
+    try {
+        const response = await fetch('/api/inventory/update_part', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || '更新失败');
+        }
+        
+        alert('更新成功！');
+        bootstrap.Modal.getInstance(document.getElementById('editPartModal')).hide();
+        applyAdvancedFilter();
+    } catch (error) {
+        console.error('更新器件失败:', error);
+        alert('更新器件时出错: ' + error.message);
+    }
+}
+
 // 解析器件参数
 function parsePartParams(otherJson) {
     if (!otherJson) return null;
@@ -319,6 +383,8 @@ window.handleSort = handleSort;
 window.updateSortHeaders = updateSortHeaders;
 window.updateTable = updateTable;
 window.viewDetails = viewDetails;
+window.editPart = editPart;
+window.saveEditPart = saveEditPart;
 window.loadComponentDetails = loadComponentDetails;
 window.populateModal = populateModal;
 window.updateDetailOperationHint = updateDetailOperationHint;

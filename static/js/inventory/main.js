@@ -107,6 +107,17 @@ function bindDetailModalEvents() {
     if (deleteBtn) deleteBtn.addEventListener('click', deleteDetailPart);
 }
 
+// 绑定编辑零件表单
+function bindEditPartForm() {
+    const editForm = document.getElementById('editPartForm');
+    if (!editForm) return;
+    
+    editForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        saveEditPart();
+    });
+}
+
 // ==================== 表单处理 ====================
 
 // 绑定文件导入表单
@@ -269,6 +280,9 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     // 绑定详情模态框事件
     bindDetailModalEvents();
+    
+    // 绑定编辑零件表单
+    bindEditPartForm();
     
     // 绑定历史记录筛选
     const historyFilter = document.getElementById('historyOperationFilter');
