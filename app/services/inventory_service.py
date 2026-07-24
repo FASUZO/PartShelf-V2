@@ -382,7 +382,18 @@ class InventoryService:
         part.price = price if price else None
         part.lc_number = lc_number if lc_number else None
         part.description = description if description else None
-        part.other = other if other else None
+        
+        # 处理 other 字段：确保是有效的JSON或None
+        if other and other.strip() and other.strip() != 'None':
+            try:
+                import json as _json
+                # 验证是否为有效JSON
+                _json.loads(other)
+                part.other = other
+            except (ValueError, TypeError):
+                part.other = None
+        else:
+            part.other = None
         
         db.commit()
         db.refresh(part)
@@ -455,7 +466,7 @@ class InventoryService:
             all_parts = query.all()
             filtered_ids = []
             for part in all_parts:
-                if not part.other:
+                if not part.other or part.other == 'None':
                     continue
                 try:
                     params = _json.loads(part.other)
@@ -552,7 +563,8 @@ class InventoryService:
         parts = db.query(Part).filter(
             Part.category_id == category_id,
             Part.other.isnot(None),
-            Part.other != ''
+            Part.other != '',
+            Part.other != 'None'
         ).all()
 
         param_values: Dict[str, set] = {}

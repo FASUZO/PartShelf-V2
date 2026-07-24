@@ -40,12 +40,22 @@ def get_part_by_id(db: Session, id: int):
     return db_part
 
 def get_parts_containing_key(db: Session, search_key: str):
+    """搜索零件（支持名称、编号模糊匹配，支持?和%通配符）"""
+    # 将?转换为_（SQL通配符，匹配单个字符）
+    # 将*转换为%（SQL通配符，匹配任意字符）
+    search_pattern = search_key.replace('?', '_').replace('*', '%')
+    # 如果没有通配符，则添加%进行模糊匹配
+    if '%' not in search_pattern and '_' not in search_pattern:
+        search_pattern = f'%{search_pattern}%'
+    
     return db.query(Part).options(
         joinedload(Part.manufacturer),
         joinedload(Part.type),
         joinedload(Part.package),
         joinedload(Part.inventory)
-    ).filter(Part.name.ilike(f'%{search_key}%')).all()
+    ).filter(
+        (Part.name.ilike(search_pattern)) | (Part.part_number.ilike(search_pattern))
+    ).all()
 
 def delete_part(db: Session, part_to_delete: Part):
     # 先删除相关的库存记录

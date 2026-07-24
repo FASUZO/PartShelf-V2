@@ -442,14 +442,14 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
 // 序列化编辑模态框的参数字段
 function serializeEditParamFields() {
     const fields = document.querySelectorAll('#editParamTemplateFields .edit-param-field');
-    if (fields.length === 0) return null;
+    if (fields.length === 0) return '';
     const params = {};
     fields.forEach(function(f) {
         if (f.value.trim()) {
             params[f.dataset.paramName] = f.value.trim();
         }
     });
-    return Object.keys(params).length > 0 ? JSON.stringify(params) : null;
+    return Object.keys(params).length > 0 ? JSON.stringify(params) : '';
 }
 
 // 保存编辑的器件信息
@@ -464,7 +464,7 @@ async function saveEditPart() {
     formData.append('price', document.getElementById('editPartPrice').value || '');
     formData.append('lc_number', document.getElementById('editPartLcNumber').value || '');
     formData.append('description', document.getElementById('editPartDescription').value || '');
-    formData.append('other', serializeEditParamFields() || '');
+    formData.append('other', serializeEditParamFields());
     
     try {
         const response = await fetch('/api/inventory/update_part', {
