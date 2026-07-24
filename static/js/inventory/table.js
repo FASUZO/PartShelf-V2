@@ -215,7 +215,9 @@ function populateModal(data) {
     document.getElementById('componentDetailModal').dataset.partId = data.id;
 
     // 解析并填充参数
+    console.log('populateModal - data.other:', data.other);
     const params = parsePartParams(data.other);
+    console.log('populateModal - parsed params:', params);
     populateParamsTable(params, data.category_id, data.subcategory_id);
 }
 
@@ -588,7 +590,12 @@ function populateParamsTable(params, catId, subcatId) {
     const tbody = document.getElementById('detailParamsBody');
     const card = document.getElementById('detailParamsCard');
 
+    console.log('populateParamsTable - params:', params);
+    console.log('populateParamsTable - tbody:', tbody);
+    console.log('populateParamsTable - card:', card);
+
     if (!params || !params.values || Object.keys(params.values).length === 0) {
+        console.log('populateParamsTable - hiding card, no params');
         card.style.display = 'none';
         return;
     }
