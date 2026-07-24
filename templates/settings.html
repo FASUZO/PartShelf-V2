@@ -219,7 +219,16 @@
           <div class="col-md-6"><label class="form-label">所属子类别</label><select class="form-select" id="tplEditSubcategory"><option value="">-- 全局（不限子类别）--</option></select></div>
         </div>
         <div class="mb-3"><label class="form-label">模板名称 *</label><input type="text" class="form-control" id="tplEditName" placeholder="如 电阻-主参数"></div>
-        <div class="mb-3"><label class="form-label">参数字段（每行一个）</label><textarea class="form-control" id="tplEditFields" rows="4" placeholder="阻值&#10;功率&#10;封装"></textarea><div class="form-text">每行一个字段名，将自动生成 JSON。全局字段（如封装）会自动继承。</div></div>
+        <div class="mb-3">
+          <label class="form-label">参数字段</label>
+          <div id="tplFieldsContainer">
+            <!-- 动态添加的字段行 -->
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addFieldRow()">
+            <i class="fas fa-plus me-1"></i>添加字段
+          </button>
+          <div class="form-text">每个字段可以设置名称和单位。全局字段（如封装）会自动继承。</div>
+        </div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-warning" onclick="saveTemplate()">保存</button></div>
     </div></div></div>
@@ -230,6 +239,71 @@
 
       // 全局参数字段（所有类别共享）
       var GLOBAL_FIELDS = ['封装'];
+      
+      // 常用单位列表
+      var COMMON_UNITS = [
+        '', 'Ω', 'kΩ', 'MΩ', 'mΩ',  // 电阻
+        'F', 'μF', 'nF', 'pF',  // 电容
+        'H', 'mH', 'μH', 'nH',  // 电感
+        'V', 'mV', 'kV',  // 电压
+        'A', 'mA', 'μA',  // 电流
+        'W', 'mW', 'kW',  // 功率
+        'Hz', 'kHz', 'MHz', 'GHz',  // 频率
+        '℃', '℉',  // 温度
+        '%',  // 百分比
+        'dB', 'dBm',  // 分贝
+        'mm', 'cm', 'm', 'inch',  // 长度
+        'g', 'kg', 'mg',  // 重量
+        's', 'ms', 'μs', 'ns',  // 时间
+        'ppm', 'ppm/℃'  // 温度系数
+      ];
+      
+      // 添加字段行
+      function addFieldRow(name, unit) {
+        name = name || '';
+        unit = unit || '';
+        var container = document.getElementById('tplFieldsContainer');
+        var row = document.createElement('div');
+        row.className = 'input-group mb-2';
+        row.innerHTML = `
+          <input type="text" class="form-control form-control-sm field-name" placeholder="字段名称" value="${escapeHtml(name)}">
+          <select class="form-select form-select-sm field-unit" style="max-width: 120px;">
+            ${COMMON_UNITS.map(function(u) { return '<option value="' + escapeHtml(u) + '"' + (u === unit ? ' selected' : '') + '>' + (u || '无单位') + '</option>'; }).join('')}
+          </select>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFieldRow(this)">
+            <i class="fas fa-times"></i>
+          </button>
+        `;
+        container.appendChild(row);
+      }
+      
+      // 删除字段行
+      function removeFieldRow(btn) {
+        btn.closest('.input-group').remove();
+      }
+      
+      // 获取所有字段
+      function getFieldsFromUI() {
+        var fields = [];
+        var units = {};
+        var rows = document.querySelectorAll('#tplFieldsContainer .input-group');
+        rows.forEach(function(row) {
+          var name = row.querySelector('.field-name').value.trim();
+          var unit = row.querySelector('.field-unit').value;
+          if (name) {
+            fields.push(name);
+            if (unit) {
+              units[name] = unit;
+            }
+          }
+        });
+        return { fields: fields, units: units };
+      }
+      
+      // 清空字段行
+      function clearFieldRows() {
+        document.getElementById('tplFieldsContainer').innerHTML = '';
+      }
 
       async function loadBundle() {
         var resp = await fetch('/api/config/bundle');
@@ -424,7 +498,7 @@
         if (!selectedCatId) return;
         document.getElementById('tplEditId').value = '';
         document.getElementById('tplEditName').value = '';
-        document.getElementById('tplEditFields').value = '';
+        clearFieldRows();
         var cat = bundle.categories.find(function(c) { return c.id === selectedCatId; });
         document.getElementById('tplCatDisplay').value = cat ? cat.name : '';
         var sel = document.getElementById('tplEditSubcategory');
@@ -448,9 +522,22 @@
         bundle.subcategories.filter(function(s) { return s.category_id === t.category_id; }).forEach(function(s) {
           sel.innerHTML += '<option value="' + s.id + '"' + (s.id === t.subcategory_id ? ' selected' : '') + '>' + s.name + '</option>';
         });
+        
+        // 解析字段和单位
         var fields = [];
-        try { fields = JSON.parse(t.definition_json).fields || []; } catch(e) {}
-        document.getElementById('tplEditFields').value = fields.join('\n');
+        var units = {};
+        try {
+          var def = JSON.parse(t.definition_json);
+          fields = def.fields || [];
+          units = def.units || {};
+        } catch(e) {}
+        
+        // 清空并重新添加字段行
+        clearFieldRows();
+        fields.forEach(function(field) {
+          addFieldRow(field, units[field] || '');
+        });
+        
         document.getElementById('tplModalTitle').textContent = '编辑参数模板';
         new bootstrap.Modal(document.getElementById('templateModal')).show();
       }
@@ -459,10 +546,13 @@
         var id = document.getElementById('tplEditId').value;
         var subId = parseInt(document.getElementById('tplEditSubcategory').value) || null;
         var name = document.getElementById('tplEditName').value.trim();
-        var fieldsText = document.getElementById('tplEditFields').value.trim();
         if (!name) { alert('模板名称必填'); return; }
-        var fields = fieldsText.split('\n').map(function(f) { return f.trim(); }).filter(function(f) { return f; });
-        var defJson = JSON.stringify({fields: fields});
+        
+        // 获取字段和单位
+        var fieldData = getFieldsFromUI();
+        if (fieldData.fields.length === 0) { alert('请至少添加一个参数字段'); return; }
+        
+        var defJson = JSON.stringify({fields: fieldData.fields, units: fieldData.units});
         if (id) {
           await fetch('/api/config/param_templates/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: name, subcategory_id: subId, definition_json: defJson}) });
         } else {

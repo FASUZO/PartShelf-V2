@@ -48,6 +48,14 @@ function applyAdvancedFilter() {
     .then(data => {
         currentSearchFilter = filterData;
         updateTable(data);
+        
+        // 保存筛选状态到URL和localStorage
+        if (typeof saveFilterStateToURL === 'function') {
+            saveFilterStateToURL();
+        }
+        if (typeof saveToLocalStorage === 'function') {
+            saveToLocalStorage();
+        }
     })
     .catch(error => {
         console.error('Search failed:', error);
@@ -292,6 +300,11 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     // 检查 MQTT 状态（导航栏指示器）
     updateNavMqttStatus();
+    
+    // 恢复页面筛选状态
+    if (typeof restoreFilterStateFromURL === 'function') {
+        restoreFilterStateFromURL();
+    }
 });
 
 // MQTT 状态指示器
