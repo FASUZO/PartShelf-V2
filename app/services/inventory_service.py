@@ -113,6 +113,7 @@ class InventoryService:
             quantity=part.inventory.quantity_available if part.inventory else None,
             description=part.description if part.description else None,
             price=InventoryService._parse_price(part.price),
+            price_display=str(part.price) if part.price else None,
             lc_number=part.lc_number,
             other=part.other,
             category_id=getattr(part, 'category_id', None),

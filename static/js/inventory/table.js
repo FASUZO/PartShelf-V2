@@ -141,7 +141,7 @@ async function editPart(id) {
         document.getElementById('editPartName').value = data.name || '';
         document.getElementById('editPartManufacturer').value = data.manufacturer || '';
         document.getElementById('editPartPackage').value = data.package || '';
-        document.getElementById('editPartPrice').value = data.price || '';
+        document.getElementById('editPartPrice').value = data.price_display || data.price || '';
         document.getElementById('editPartLcNumber').value = data.lc_number || '';
         document.getElementById('editPartDescription').value = data.description || '';
         document.getElementById('editPartCategoryId').value = data.category_id || '';

@@ -30,7 +30,8 @@ class PartInventoryFlatGet(BaseModel):
     package: str
     quantity: int
     description: str | None = None
-    price: float | None = None  # 单价
+    price: float | None = None  # 单价（解析后的数值）
+    price_display: str | None = None  # 单价显示（保留原始格式如 0.06@100）
     lc_number: str | None = None  # LC编号
     other: str | None = None  # 其他信息
     category_id: int | None = None
@@ -48,6 +49,7 @@ class PartDetailsFlatGet(BaseModel):
     quantity: int | None = None
     description: str | None = None
     price: float | None = None
+    price_display: str | None = None  # 单价显示（保留原始格式如 0.06@100）
     lc_number: str | None = None
     other: str | None = None
     category_id: int | None = None
