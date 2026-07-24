@@ -250,18 +250,39 @@ def _get_inventory_data(db: Session) -> List:
 @router.get("/export_csv")
 def export_inventory_csv(db: Session = Depends(get_db)):
     """导出库存数据为CSV格式"""
+    import json as _json
     inventory_data = _get_inventory_data(db)
+    
+    # 收集所有参数字段
+    all_param_fields = set()
+    for item in inventory_data:
+        if item.other:
+            try:
+                data = _json.loads(item.other)
+                if isinstance(data, dict):
+                    if 'fields' in data and 'values' in data:
+                        # 新格式
+                        all_param_fields.update(data.get('values', {}).keys())
+                    else:
+                        # 旧格式
+                        all_param_fields.update(data.keys())
+            except:
+                pass
+    
+    param_fields = sorted(list(all_param_fields))
     
     # 创建CSV内容
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # 写入表头 (使用英文字段以提高兼容性)
-    writer.writerow(['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
+    # 写入表头
+    headers = ['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers.extend(param_fields)
+    writer.writerow(headers)
     
     # 写入数据
     for item in inventory_data:
-        writer.writerow([
+        row = [
             item.id,
             item.name,
             item.manufacturer,
@@ -271,7 +292,28 @@ def export_inventory_csv(db: Session = Depends(get_db)):
             item.lc_number if item.lc_number else '',
             item.price_display if item.price_display else (item.price if item.price else ''),
             item.description if item.description else ''
-        ])
+        ]
+        
+        # 解析参数
+        params = {}
+        if item.other:
+            try:
+                data = _json.loads(item.other)
+                if isinstance(data, dict):
+                    if 'fields' in data and 'values' in data:
+                        # 新格式
+                        params = data.get('values', {})
+                    else:
+                        # 旧格式
+                        params = data
+            except:
+                pass
+        
+        # 添加参数值
+        for param_name in param_fields:
+            row.append(str(params.get(param_name, '')))
+        
+        writer.writerow(row)
     
     csv_content = output.getvalue()
     output.close()
@@ -309,15 +351,36 @@ def export_import_template(db: Session = Depends(get_db)):
 @router.get("/export_excel")
 def export_inventory_excel(db: Session = Depends(get_db)):
     """导出库存数据为Excel格式"""
+    import json as _json
     inventory_data = _get_inventory_data(db)
+    
+    # 收集所有参数字段
+    all_param_fields = set()
+    for item in inventory_data:
+        if item.other:
+            try:
+                data = _json.loads(item.other)
+                if isinstance(data, dict):
+                    if 'fields' in data and 'values' in data:
+                        # 新格式
+                        all_param_fields.update(data.get('values', {}).keys())
+                    else:
+                        # 旧格式
+                        all_param_fields.update(data.keys())
+            except:
+                pass
+    
+    param_fields = sorted(list(all_param_fields))
     
     # 创建工作簿和工作表
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "库存清单"
     
-    # 写入表头 (使用英文字段以提高兼容性)
+    # 写入表头
     headers = ['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers.extend(param_fields)
+    
     for col, header in enumerate(headers, 1):
         worksheet.cell(row=1, column=col, value=header)
         worksheet.cell(row=1, column=col).font = worksheet.cell(row=1, column=col).font.copy(bold=True)
@@ -333,6 +396,26 @@ def export_inventory_excel(db: Session = Depends(get_db)):
         worksheet.cell(row=row_idx, column=7, value=item.lc_number if item.lc_number else '')
         worksheet.cell(row=row_idx, column=8, value=item.price_display if item.price_display else (item.price if item.price else ''))
         worksheet.cell(row=row_idx, column=9, value=item.description if item.description else '')
+        
+        # 解析参数
+        if item.other:
+            try:
+                data = _json.loads(item.other)
+                if isinstance(data, dict):
+                    params = {}
+                    if 'fields' in data and 'values' in data:
+                        # 新格式
+                        params = data.get('values', {})
+                    else:
+                        # 旧格式
+                        params = data
+                    
+                    for param_name, param_value in params.items():
+                        if param_name in param_fields:
+                            col_idx = headers.index(param_name) + 1
+                            worksheet.cell(row=row_idx, column=col_idx, value=str(param_value))
+            except:
+                pass
     
     # 自动调整列宽
     for column in worksheet.columns:
