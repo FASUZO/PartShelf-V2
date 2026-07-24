@@ -601,8 +601,49 @@ function populateParamsTable(params, catId, subcatId) {
         return;
     }
 
-    // 检查参数是否有效
+    // 如果没有参数数据，尝试从模板获取字段定义
     if (!params || !params.values || Object.keys(params.values).length === 0) {
+        // 尝试从参数模板获取字段定义
+        try {
+            let templates = [];
+            if (subcatId) {
+                templates = getTemplatesForSubcategory(subcatId);
+            }
+            if (templates.length === 0 && catId) {
+                templates = getTemplatesForCategory(catId);
+            }
+            if (templates.length > 0) {
+                const def = JSON.parse(templates[0].definition_json || '{}');
+                const fields = def.fields || [];
+                const units = def.units || {};
+                
+                // 过滤掉固定字段
+                const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+                const filteredFields = fields.filter(f => !fixedFields.includes(f));
+                
+                if (filteredFields.length > 0) {
+                    // 显示参数卡片，使用默认值
+                    card.style.display = 'block';
+                    tbody.innerHTML = '';
+                    
+                    for (const field of filteredFields) {
+                        const unit = units[field] || '';
+                        const unitHtml = unit ? ' <span class="badge bg-secondary">' + escapeHtml(unit) + '</span>' : '';
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><strong>${escapeHtml(field)}</strong></td>
+                            <td>${escapeHtml('-')}${unitHtml}</td>
+                        `;
+                        tbody.appendChild(row);
+                    }
+                    return;
+                }
+            }
+        } catch (e) {
+            // 忽略错误
+        }
+        
+        // 如果没有模板或模板为空，隐藏参数卡片
         card.style.display = 'none';
         return;
     }
