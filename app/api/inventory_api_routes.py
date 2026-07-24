@@ -269,7 +269,7 @@ def export_inventory_csv(db: Session = Depends(get_db)):
             item.package,
             item.quantity,
             item.lc_number if item.lc_number else '',
-            item.price if item.price else '',
+            item.price_display if item.price_display else (item.price if item.price else ''),
             item.description if item.description else ''
         ])
     
@@ -331,7 +331,7 @@ def export_inventory_excel(db: Session = Depends(get_db)):
         worksheet.cell(row=row_idx, column=5, value=item.package)
         worksheet.cell(row=row_idx, column=6, value=item.quantity)
         worksheet.cell(row=row_idx, column=7, value=item.lc_number if item.lc_number else '')
-        worksheet.cell(row=row_idx, column=8, value=item.price if item.price else '')
+        worksheet.cell(row=row_idx, column=8, value=item.price_display if item.price_display else (item.price if item.price else ''))
         worksheet.cell(row=row_idx, column=9, value=item.description if item.description else '')
     
     # 自动调整列宽
