@@ -1,0 +1,62 @@
+<!-- 共享导航栏 -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/"><i class="fas fa-microchip"></i> PartShelf</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="mainNavbar">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link{% if active_page == 'inventory' %} active{% endif %}" href="/inventory"><i class="fas fa-boxes"></i> 我的库存</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if active_page == 'projects' %} active{% endif %}" href="/projects"><i class="fas fa-project-diagram"></i> 我的项目</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link{% if active_page == 'settings' %} active{% endif %}" href="/settings"><i class="fas fa-sliders-h"></i> 配置管理</a>
+        </li>
+      </ul>
+      <a href="/settings" class="nav-link px-2" title="MQTT 状态" id="navMqttIndicator" style="font-size:0.8rem;">
+        <i class="fas fa-broadcast-tower" id="navMqttIcon" style="opacity:0.4;"></i>
+      </a>
+      {% if active_page == 'inventory' %}
+      <div class="d-flex align-items-center">
+        <input class="form-control me-2" type="search" id="searchInput" placeholder="搜索零件名称、描述或参数..." aria-label="搜索" style="width:260px;">
+        <button class="btn btn-primary" id="searchButton" type="button"><i class="fas fa-search"></i></button>
+      </div>
+      {% endif %}
+      {% if active_page == 'inventory' %}
+      <ul class="navbar-nav ms-3">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-ellipsis-v"></i>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentModal"><i class="fas fa-plus me-2"></i>添加零件</a></li>
+            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentOrderModal"><i class="fas fa-file-import me-2"></i>导入文件</a></li>
+            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#batchStockInModal"><i class="fas fa-arrow-down me-2"></i>批量入库</a></li>
+            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#batchStockOutModal"><i class="fas fa-arrow-up me-2"></i>一键出库</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="showInventoryHistory()"><i class="fas fa-history me-2"></i>使用历史</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/api/inventory/export_csv" target="_blank"><i class="fas fa-file-csv me-2"></i>导出 CSV</a></li>
+            <li><a class="dropdown-item" href="/api/inventory/export_excel" target="_blank"><i class="fas fa-file-excel me-2"></i>导出 Excel</a></li>
+          </ul>
+        </li>
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<script>
+(function() {
+  var icon = document.getElementById('navMqttIcon');
+  if (!icon) return;
+  fetch('/api/config/mqtt/status').then(function(r){return r.json();}).then(function(s) {
+    if (s.enabled && s.connected) { icon.style.opacity='1'; icon.style.color='#3fb950'; icon.parentElement.title='MQTT 已连接'; }
+    else if (s.enabled) { icon.style.opacity='0.8'; icon.style.color='#d29922'; icon.parentElement.title='MQTT 已启用'; }
+    else { icon.style.opacity='0.3'; icon.style.color=''; icon.parentElement.title='MQTT 未启用'; }
+  }).catch(function(){});
+})();
+</script>

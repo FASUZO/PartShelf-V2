@@ -11,3 +11,4 @@ pymysql
 scipy
 pandas
 openpyxl==3.1.2
+paho-mqtt

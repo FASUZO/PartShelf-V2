@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>配置管理 - PartShelf</title>
+    <link href="/static/css/bootstrap.css" rel="stylesheet">
+    <link href="/static/css/custom.css" rel="stylesheet">
+    <script src="/static/js/bootstrap.bundle.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+      body { background: #f0f2f5; }
+      .settings-header { padding: 1rem 0 1rem; }
+      .settings-header h4 { font-weight: 700; color: #24292f; }
+      /* 三栏布局 */
+      .settings-grid { display: grid; grid-template-columns: 260px 1fr 1fr; gap: 1rem; height: calc(100vh - 180px); }
+      .panel { background: #fff; border-radius: 8px; border: 1px solid #d0d7de; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+      .panel-header { padding: 0.6rem 1rem; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+      .panel-header .badge { font-size: 0.7rem; font-weight: 500; }
+      .panel-body { flex: 1; overflow-y: auto; min-height: 0; }
+      .panel-empty { color: #8b949e; text-align: center; padding: 2rem 1rem; font-size: 0.85rem; }
+      /* 类别面板 */
+      .panel-cat .panel-header { background: #ddf4ff; color: #0550ae; border-bottom: 1px solid #d0d7de; }
+      .cat-item { padding: 0.35rem 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; transition: background 0.12s; }
+      .cat-item:last-child { border-bottom: none; }
+      .cat-item:hover { background: #f6f8fa; }
+      .cat-item.active { background: #ddf4ff; }
+      .cat-item .cat-info { display: flex; align-items: center; gap: 0.5rem; }
+      .cat-item .cat-prefix { font-family: monospace; font-weight: 700; font-size: 0.75rem; background: #0969da1a; color: #0550ae; padding: 0.1rem 0.4rem; border-radius: 3px; }
+      .cat-item.active .cat-prefix { background: #0550ae; color: #fff; }
+      .cat-item .cat-name { font-size: 0.85rem; font-weight: 500; }
+      .cat-item .cat-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.15s; }
+      .cat-item:hover .cat-actions { opacity: 1; }
+      .cat-item .btn-icon { width: 26px; height: 26px; border: none; background: transparent; color: #57606a; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+      .cat-item .btn-icon:hover { background: #eaeef2; color: #24292f; }
+      .cat-item .btn-icon.danger:hover { background: #ffebe9; color: #cf222e; }
+      /* 子类别面板 */
+      .panel-sub .panel-header { background: #dafbe1; color: #116329; border-bottom: 1px solid #d0d7de; }
+      .sub-item { padding: 0.3rem 0.75rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; transition: background 0.12s; }
+      .sub-item:last-child { border-bottom: none; }
+      .sub-item:hover { background: #f6f8fa; }
+      .sub-item .sub-letter { font-family: monospace; font-weight: 700; font-size: 0.7rem; background: #1163291a; color: #116329; padding: 0.1rem 0.35rem; border-radius: 3px; min-width: 1.3rem; text-align: center; }
+      .sub-item .sub-name { font-size: 0.83rem; flex: 1; margin-left: 0.4rem; }
+      .sub-item .sub-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.15s; }
+      .sub-item:hover .sub-actions { opacity: 1; }
+      /* 模板面板 */
+      .panel-tpl .panel-header { background: #fff8c5; color: #6e5600; border-bottom: 1px solid #d0d7de; }
+      .tpl-item { padding: 0.4rem 0.75rem; border-bottom: 1px solid #f0f0f0; transition: background 0.12s; }
+      .tpl-item:last-child { border-bottom: none; }
+      .tpl-item:hover { background: #f6f8fa; }
+      .tpl-item .tpl-top { display: flex; align-items: center; justify-content: space-between; }
+      .tpl-item .tpl-name { font-size: 0.85rem; font-weight: 500; }
+      .tpl-item .tpl-sub { font-size: 0.73rem; color: #57606a; margin-left: 0.5rem; }
+      .tpl-item .tpl-fields { font-size: 0.75rem; color: #8b949e; margin-top: 0.2rem; }
+      .tpl-item .tpl-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.15s; }
+      .tpl-item:hover .tpl-actions { opacity: 1; }
+      /* 全局参数 */
+      .global-section { background: #f6f8fa; border-top: 2px solid #d0d7de; padding: 0.6rem 1rem; }
+      .global-section h6 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #57606a; margin-bottom: 0.3rem; font-weight: 700; }
+      .global-fields { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+      .global-field { font-size: 0.75rem; background: #eaeef2; color: #24292f; padding: 0.2rem 0.5rem; border-radius: 4px; display: flex; align-items: center; gap: 0.3rem; }
+      .global-field .remove { cursor: pointer; color: #cf222e; font-size: 0.65rem; }
+      .global-field .remove:hover { color: #a40e1c; }
+      /* 无选择占位 */
+      .no-selection { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8b949e; }
+      .no-selection i { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.3; }
+      @media (max-width: 992px) { .settings-grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    {% set active_page = "settings" %}
+    {% include "_navbar.html" %}
+
+    <div class="container" style="margin-top:70px;">
+      <div class="settings-header">
+        <h4><i class="fas fa-sliders-h me-2"></i>配置管理</h4>
+        <p class="text-muted mb-0" style="font-size:0.85rem">管理元器件类别、子类别和参数模板。点击左侧类别查看关联配置。</p>
+      </div>
+
+      <div class="settings-grid">
+        <!-- 左：类别 -->
+        <div class="panel panel-cat">
+          <div class="panel-header">
+            <span><i class="fas fa-tags me-1"></i> 类别</span>
+            <span class="badge bg-primary" id="catCount">0</span>
+          </div>
+          <div class="panel-body" id="categoryList"></div>
+          <div style="padding:0.5rem; border-top:1px solid #d0d7de;">
+            <button class="btn btn-primary btn-sm w-100" onclick="showAddCategory()"><i class="fas fa-plus me-1"></i> 新增类别</button>
+          </div>
+        </div>
+
+        <!-- 中：子类别 -->
+        <div class="panel panel-sub">
+          <div class="panel-header">
+            <span><i class="fas fa-sitemap me-1"></i> 子类别 <span class="text-muted fw-normal" id="subCatName" style="font-size:0.78rem"></span></span>
+            <span class="badge bg-success" id="subCount">0</span>
+          </div>
+          <div class="panel-body" id="subcategoryList">
+            <div class="no-selection"><i class="fas fa-mouse-pointer"></i><span>请先选择类别</span></div>
+          </div>
+          <div style="padding:0.5rem; border-top:1px solid #d0d7de;">
+            <button class="btn btn-success btn-sm w-100" id="addSubBtn" onclick="showAddSubcategory()" disabled><i class="fas fa-plus me-1"></i> 新增子类别</button>
+          </div>
+        </div>
+
+        <!-- 右：参数模板 -->
+        <div class="panel panel-tpl">
+          <div class="panel-header">
+            <span><i class="fas fa-list-alt me-1"></i> 参数模板 <span class="text-muted fw-normal" id="tplCatName" style="font-size:0.78rem"></span></span>
+            <span class="badge bg-warning text-dark" id="tplCount">0</span>
+          </div>
+          <div class="panel-body" id="templateList">
+            <div class="no-selection"><i class="fas fa-mouse-pointer"></i><span>请先选择类别</span></div>
+          </div>
+          <div class="global-section" id="globalSection" style="display:none;">
+            <h6><i class="fas fa-globe me-1"></i> 全局参数</h6>
+            <div class="global-fields" id="globalFields"></div>
+          </div>
+          <div style="padding:0.5rem; border-top:1px solid #d0d7de;">
+            <button class="btn btn-warning btn-sm w-100" id="addTplBtn" onclick="showAddTemplate()" disabled><i class="fas fa-plus me-1"></i> 新增模板</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分页设置 -->
+      <div class="card mt-3 mb-4" style="max-width:400px;">
+        <div class="card-body d-flex align-items-center gap-3">
+          <i class="fas fa-file-alt text-muted"></i>
+          <div class="flex-grow-1">
+            <label class="form-label fw-bold mb-1" style="font-size:0.85rem;">每页显示条数</label>
+            <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)">
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- MQTT 配置 -->
+      <div class="card mt-3 mb-4" style="max-width:520px;">
+        <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
+          <span><i class="fas fa-broadcast-tower me-2"></i><strong>MQTT 配置</strong></span>
+          <span id="mqttStatusBadge" class="badge bg-secondary">未连接</span>
+        </div>
+        <div class="card-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="mqttEnabled">
+            <label class="form-check-label fw-bold" for="mqttEnabled">启用 MQTT</label>
+          </div>
+          <div id="mqttFields">
+            <div class="row g-2 mb-2">
+              <div class="col-8">
+                <label class="form-label" style="font-size:0.8rem;">Broker 地址</label>
+                <input type="text" class="form-control form-control-sm" id="mqttBroker" placeholder="127.0.0.1">
+                <div class="form-text" style="font-size:0.7rem;">本机: 127.0.0.1 | 局域网: 192.168.x.x | 公网: 域名或IP</div>
+              </div>
+              <div class="col-4">
+                <label class="form-label" style="font-size:0.8rem;">端口</label>
+                <input type="number" class="form-control form-control-sm" id="mqttPort" placeholder="1883">
+                <div class="form-text" style="font-size:0.7rem;">默认 1883</div>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label" style="font-size:0.8rem;">用户名</label>
+                <input type="text" class="form-control form-control-sm" id="mqttUsername" placeholder="可选">
+              </div>
+              <div class="col-6">
+                <label class="form-label" style="font-size:0.8rem;">密码</label>
+                <input type="text" class="form-control form-control-sm" id="mqttPassword" placeholder="可选">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" style="font-size:0.8rem;">Topic 前缀</label>
+              <input type="text" class="form-control form-control-sm" id="mqttTopicPrefix" placeholder="partshelf">
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-dark btn-sm flex-fill" onclick="saveMqttConfig()"><i class="fas fa-save me-1"></i>保存配置</button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="testMqtt()"><i class="fas fa-plug me-1"></i>测试连接</button>
+          </div>
+          <div id="mqttTestResult" class="mt-2" style="font-size:0.8rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div class="modal fade" id="categoryModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header bg-primary text-white"><h5 class="modal-title" id="catModalTitle">新增类别</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="catEditId">
+        <div class="mb-3"><label class="form-label">标识 (key) *</label><input type="text" class="form-control" id="catEditKey" placeholder="如 resistor"></div>
+        <div class="mb-3"><label class="form-label">名称 *</label><input type="text" class="form-control" id="catEditName" placeholder="如 电阻"></div>
+        <div class="mb-3"><label class="form-label">位号前缀</label><input type="text" class="form-control" id="catEditPrefix" placeholder="如 R" maxlength="8"></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-primary" onclick="saveCategory()">保存</button></div>
+    </div></div></div>
+
+    <div class="modal fade" id="subcategoryModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header bg-success text-white"><h5 class="modal-title" id="subModalTitle">新增子类别</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="subEditId">
+        <div class="mb-3"><label class="form-label">所属类别</label><input type="text" class="form-control" id="subCatDisplay" disabled></div>
+        <div class="mb-3"><label class="form-label">名称 *</label><input type="text" class="form-control" id="subEditName" placeholder="如 单片机"></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-success" onclick="saveSubcategory()">保存</button></div>
+    </div></div></div>
+
+    <div class="modal fade" id="templateModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+      <div class="modal-header bg-warning"><h5 class="modal-title" id="tplModalTitle">新增参数模板</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="tplEditId">
+        <div class="row mb-3">
+          <div class="col-md-6"><label class="form-label">所属类别</label><input type="text" class="form-control" id="tplCatDisplay" disabled></div>
+          <div class="col-md-6"><label class="form-label">所属子类别</label><select class="form-select" id="tplEditSubcategory"><option value="">-- 全局（不限子类别）--</option></select></div>
+        </div>
+        <div class="mb-3"><label class="form-label">模板名称 *</label><input type="text" class="form-control" id="tplEditName" placeholder="如 电阻-主参数"></div>
+        <div class="mb-3"><label class="form-label">参数字段（每行一个）</label><textarea class="form-control" id="tplEditFields" rows="4" placeholder="阻值&#10;功率&#10;封装"></textarea><div class="form-text">每行一个字段名，将自动生成 JSON。全局字段（如封装）会自动继承。</div></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-warning" onclick="saveTemplate()">保存</button></div>
+    </div></div></div>
+
+    <script>
+      var bundle = null;
+      var selectedCatId = null;
+
+      // 全局参数字段（所有类别共享）
+      var GLOBAL_FIELDS = ['封装'];
+
+      async function loadBundle() {
+        var resp = await fetch('/api/config/bundle');
+        bundle = await resp.json();
+        renderCategories();
+        if (selectedCatId) {
+          selectCategory(selectedCatId);
+        }
+      }
+
+      // === 类别 ===
+      function renderCategories() {
+        var el = document.getElementById('categoryList');
+        document.getElementById('catCount').textContent = bundle.categories.length;
+        if (!bundle.categories.length) { el.innerHTML = '<div class="panel-empty">暂无类别</div>'; return; }
+        el.innerHTML = bundle.categories.map(function(c) {
+          return '<div class="cat-item' + (selectedCatId === c.id ? ' active' : '') + '" onclick="selectCategory(' + c.id + ')">' +
+            '<div class="cat-info">' +
+            (c.location_prefix ? '<span class="cat-prefix">' + esc(c.location_prefix) + '</span>' : '') +
+            '<span class="cat-name">' + esc(c.name) + '</span>' +
+            '</div>' +
+            '<div class="cat-actions">' +
+            '<button class="btn-icon" onclick="event.stopPropagation();editCategory(' + c.id + ')" title="编辑"><i class="fas fa-pen"></i></button>' +
+            '<button class="btn-icon danger" onclick="event.stopPropagation();deleteCategory(' + c.id + ',\'' + esc(c.name) + '\')" title="删除"><i class="fas fa-trash"></i></button>' +
+            '</div></div>';
+        }).join('');
+      }
+
+      function selectCategory(catId) {
+        selectedCatId = catId;
+        renderCategories();
+        renderSubcategories(catId);
+        renderTemplates(catId);
+      }
+
+      function showAddCategory() {
+        document.getElementById('catEditId').value = '';
+        document.getElementById('catEditKey').value = '';
+        document.getElementById('catEditName').value = '';
+        document.getElementById('catEditPrefix').value = '';
+        document.getElementById('catEditKey').disabled = false;
+        document.getElementById('catModalTitle').textContent = '新增类别';
+        new bootstrap.Modal(document.getElementById('categoryModal')).show();
+      }
+
+      function editCategory(id) {
+        var c = bundle.categories.find(function(x) { return x.id === id; });
+        if (!c) return;
+        document.getElementById('catEditId').value = c.id;
+        document.getElementById('catEditKey').value = c.key;
+        document.getElementById('catEditKey').disabled = true;
+        document.getElementById('catEditName').value = c.name;
+        document.getElementById('catEditPrefix').value = c.location_prefix || '';
+        document.getElementById('catModalTitle').textContent = '编辑类别';
+        new bootstrap.Modal(document.getElementById('categoryModal')).show();
+      }
+
+      async function saveCategory() {
+        var id = document.getElementById('catEditId').value;
+        var data = { name: document.getElementById('catEditName').value.trim(), location_prefix: document.getElementById('catEditPrefix').value.trim() || null };
+        if (!id) {
+          data.key = document.getElementById('catEditKey').value.trim();
+          if (!data.key || !data.name) { alert('标识和名称必填'); return; }
+          await fetch('/api/config/categories', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        } else {
+          if (!data.name) { alert('名称必填'); return; }
+          await fetch('/api/config/categories/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        }
+        bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+        await loadBundle();
+      }
+
+      async function deleteCategory(id, name) {
+        if (!confirm('确定删除类别「' + name + '」？关联的子类别和参数模板将一并删除。')) return;
+        await fetch('/api/config/categories/' + id, { method: 'DELETE' });
+        if (selectedCatId === id) selectedCatId = null;
+        await loadBundle();
+      }
+
+      // === 子类别 ===
+      function renderSubcategories(catId) {
+        var el = document.getElementById('subcategoryList');
+        var cat = bundle.categories.find(function(c) { return c.id === catId; });
+        document.getElementById('subCatName').textContent = cat ? '— ' + cat.name : '';
+        document.getElementById('addSubBtn').disabled = !catId;
+
+        var subs = bundle.subcategories.filter(function(s) { return s.category_id === catId; });
+        document.getElementById('subCount').textContent = subs.length;
+
+        if (!subs.length) { el.innerHTML = '<div class="panel-empty">该类别暂无子类别</div>'; return; }
+
+        el.innerHTML = subs.map(function(s) {
+          return '<div class="sub-item">' +
+            '<span class="sub-letter">' + esc(s.letter || '-') + '</span>' +
+            '<span class="sub-name">' + esc(s.name) + '</span>' +
+            '<div class="sub-actions">' +
+            '<button class="btn-icon" onclick="editSubcategory(' + s.id + ')" title="编辑"><i class="fas fa-pen"></i></button>' +
+            '<button class="btn-icon danger" onclick="deleteSubcategory(' + s.id + ',\'' + esc(s.name) + '\')" title="删除"><i class="fas fa-trash"></i></button>' +
+            '</div></div>';
+        }).join('');
+      }
+
+      function showAddSubcategory() {
+        if (!selectedCatId) return;
+        document.getElementById('subEditId').value = '';
+        document.getElementById('subEditName').value = '';
+        var cat = bundle.categories.find(function(c) { return c.id === selectedCatId; });
+        document.getElementById('subCatDisplay').value = cat ? cat.name : '';
+        document.getElementById('subModalTitle').textContent = '新增子类别';
+        new bootstrap.Modal(document.getElementById('subcategoryModal')).show();
+      }
+
+      function editSubcategory(id) {
+        var s = bundle.subcategories.find(function(x) { return x.id === id; });
+        if (!s) return;
+        document.getElementById('subEditId').value = s.id;
+        document.getElementById('subEditName').value = s.name;
+        var cat = bundle.categories.find(function(c) { return c.id === s.category_id; });
+        document.getElementById('subCatDisplay').value = cat ? cat.name : '';
+        document.getElementById('subModalTitle').textContent = '编辑子类别';
+        new bootstrap.Modal(document.getElementById('subcategoryModal')).show();
+      }
+
+      async function saveSubcategory() {
+        var id = document.getElementById('subEditId').value;
+        var name = document.getElementById('subEditName').value.trim();
+        if (!name) { alert('名称必填'); return; }
+        if (id) {
+          await fetch('/api/config/subcategories/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: name}) });
+        } else {
+          await fetch('/api/config/subcategories', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({category_id: selectedCatId, name: name}) });
+        }
+        bootstrap.Modal.getInstance(document.getElementById('subcategoryModal')).hide();
+        await loadBundle();
+      }
+
+      async function deleteSubcategory(id, name) {
+        if (!confirm('确定删除子类别「' + name + '」？')) return;
+        await fetch('/api/config/subcategories/' + id, { method: 'DELETE' });
+        await loadBundle();
+      }
+
+      // === 参数模板 ===
+      function renderTemplates(catId) {
+        var el = document.getElementById('templateList');
+        var cat = bundle.categories.find(function(c) { return c.id === catId; });
+        document.getElementById('tplCatName').textContent = cat ? '— ' + cat.name : '';
+        document.getElementById('addTplBtn').disabled = !catId;
+
+        var templates = bundle.param_templates.filter(function(t) { return t.category_id === catId; });
+        document.getElementById('tplCount').textContent = templates.length;
+
+        // 全局参数显示
+        var globalSection = document.getElementById('globalSection');
+        var globalFieldsEl = document.getElementById('globalFields');
+        if (catId) {
+          globalSection.style.display = 'block';
+          globalFieldsEl.innerHTML = GLOBAL_FIELDS.map(function(f) {
+            return '<span class="global-field"><i class="fas fa-globe" style="font-size:0.6rem"></i> ' + esc(f) + '</span>';
+          }).join('') + '<span class="global-field" style="cursor:pointer;opacity:0.6" onclick="editGlobalFields()"><i class="fas fa-pen" style="font-size:0.6rem"></i> 编辑</span>';
+        } else {
+          globalSection.style.display = 'none';
+        }
+
+        if (!templates.length) { el.innerHTML = '<div class="panel-empty">该类别暂无参数模板</div>'; return; }
+
+        var subMap = {};
+        bundle.subcategories.forEach(function(s) { subMap[s.id] = s.name; });
+
+        el.innerHTML = templates.map(function(t) {
+          var fields = [];
+          try { fields = JSON.parse(t.definition_json).fields || []; } catch(e) {}
+          // 合并全局字段显示
+          var allFields = GLOBAL_FIELDS.concat(fields.filter(function(f) { return GLOBAL_FIELDS.indexOf(f) === -1; }));
+          return '<div class="tpl-item">' +
+            '<div class="tpl-top">' +
+            '<div><span class="tpl-name">' + esc(t.name) + '</span>' +
+            (t.subcategory_id ? '<span class="tpl-sub">(' + esc(subMap[t.subcategory_id] || '') + ')</span>' : '<span class="tpl-sub">(全局)</span>') +
+            '</div>' +
+            '<div class="tpl-actions">' +
+            '<button class="btn-icon" onclick="editTemplate(' + t.id + ')" title="编辑"><i class="fas fa-pen"></i></button>' +
+            '<button class="btn-icon danger" onclick="deleteTemplate(' + t.id + ',\'' + esc(t.name) + '\')" title="删除"><i class="fas fa-trash"></i></button>' +
+            '</div></div>' +
+            '<div class="tpl-fields">' + allFields.map(function(f) {
+              var isGlobal = GLOBAL_FIELDS.indexOf(f) >= 0;
+              return '<span class="badge ' + (isGlobal ? 'bg-light text-dark border' : 'bg-light text-muted') + '">' + (isGlobal ? '<i class="fas fa-globe me-1" style="font-size:0.55rem"></i>' : '') + esc(f) + '</span>';
+            }).join(' ') + '</div></div>';
+        }).join('');
+      }
+
+      function showAddTemplate() {
+        if (!selectedCatId) return;
+        document.getElementById('tplEditId').value = '';
+        document.getElementById('tplEditName').value = '';
+        document.getElementById('tplEditFields').value = '';
+        var cat = bundle.categories.find(function(c) { return c.id === selectedCatId; });
+        document.getElementById('tplCatDisplay').value = cat ? cat.name : '';
+        var sel = document.getElementById('tplEditSubcategory');
+        sel.innerHTML = '<option value="">-- 全局（不限子类别）--</option>';
+        bundle.subcategories.filter(function(s) { return s.category_id === selectedCatId; }).forEach(function(s) {
+          sel.innerHTML += '<option value="' + s.id + '">' + s.name + '</option>';
+        });
+        document.getElementById('tplModalTitle').textContent = '新增参数模板';
+        new bootstrap.Modal(document.getElementById('templateModal')).show();
+      }
+
+      function editTemplate(id) {
+        var t = bundle.param_templates.find(function(x) { return x.id === id; });
+        if (!t) return;
+        document.getElementById('tplEditId').value = t.id;
+        document.getElementById('tplEditName').value = t.name;
+        var cat = bundle.categories.find(function(c) { return c.id === t.category_id; });
+        document.getElementById('tplCatDisplay').value = cat ? cat.name : '';
+        var sel = document.getElementById('tplEditSubcategory');
+        sel.innerHTML = '<option value="">-- 全局（不限子类别）--</option>';
+        bundle.subcategories.filter(function(s) { return s.category_id === t.category_id; }).forEach(function(s) {
+          sel.innerHTML += '<option value="' + s.id + '"' + (s.id === t.subcategory_id ? ' selected' : '') + '>' + s.name + '</option>';
+        });
+        var fields = [];
+        try { fields = JSON.parse(t.definition_json).fields || []; } catch(e) {}
+        document.getElementById('tplEditFields').value = fields.join('\n');
+        document.getElementById('tplModalTitle').textContent = '编辑参数模板';
+        new bootstrap.Modal(document.getElementById('templateModal')).show();
+      }
+
+      async function saveTemplate() {
+        var id = document.getElementById('tplEditId').value;
+        var subId = parseInt(document.getElementById('tplEditSubcategory').value) || null;
+        var name = document.getElementById('tplEditName').value.trim();
+        var fieldsText = document.getElementById('tplEditFields').value.trim();
+        if (!name) { alert('模板名称必填'); return; }
+        var fields = fieldsText.split('\n').map(function(f) { return f.trim(); }).filter(function(f) { return f; });
+        var defJson = JSON.stringify({fields: fields});
+        if (id) {
+          await fetch('/api/config/param_templates/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: name, subcategory_id: subId, definition_json: defJson}) });
+        } else {
+          await fetch('/api/config/param_templates', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({category_id: selectedCatId, subcategory_id: subId, name: name, definition_json: defJson}) });
+        }
+        bootstrap.Modal.getInstance(document.getElementById('templateModal')).hide();
+        await loadBundle();
+      }
+
+      async function deleteTemplate(id, name) {
+        if (!confirm('确定删除参数模板「' + name + '」？')) return;
+        await fetch('/api/config/param_templates/' + id, { method: 'DELETE' });
+        await loadBundle();
+      }
+
+      function editGlobalFields() {
+        var input = prompt('全局参数字段（逗号分隔）：', GLOBAL_FIELDS.join(', '));
+        if (input !== null) {
+          GLOBAL_FIELDS = input.split(',').map(function(f) { return f.trim(); }).filter(function(f) { return f; });
+          if (selectedCatId) renderTemplates(selectedCatId);
+        }
+      }
+
+      function esc(text) {
+        if (!text) return '';
+        var d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+      }
+
+      function savePageSize(val) {
+        localStorage.setItem('pageSize', val);
+      }
+
+      // === MQTT 配置 ===
+      async function loadMqttConfig() {
+        try {
+          var resp = await fetch('/api/config/mqtt');
+          var cfg = await resp.json();
+          document.getElementById('mqttEnabled').checked = cfg.mqtt_enabled;
+          document.getElementById('mqttBroker').value = cfg.mqtt_broker || '';
+          document.getElementById('mqttPort').value = cfg.mqtt_port || 1883;
+          document.getElementById('mqttUsername').value = cfg.mqtt_username || '';
+          document.getElementById('mqttPassword').value = cfg.mqtt_password || '';
+          document.getElementById('mqttTopicPrefix').value = cfg.mqtt_topic_prefix || 'partshelf';
+          toggleMqttFields(cfg.mqtt_enabled);
+          loadMqttStatus();
+        } catch (e) {
+          console.warn('Load MQTT config failed:', e);
+        }
+      }
+
+      function toggleMqttFields(enabled) {
+        document.getElementById('mqttFields').style.opacity = enabled ? '1' : '0.5';
+        document.getElementById('mqttFields').querySelectorAll('input').forEach(function(el) {
+          el.disabled = !enabled;
+        });
+      }
+
+      document.getElementById('mqttEnabled').addEventListener('change', function() {
+        toggleMqttFields(this.checked);
+      });
+
+      async function saveMqttConfig() {
+        var data = {
+          mqtt_enabled: document.getElementById('mqttEnabled').checked,
+          mqtt_broker: document.getElementById('mqttBroker').value.trim() || '127.0.0.1',
+          mqtt_port: parseInt(document.getElementById('mqttPort').value) || 1883,
+          mqtt_username: document.getElementById('mqttUsername').value.trim(),
+          mqtt_password: document.getElementById('mqttPassword').value,
+          mqtt_topic_prefix: document.getElementById('mqttTopicPrefix').value.trim() || 'partshelf'
+        };
+        await fetch('/api/config/mqtt', {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
+        });
+        document.getElementById('mqttTestResult').innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>配置已保存</span>';
+        setTimeout(function() { document.getElementById('mqttTestResult').innerHTML = ''; }, 2000);
+        loadMqttStatus();
+      }
+
+      async function testMqtt() {
+        document.getElementById('mqttTestResult').innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>测试连接中...</span>';
+        try {
+          var resp = await fetch('/api/config/mqtt/test', { method: 'POST' });
+          var result = await resp.json();
+          if (result.success) {
+            document.getElementById('mqttTestResult').innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>' + esc(result.message) + '</span>';
+          } else {
+            document.getElementById('mqttTestResult').innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>' + esc(result.message) + '</span>';
+          }
+        } catch (e) {
+          document.getElementById('mqttTestResult').innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>请求失败</span>';
+        }
+      }
+
+      async function loadMqttStatus() {
+        try {
+          var resp = await fetch('/api/config/mqtt/status');
+          var status = await resp.json();
+          var badge = document.getElementById('mqttStatusBadge');
+          if (status.enabled && status.connected) {
+            badge.className = 'badge bg-success';
+            badge.textContent = '已连接';
+          } else if (status.enabled) {
+            badge.className = 'badge bg-warning text-dark';
+            badge.textContent = '已启用';
+          } else {
+            badge.className = 'badge bg-secondary';
+            badge.textContent = '未启用';
+          }
+        } catch (e) {}
+      }
+
+      // 初始化分页设置
+      document.getElementById('pageSizeSelect').value = localStorage.getItem('pageSize') || '100';
+
+      loadBundle();
+      loadMqttConfig();
+    </script>
+  </body>
+</html>

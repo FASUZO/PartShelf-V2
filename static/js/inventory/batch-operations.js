@@ -182,7 +182,7 @@ function renderBatchOutMatched(item, index) {
             <td>${item.requestQuantity}</td>
             <td>
                 <div><strong>${part.name}</strong></div>
-                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${part.part_type || '-'}</small>
+                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${getDisplayType(part)}</small>
             </td>
             <td>${part.quantity}</td>
             <td class="${afterQty < 0 ? 'text-danger fw-bold' : ''}">${afterQty}</td>
@@ -458,7 +458,7 @@ function renderBatchInMatched(item) {
             <td>${item.requestQuantity}</td>
             <td>
                 <div><strong>${part.name}</strong></div>
-                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${part.part_type || '-'}</small>
+                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${getDisplayType(part)}</small>
             </td>
             <td>${part.quantity}</td>
             <td class="text-success fw-bold">${afterQty}</td>

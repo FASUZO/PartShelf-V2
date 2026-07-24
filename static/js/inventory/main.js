@@ -11,23 +11,21 @@ let currentSearchFilter = null;
 // 应用高级筛选
 function applyAdvancedFilter() {
     const searchInput = document.getElementById('searchInput');
-    const manufacturerFilter = document.getElementById('manufacturerFilter');
-    const packageFilter = document.getElementById('packageFilter');
-    const partTypeFilter = document.getElementById('partTypeFilter');
-
     const searchKey = searchInput ? searchInput.value.trim() : '';
-    const manufacturer = manufacturerFilter ? manufacturerFilter.dataset.selectedValue || manufacturerFilter.value : '';
-    const packageVal = packageFilter ? packageFilter.dataset.selectedValue || packageFilter.value : '';
-    const partType = partTypeFilter ? partTypeFilter.dataset.selectedValue || partTypeFilter.value : '';
-    
+
     const filterData = {
         search_key: searchKey || null,
-        manufacturer: manufacturer || null,
-        package: packageVal || null,
-        part_type: partType || null,
         page: 1,
         page_size: Math.min(parseInt(localStorage.getItem('pageSize')) || 100, 500)
     };
+
+    // 合并侧栏筛选条件
+    if (typeof getSidebarFilter === 'function') {
+        var sidebarFilter = getSidebarFilter();
+        if (sidebarFilter.category_id) filterData.category_id = sidebarFilter.category_id;
+        if (sidebarFilter.subcategory_id) filterData.subcategory_id = sidebarFilter.subcategory_id;
+        if (sidebarFilter.param_filters) filterData.param_filters = sidebarFilter.param_filters;
+    }
     
     // 构建排序参数
     let queryParams = '';
@@ -38,7 +36,7 @@ function applyAdvancedFilter() {
     // 显示加载状态
     const tbody = document.getElementById('parts-table-body');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
     }
 
     fetch('/api/inventory/advanced_search' + queryParams, {
@@ -54,7 +52,7 @@ function applyAdvancedFilter() {
     .catch(error => {
         console.error('Search failed:', error);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">加载失败，请重试</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">加载失败，请重试</td></tr>';
         }
     });
 }
@@ -63,15 +61,19 @@ function applyAdvancedFilter() {
 function clearAdvancedFilter() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
-    
-    const manufacturerFilter = document.getElementById('manufacturerFilter');
-    if (manufacturerFilter) manufacturerFilter.value = '';
-    
-    const packageFilter = document.getElementById('packageFilter');
-    if (packageFilter) packageFilter.value = '';
-    
-    const partTypeFilter = document.getElementById('partTypeFilter');
-    if (partTypeFilter) partTypeFilter.value = '';
+
+    // 重置侧栏筛选
+    if (typeof sidebarState !== 'undefined') {
+        sidebarState.selectedCategoryId = null;
+        sidebarState.selectedSubcategoryId = null;
+        sidebarState.paramFilters = {};
+        sidebarState.appliedParamFilters = {};
+        if (typeof renderCategoryList === 'function') renderCategoryList();
+        var subEl = document.getElementById('sidebarSubcategories');
+        if (subEl) subEl.innerHTML = '<div class="sidebar-empty">选择类别后显示</div>';
+        var paramEl = document.getElementById('sidebarParams');
+        if (paramEl) paramEl.innerHTML = '<div class="sidebar-empty">选择类别后显示</div>';
+    }
     
     // 重置排序
     currentSort = { field: null, direction: 'asc' };
@@ -83,6 +85,26 @@ function clearAdvancedFilter() {
 // 加载所有零件
 function loadAllParts() {
     applyAdvancedFilter();
+}
+
+// ==================== 详情模态框事件绑定 ====================
+
+// 绑定详情模态框内按钮事件
+function bindDetailModalEvents() {
+    const updateQtyBtn = document.getElementById('detailUpdateQuantityBtn');
+    if (updateQtyBtn) updateQtyBtn.addEventListener('click', updateDetailQuantity);
+
+    const operationMode = document.getElementById('detailOperationMode');
+    if (operationMode) operationMode.addEventListener('change', updateDetailOperationHint);
+
+    const viewHistoryBtn = document.getElementById('detailViewHistoryBtn');
+    if (viewHistoryBtn) viewHistoryBtn.addEventListener('click', viewDetailHistory);
+
+    const exportBtn = document.getElementById('detailExportDetailsBtn');
+    if (exportBtn) exportBtn.addEventListener('click', exportDetailDetails);
+
+    const deleteBtn = document.getElementById('detailDeletePartBtn');
+    if (deleteBtn) deleteBtn.addEventListener('click', deleteDetailPart);
 }
 
 // ==================== 表单处理 ====================
@@ -103,7 +125,6 @@ function bindImportForm() {
             return;
         }
         
-        // 根据文件扩展名选择API端点
         const fileExtension = file.name.split('.').pop().toLowerCase();
         let apiEndpoint;
         
@@ -145,10 +166,40 @@ function bindAddPartForm() {
     const addPartForm = document.querySelector('#addComponentModal form');
     if (!addPartForm) return;
     
+    // 模态框打开时重置联动状态
+    var addModal = document.getElementById('addComponentModal');
+    if (addModal) {
+        addModal.addEventListener('show.bs.modal', function() {
+            var subcatSelect = document.getElementById('addPartSubcategory');
+            if (subcatSelect) subcatSelect.innerHTML = '<option value="">-- 无 --</option>';
+            var templateArea = document.getElementById('paramTemplateFields');
+            if (templateArea) templateArea.innerHTML = '';
+            var hiddenSubcatId = document.getElementById('addPartSubcategoryId');
+            if (hiddenSubcatId) hiddenSubcatId.value = '';
+        });
+    }
+
     addPartForm.addEventListener('submit', function(event) {
         event.preventDefault();
+
+        // 同步 part_type 隐藏字段（兼容旧 types 表）
+        var catIdEl = document.getElementById('addPartCategoryId');
+        if (catIdEl && catIdEl.value) {
+            var catId = parseInt(catIdEl.value);
+            var catName = (window.configState && configState.categoriesById[catId])
+                ? configState.categoriesById[catId].name : '';
+            document.getElementById('partType').value = catName;
+        }
+
+        // 序列化参数模板字段到 other 字段
+        var paramJson = serializeParamFields();
+        if (paramJson) {
+            var otherEl = document.querySelector('#addPartForm [name="other"]');
+            if (otherEl) otherEl.value = paramJson;
+        }
+
         const formData = new FormData(this);
-        
+
         fetch('/api/inventory/add_part_to_inventory', {
             method: 'POST',
             body: formData
@@ -173,28 +224,31 @@ function bindAddPartForm() {
 
 // ==================== 页面初始化 ====================
 
-// 页面加载时初始化
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", async function() {
+    // 先加载配置 bundle
+    await loadConfigBundle();
+
     // 加载筛选选项
     loadFilterOptions();
-    
+
     // 加载零件列表
     loadAllParts();
+
+    // 初始化类别联动
+    initCategoryCascade();
+
+    // 初始化侧栏
+    if (typeof initSidebar === 'function') initSidebar();
     
-    // 绑定筛选按钮
-    const applyBtn = document.getElementById('applyFilterButton');
-    if (applyBtn) applyBtn.addEventListener('click', applyAdvancedFilter);
-    
-    const clearBtn = document.getElementById('clearFilterButton');
-    if (clearBtn) clearBtn.addEventListener('click', clearAdvancedFilter);
-    
+    // 绑定搜索按钮
     const searchBtn = document.getElementById('searchButton');
     if (searchBtn) searchBtn.addEventListener('click', applyAdvancedFilter);
 
-    // 绑定筛选下拉框搜索
-    bindFilterSearch('manufacturerFilterInput', 'manufacturerFilter');
-    bindFilterSearch('packageFilterInput', 'packageFilter');
-    bindFilterSearch('partTypeFilterInput', 'partTypeFilter');
+    // 回车搜索
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') applyAdvancedFilter();
+    });
 
     // 绑定表头排序
     bindSortEvents();
@@ -212,23 +266,43 @@ document.addEventListener("DOMContentLoaded", function() {
     // 绑定批量操作
     bindBatchStockOutEvents();
     bindBatchStockInEvents();
+
+    // 绑定详情模态框事件
+    bindDetailModalEvents();
     
     // 绑定历史记录筛选
     const historyFilter = document.getElementById('historyOperationFilter');
     if (historyFilter) {
         historyFilter.addEventListener('change', () => loadInventoryHistory(1));
     }
-    
-    // 绑定分页设置模态框
-    const pageSettingsModal = document.getElementById('pageSettingsModal');
-    if (pageSettingsModal) {
-        pageSettingsModal.addEventListener('show.bs.modal', function() {
-            const storedSize = localStorage.getItem('pageSize') || 100;
-            const select = document.getElementById('pageSizeInput');
-            if (select) select.value = storedSize;
-        });
-    }
+
+    // 检查 MQTT 状态（导航栏指示器）
+    updateNavMqttStatus();
 });
+
+// MQTT 状态指示器
+function updateNavMqttStatus() {
+    var icon = document.getElementById('navMqttIcon');
+    if (!icon) return;
+    fetch('/api/config/mqtt/status')
+        .then(function(r) { return r.json(); })
+        .then(function(s) {
+            if (s.enabled && s.connected) {
+                icon.style.opacity = '1';
+                icon.style.color = '#3fb950';
+                icon.parentElement.title = 'MQTT 已连接';
+            } else if (s.enabled) {
+                icon.style.opacity = '0.8';
+                icon.style.color = '#d29922';
+                icon.parentElement.title = 'MQTT 已启用（未连接）';
+            } else {
+                icon.style.opacity = '0.3';
+                icon.style.color = '';
+                icon.parentElement.title = 'MQTT 未启用';
+            }
+        })
+        .catch(function() {});
+}
 
 // 导出到全局
 window.currentSearchFilter = currentSearchFilter;

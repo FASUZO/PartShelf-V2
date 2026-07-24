@@ -6,11 +6,14 @@ class Part(Base):
     __tablename__ = "parts"
 
     id = Column(Integer, primary_key=True, index=True)
+    part_number = Column(String(32), nullable=True, unique=True, index=True)  # 格式化ID: R01A0001
     name = Column(String(255), index=True)  # 移除 unique=True
     description = Column(String(255), nullable=True) 
     manufacturer_id = Column(Integer, ForeignKey("manufacturers.id"))
     package_id = Column(Integer, ForeignKey("packages.id"))
     type_id = Column(Integer, ForeignKey("types.id"))
+    category_id = Column(Integer, nullable=True, index=True)
+    subcategory_id = Column(Integer, nullable=True, index=True)
     price = Column(String(50), nullable=True)  # 单价
     lc_number = Column(String(100), nullable=True)  # LC编号
     other = Column(String(255), nullable=True)  # 其他信息

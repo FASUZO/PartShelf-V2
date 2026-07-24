@@ -67,7 +67,7 @@ class FileService:
                 part_type = part_type
             )
 
-            InventoryService.add_part_to_inventory(db, part_to_add)
+            InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
 
         return text_io
 
@@ -244,7 +244,7 @@ class FileService:
                     )
                     
                     # 添加到库存
-                    InventoryService.add_part_to_inventory(db, part_to_add)
+                    InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
                 
                 return {"message": "Excel文件导入成功"}
                 
@@ -277,25 +277,26 @@ class FileService:
             text_io = io.StringIO(file_content.decode("utf-8"))
             reader = csv.DictReader(text_io)
             
-            # 预设的列名映射（支持中英文）
+            # 预设的列名映射（支持中英文，不区分大小写）
             column_mapping = {
-            'name': ['name', '型号'],
-            'manufacturer': ['manufacturer', '制造商', '厂家', '厂商', '品牌'],
-            'package': ['package', '封装', '封装类型', 'package type', '封装格式'],
-            'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量'],
-            'description': ['description', '描述', '说明', 'desc', '商品型号'],
-            'price': ['price', '单价', '单价（人民币含税）'],
-            'lc_number': ['lc_number', 'LC编号', '商品编号'],
-            'other': ['other', '其他', '其他信息']
-        }
+                'name': ['name', '型号', '名称', 'product name', 'part name'],
+                'manufacturer': ['manufacturer', '制造商', '厂家', '厂商', '品牌', 'brand'],
+                'package': ['package', '封装', '封装类型', 'package type', '封装格式', 'footprint'],
+                'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量', 'count', 'amount'],
+                'description': ['description', '描述', '说明', 'desc', '商品型号', 'details'],
+                'part_type': ['part_type', '类型', 'type', '商品类型', '零件类型', 'category'],
+                'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
+                'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number', 'lc_number'],
+                'other': ['other', '其他', '其他信息', 'remarks', 'note']
+            }
             
             for row_idx, row in enumerate(reader, start=2):
-                # 自动检测列名
+                # 自动检测列名（不区分大小写）
                 row_data = {}
                 for field, possible_names in column_mapping.items():
-                    for col_name in possible_names:
-                        if col_name in row:
-                            row_data[field] = row[col_name].strip()
+                    for col_name in row.keys():
+                        if col_name and any(p.lower() == str(col_name).strip().lower() for p in possible_names):
+                            row_data[field] = row[col_name].strip() if row[col_name] else ""
                             break
                 
                 # 检查必需字段
@@ -318,13 +319,16 @@ class FileService:
                 
                 # 提取信息
                 description = row_data.get('description', '')
-                value, part_type = FileService.extract_info(description)
+                # 优先使用文件中的类型，如果没有则从描述中提取
+                part_type = row_data.get('part_type', '')
+                if not part_type:
+                    value, part_type = FileService.extract_info(description)
                 
                 # 创建零件数据
                 part_to_add = PartToInventoryAdd(
                     name=row_data['name'],
-                    manufacturer=row_data['manufacturer'],
-                    package=row_data['package'],
+                    manufacturer=row_data.get('manufacturer', ''),
+                    package=row_data.get('package', ''),
                     quantity=quantity,
                     description=description,
                     part_type=part_type,
@@ -333,7 +337,7 @@ class FileService:
                 )
                 
                 # 添加到库存
-                InventoryService.add_part_to_inventory(db, part_to_add)
+                InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
             
             return {"message": "CSV文件导入成功"}
             
@@ -372,17 +376,17 @@ class FileService:
                 # 解析Excel文件
                 data = FileService.parse_excel_file(tmp_file_path)
                 
-                # 预设的列名映射（支持中英文）
+                # 预设的列名映射（支持中英文，不区分大小写）
                 column_mapping = {
-                    'name': ['name', '型号', '商品型号'],
-                    'manufacturer': ['manufacturer', '制造商', '厂家', '厂商', '品牌'],
-                    'package': ['package', '封装', '封装类型', 'package type', '封装格式'],
-                    'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量'],
-                    'description': ['description', '描述', '说明', 'desc'],
-                    'part_type': ['part_type', '类型', '商品类型', '零件类型', 'type'],
-                    'price': ['price', '单价', '单价（人民币含税）'],
-                    'lc_number': ['lc_number', 'LC编号', '商品编号'],
-                    'other': ['other', '其他', '其他信息']
+                    'name': ['name', '型号', '商品型号', '名称', 'product name', 'part name'],
+                    'manufacturer': ['manufacturer', '制造商', '厂家', '厂商', '品牌', 'brand'],
+                    'package': ['package', '封装', '封装类型', 'package type', '封装格式', 'footprint'],
+                    'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量', 'count', 'amount'],
+                    'description': ['description', '描述', '说明', 'desc', 'details'],
+                    'part_type': ['part_type', '类型', '商品类型', '零件类型', 'type', 'category'],
+                    'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
+                    'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number'],
+                    'other': ['other', '其他', '其他信息', 'remarks', 'note']
                 }
                 
                 # 获取列名，处理第一行可能是空行的情况
@@ -491,7 +495,7 @@ class FileService:
                     )
                     
                     # 添加到库存
-                    InventoryService.add_part_to_inventory(db, part_to_add)
+                    InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
                 
                 return {"message": "Excel文件导入成功"}
                 

@@ -21,7 +21,28 @@ from app.models.inventory import Inventory
 from app.models.manufacturer import Manufacturer
 from app.models.package import Package
 from app.models.type import Type
+from app.models.config import Category, Subcategory
 from app.schemas.inventory import PartDetailsFlatGet, PartInventoryFlatGet, PartInventoryQuantity, PartInventoryQuantityUpdate, PartToInventoryAdd, PartInventoryFilter
+
+from app.services.mqtt_service import publish_event
+
+
+def _parse_param_number(val: str) -> float:
+    """解析参数值中的数字，支持单位后缀如 100R, 1K, 1uF, 0.25W"""
+    import re
+    if not val:
+        raise ValueError("empty value")
+    val = str(val).strip()
+    # 提取数字部分和单位部分
+    m = re.match(r'^([0-9]*\.?[0-9]+)\s*([kKmMuUnNpP]?)', val)
+    if not m:
+        raise ValueError(f"cannot parse: {val}")
+    num = float(m.group(1))
+    suffix = m.group(2).upper()
+    multipliers = {'K': 1000, 'M': 1000000, 'U': 0.000001, 'N': 0.000000001, 'P': 0.000000000001}
+    if suffix in multipliers:
+        num *= multipliers[suffix]
+    return num
 
 
 class InventoryService:
@@ -37,11 +58,40 @@ class InventoryService:
         "manufacturer": Manufacturer.name
     }
     
+    # 类别/子类别名称缓存（避免每次查询都访问 DB）
+    _category_name_cache: dict = {}
+    _subcategory_name_cache: dict = {}
+
     @staticmethod
-    def _create_part_inventory_flat_get(part: Part) -> PartInventoryFlatGet:
+    def _get_category_name(db: Session, category_id: int) -> str | None:
+        if not category_id:
+            return None
+        if category_id not in InventoryService._category_name_cache:
+            cat = db.query(Category).filter(Category.id == category_id).first()
+            InventoryService._category_name_cache[category_id] = cat.name if cat else None
+        return InventoryService._category_name_cache[category_id]
+
+    @staticmethod
+    def _get_subcategory_name(db: Session, subcategory_id: int) -> str | None:
+        if not subcategory_id:
+            return None
+        if subcategory_id not in InventoryService._subcategory_name_cache:
+            sub = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
+            InventoryService._subcategory_name_cache[subcategory_id] = sub.name if sub else None
+        return InventoryService._subcategory_name_cache[subcategory_id]
+
+    @staticmethod
+    def _create_part_inventory_flat_get(part: Part, db: Session = None) -> PartInventoryFlatGet:
         """创建零件库存扁平化对象（统一数据格式）"""
+        cat_name = None
+        subcat_name = None
+        if db and getattr(part, 'category_id', None):
+            cat_name = InventoryService._get_category_name(db, part.category_id)
+        if db and getattr(part, 'subcategory_id', None):
+            subcat_name = InventoryService._get_subcategory_name(db, part.subcategory_id)
         return PartInventoryFlatGet(
             id=part.id,
+            part_number=getattr(part, 'part_number', None),
             name=part.name,
             manufacturer=part.manufacturer.name if part.manufacturer else None,
             part_type=part.type.part_type if part.type else None,
@@ -50,11 +100,15 @@ class InventoryService:
             description=part.description if part.description else None,
             price=float(part.price) if part.price else None,
             lc_number=part.lc_number,
-            other=part.other
+            other=part.other,
+            category_id=getattr(part, 'category_id', None),
+            subcategory_id=getattr(part, 'subcategory_id', None),
+            category_name=cat_name,
+            subcategory_name=subcat_name
         )
 
     @staticmethod
-    def add_part_to_inventory(db: Session, part: PartToInventoryAdd):
+    def add_part_to_inventory(db: Session, part: PartToInventoryAdd, record_history: bool = True):
         """
         添加零件到库存
         - 自动创建或获取制造商、封装、类型
@@ -93,7 +147,17 @@ class InventoryService:
         
         if not db_part:
             logger.info(f"Creating new part: {part.name}")
+            # 生成零件编号
+            part_number = None
+            if part.category_id:
+                try:
+                    from app.services.part_id_service import generate_part_number
+                    part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                except Exception as e:
+                    logger.warning(f"Failed to generate part_number: {e}")
+
             db_part = create_part(db, Part(
+                part_number=part_number,
                 name=part.name,
                 description=part.description,
                 manufacturer_id=db_manufacturer.id,
@@ -101,7 +165,9 @@ class InventoryService:
                 type_id=db_type.id,
                 price=str(part.price) if part.price is not None else None,
                 lc_number=part.lc_number,
-                other=part.other
+                other=part.other,
+                category_id=part.category_id,
+                subcategory_id=part.subcategory_id
             ))
         else:
             logger.info(f"Found existing part ID: {db_part.id}, updating quantity")
@@ -120,13 +186,14 @@ class InventoryService:
             InventoryService.update_inventory_quantity(
                 db, 
                 PartInventoryQuantityUpdate(part_id=db_part.id, quantity=part.quantity),
-                remark=f"添加零件时自动增加库存"
+                remark=f"添加零件时自动增加库存",
+                record_history=record_history
             )
 
         return part
 
     @staticmethod
-    def update_inventory_quantity(db: Session, inventory_quantity: PartInventoryQuantityUpdate, remark: str = None):
+    def update_inventory_quantity(db: Session, inventory_quantity: PartInventoryQuantityUpdate, remark: str = None, record_history: bool = True):
         """
         更新库存数量
         - operation_mode: add(增加) / subtract(减少) / set(直接设置)
@@ -178,16 +245,22 @@ class InventoryService:
         update_inventory_quantity(db, db_inventory)
 
         # 记录历史
-        create_inventory_history(
-            db=db,
-            part_id=inventory_quantity.part_id,
-            operation_type=operation_type,
-            quantity_change=quantity_change,
-            quantity_before=quantity_before,
-            quantity_after=new_quantity,
-            remark=remark
-        )
+        if record_history:
+            create_inventory_history(
+                db=db,
+                part_id=inventory_quantity.part_id,
+                operation_type=operation_type,
+                quantity_change=quantity_change,
+                quantity_before=quantity_before,
+                quantity_after=new_quantity,
+                remark=remark
+            )
         
+        try:
+            publish_event("inventory.update", f'{"part_id": {inventory_quantity.part_id}, "new_quantity": {db_inventory.quantity_available}}')
+        except Exception:
+            pass
+
         return PartInventoryQuantity(updatedQuantity = db_inventory.quantity_available)
 
 
@@ -231,7 +304,7 @@ class InventoryService:
         parts = query.offset(offset).limit(page_size).all()
         
         # 使用通用方法创建结果
-        result = [InventoryService._create_part_inventory_flat_get(part) for part in parts]
+        result = [InventoryService._create_part_inventory_flat_get(part, db) for part in parts]
         
         # 返回分页结果
         return {
@@ -255,7 +328,7 @@ class InventoryService:
                 detail=f"Part with id = {id} does not exist"
             )
         
-        flat_get = InventoryService._create_part_inventory_flat_get(part_found)
+        flat_get = InventoryService._create_part_inventory_flat_get(part_found, db)
         return PartDetailsFlatGet(**flat_get.dict())
         
 
@@ -263,7 +336,7 @@ class InventoryService:
     def search(search_key: str, db: Session) -> List[PartInventoryFlatGet]:
         """搜索零件（模糊匹配）"""
         parts_list = get_parts_containing_key(db, search_key)
-        return [InventoryService._create_part_inventory_flat_get(part) for part in parts_list]
+        return [InventoryService._create_part_inventory_flat_get(part, db) for part in parts_list]
     
     @staticmethod
     def delete_part_with_id(part_id: int, db: Session):
@@ -329,7 +402,63 @@ class InventoryService:
                 query = query.join(Type)
                 joined_tables.add("Type")
             query = query.filter(Type.part_type == filter_data.part_type)
-        
+
+        if filter_data.category_id:
+            query = query.filter(Part.category_id == filter_data.category_id)
+
+        if filter_data.subcategory_id:
+            query = query.filter(Part.subcategory_id == filter_data.subcategory_id)
+
+        # 参数筛选（解析 other JSON 字段）
+        if filter_data.param_filters:
+            import json as _json
+            # 先获取所有候选零件，Python 侧解析 JSON 筛选
+            # 对于大量数据应使用 SQLite json_extract，但当前规模足够
+            all_parts = query.all()
+            filtered_ids = []
+            for part in all_parts:
+                if not part.other:
+                    continue
+                try:
+                    params = _json.loads(part.other)
+                except (ValueError, TypeError):
+                    continue
+                match = True
+                for field_name, condition in filter_data.param_filters.items():
+                    val = params.get(field_name)
+                    if val is None:
+                        match = False
+                        break
+                    if isinstance(condition, dict):
+                        # 范围筛选 {"min": "100", "max": "1000"}
+                        try:
+                            num_val = _parse_param_number(str(val))
+                            if condition.get("min") is not None:
+                                if num_val < _parse_param_number(str(condition["min"])):
+                                    match = False
+                                    break
+                            if condition.get("max") is not None:
+                                if num_val > _parse_param_number(str(condition["max"])):
+                                    match = False
+                                    break
+                        except (ValueError, TypeError):
+                            match = False
+                            break
+                    else:
+                        # 精确匹配
+                        if str(val) != str(condition):
+                            match = False
+                            break
+                if match:
+                    filtered_ids.append(part.id)
+
+            query = db.query(Part).join(Inventory).filter(Part.id.in_(filtered_ids))
+            # 重新应用 category_id 筛选（因为 query 被替换了）
+            if filter_data.category_id:
+                query = query.filter(Part.category_id == filter_data.category_id)
+            if filter_data.subcategory_id:
+                query = query.filter(Part.subcategory_id == filter_data.subcategory_id)
+
         # 应用排序
         if sort_field:
             # 确保排序字段所需的表已连接
@@ -361,7 +490,7 @@ class InventoryService:
         parts_list = query.offset(offset).limit(page_size).all()
         
         # 使用通用方法创建结果
-        result = [InventoryService._create_part_inventory_flat_get(part) for part in parts_list]
+        result = [InventoryService._create_part_inventory_flat_get(part, db) for part in parts_list]
         
         return {
             "data": result,
@@ -373,5 +502,27 @@ class InventoryService:
             }
         }
 
+    @staticmethod
+    def get_category_param_values(db: Session, category_id: int) -> Dict[str, list]:
+        """获取指定类别下所有零件的参数值分布（从 other JSON 字段解析）"""
+        import json as _json
+        parts = db.query(Part).filter(
+            Part.category_id == category_id,
+            Part.other.isnot(None),
+            Part.other != ''
+        ).all()
 
+        param_values: Dict[str, set] = {}
+        for part in parts:
+            try:
+                params = _json.loads(part.other)
+                if not isinstance(params, dict):
+                    continue
+            except (ValueError, TypeError):
+                continue
+            for k, v in params.items():
+                if k not in param_values:
+                    param_values[k] = set()
+                param_values[k].add(str(v))
 
+        return {k: sorted(v) for k, v in param_values.items()}

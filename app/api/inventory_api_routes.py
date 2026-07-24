@@ -32,6 +32,11 @@ def add_part_to_inventory(
     package: str = Form(...),
     quantity: int = Form(...),
     description: str = Form(None),
+    price: float = Form(None),
+    lc_number: str = Form(None),
+    other: str = Form(None),
+    category_id: int = Form(None),
+    subcategory_id: int = Form(None),
     db: Session = Depends(get_db)
 ):
     """添加新零件到库存"""
@@ -41,7 +46,12 @@ def add_part_to_inventory(
         part_type=part_type,
         package=package,
         quantity=quantity,
-        description=description
+        description=description,
+        price=price,
+        lc_number=lc_number,
+        other=other,
+        category_id=category_id,
+        subcategory_id=subcategory_id
     )
     InventoryService.add_part_to_inventory(db, part_data)
     return RedirectResponse("/inventory", status_code=303)
@@ -129,7 +139,7 @@ def get_parts_inventory_list(
     page: int = Query(1, description="页码", ge=1),
     page_size: int = Query(100, description="每页数量", ge=1, le=500),
     sort_field: str = Query(None, description="排序字段"),
-    sort_direction: str = Query("asc", description="排序方向", regex="^(asc|desc|)$"),
+    sort_direction: str = Query("asc", description="排序方向", pattern="^(asc|desc|)$"),
     db: Session = Depends(get_db)
 ):
     """获取零件库存列表（支持分页和排序）"""
@@ -175,7 +185,7 @@ def search_in_inventory(search_key:str, db: Session = Depends(get_db)):
 def advanced_search_in_inventory(
     filter_data: PartInventoryFilter,
     sort_field: str = Query(None, description="排序字段"),
-    sort_direction: str = Query("asc", description="排序方向", regex="^(asc|desc|)$"),
+    sort_direction: str = Query("asc", description="排序方向", pattern="^(asc|desc|)$"),
     db: Session = Depends(get_db)
 ):
     """高级筛选（支持多条件组合和排序）"""
@@ -184,6 +194,11 @@ def advanced_search_in_inventory(
     return InventoryService.advanced_search(db, filter_data, sort_field, sort_direction)
 
 # ==================== 基础数据接口 ====================
+
+@router.get("/category_param_values")
+def get_category_param_values(category_id: int = Query(...), db: Session = Depends(get_db)):
+    """获取指定类别下零件的参数值分布（用于侧栏参数筛选）"""
+    return InventoryService.get_category_param_values(db, category_id)
 
 @router.get("/manufacturers")
 def get_all_manufacturers(db: Session = Depends(get_db)):
@@ -226,8 +241,8 @@ def export_inventory_csv(db: Session = Depends(get_db)):
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # 写入表头
-    writer.writerow(['ID', '名称', '制造商', '类型', '封装', '数量', 'LC编号', '单价', '描述'])
+    # 写入表头 (使用英文字段以提高兼容性)
+    writer.writerow(['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
     
     # 写入数据
     for item in inventory_data:
@@ -253,6 +268,29 @@ def export_inventory_csv(db: Session = Depends(get_db)):
         headers=headers
     )
 
+@router.get("/export_template")
+def export_import_template(db: Session = Depends(get_db)):
+    """导出导入模板为CSV格式"""
+    # 创建CSV内容
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # 写入表头
+    writer.writerow(['Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
+    
+    # 写入示例行 (可选)
+    writer.writerow(['NE555', 'TI', 'IC', 'DIP-8', '10', 'C12345', '0.5', 'Timer IC'])
+    
+    csv_content = output.getvalue()
+    output.close()
+    
+    headers = {'Content-Disposition': 'attachment; filename="inventory_template.csv"'}
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers=headers
+    )
+
 @router.get("/export_excel")
 def export_inventory_excel(db: Session = Depends(get_db)):
     """导出库存数据为Excel格式"""
@@ -263,8 +301,8 @@ def export_inventory_excel(db: Session = Depends(get_db)):
     worksheet = workbook.active
     worksheet.title = "库存清单"
     
-    # 写入表头
-    headers = ['ID', '名称', '制造商', '类型', '封装', '数量', 'LC编号', '单价', '描述']
+    # 写入表头 (使用英文字段以提高兼容性)
+    headers = ['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     for col, header in enumerate(headers, 1):
         worksheet.cell(row=1, column=col, value=header)
         worksheet.cell(row=1, column=col).font = worksheet.cell(row=1, column=col).font.copy(bold=True)

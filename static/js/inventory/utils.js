@@ -85,18 +85,14 @@ function formatDateTime(isoString) {
     });
 }
 
-// ==================== 页面设置 ====================
-// 保存分页设置到本地存储
-function savePageSettings() {
-    const pageSize = document.getElementById('pageSizeInput').value;
-    localStorage.setItem('pageSize', pageSize);
-    const modal = bootstrap.Modal.getInstance(document.getElementById('pageSettingsModal'));
-    modal.hide();
-    if (typeof applyAdvancedFilter === 'function') {
-        applyAdvancedFilter();
-    } else {
-        location.reload();
+// ==================== 类型显示辅助 ====================
+function getDisplayType(item) {
+    if (item.category_name) {
+        return item.subcategory_name
+            ? item.category_name + '/' + item.subcategory_name
+            : item.category_name;
     }
+    return item.part_type || '-';
 }
 
 // ==================== 通用工具导出 ====================
@@ -106,4 +102,4 @@ window.throttle = throttle;
 window.escapeHtml = escapeHtml;
 window.showToast = showToast;
 window.formatDateTime = formatDateTime;
-window.savePageSettings = savePageSettings;
+window.getDisplayType = getDisplayType;

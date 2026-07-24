@@ -34,10 +34,10 @@ ENV/
 .env.example
 
 # ==================== 数据库 ====================
-# SQLite 数据库文件（如果不想上传数据库）
-# *.db
-# *.sqlite
-# *.sqlite3
+# SQLite 数据库文件
+*.db
+*.sqlite
+*.sqlite3
 
 # 数据库备份
 *.db.backup
@@ -100,6 +100,11 @@ temp/
 *.zip
 *.tar.gz
 *.rar
+
+# Excel 文件（导出的数据文件）
+*.xlsx
+*.xls
+*.csv
 
 # 文档（可选，根据需要调整）
 # DEPLOYMENT.md

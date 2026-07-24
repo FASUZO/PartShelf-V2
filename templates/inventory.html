@@ -16,154 +16,72 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   </head>
   <body>
-    <!-- ==================== 导航栏 ==================== -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="/">
-            <i class="fas fa-microchip"></i> PartShelf
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDarkNavbar" aria-controls="offcanvasDarkNavbar" aria-label="切换导航">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="offcanvasDarkNavbar" aria-labelledby="offcanvasDarkNavbarLabel">
-          <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="offcanvasDarkNavbarLabel">菜单</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
-          </div>
-          <div class="offcanvas-body">
-            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
-              <li class="nav-item">
-                <a class="nav-link active" href="/inventory"><i class="fas fa-boxes"></i> 我的库存</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/projects"><i class="fas fa-project-diagram"></i> 我的项目</a>
-              </li>
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="fas fa-tools"></i> 操作
-                </a>
-                <ul class="dropdown-menu dropdown-menu-dark">
-                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentModal"><i class="fas fa-plus"></i> 添加零件</a></li>
-                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addComponentOrderModal"><i class="fas fa-file-import"></i> 导入文件</a></li>
-                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#batchStockInModal"><i class="fas fa-arrow-down"></i> 批量入库</a></li>
-                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#batchStockOutModal"><i class="fas fa-arrow-up"></i> 一键出库</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="#" onclick="showInventoryHistory()"><i class="fas fa-history"></i> 使用历史</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="/api/inventory/export_csv" target="_blank"><i class="fas fa-file-csv"></i> 导出 CSV</a></li>
-                  <li><a class="dropdown-item" href="/api/inventory/export_excel" target="_blank"><i class="fas fa-file-excel"></i> 导出 Excel</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#pageSettingsModal"><i class="fas fa-cog"></i> 分页设置</a></li>
-                </ul>
-              </li>
-            </ul>
-            <div class="d-flex align-items-center ms-2">
-                <input class="form-control me-2" type="search" id="searchInput" placeholder="搜索零件名称、描述或参数..." aria-label="搜索">
-                <button class="btn btn-primary me-2" id="searchButton" type="button" style="white-space: nowrap; min-width: fit-content; overflow: visible;">
-                  <i class="fas fa-search"></i> <span class="btn-text">搜索</span>
-                </button>
-                <button class="btn btn-outline-light collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilterCollapse" aria-expanded="false" style="white-space: nowrap; min-width: fit-content; overflow: visible;">
-                  <i class="fas fa-filter"></i> <span class="btn-text">筛选</span>
-                </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
+    {% set active_page = "inventory" %}
+    {% include "_navbar.html" %}
 
     <!-- ==================== 主容器 ==================== -->
-    <div class="container mt-5 pt-5">
-      <!-- 高级筛选区域 (可折叠) -->
-      <div class="row mb-4 collapse" id="advancedFilterCollapse">
-        <div class="col-12">
-          <div class="card">
-              <div class="card-body bg-light">
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label for="manufacturerFilter" class="form-label fw-bold">制造商</label>
-                    <div class="dropdown-search">
-                      <div class="input-group">
-                        <input type="text" class="form-control dropdown-search-input" id="manufacturerFilterInput" placeholder="输入搜索制造商..." autocomplete="off">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearFilterSelection('manufacturerFilter')">
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </div>
-                      <select class="form-select" id="manufacturerFilter" style="display: none;">
-                        <option value="">所有制造商</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label for="packageFilter" class="form-label fw-bold">封装</label>
-                    <div class="dropdown-search">
-                      <div class="input-group">
-                        <input type="text" class="form-control dropdown-search-input" id="packageFilterInput" placeholder="输入搜索封装..." autocomplete="off">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearFilterSelection('packageFilter')">
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </div>
-                      <select class="form-select" id="packageFilter" style="display: none;">
-                        <option value="">所有封装</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label for="partTypeFilter" class="form-label fw-bold">类型</label>
-                    <div class="dropdown-search">
-                      <div class="input-group">
-                        <input type="text" class="form-control dropdown-search-input" id="partTypeFilterInput" placeholder="输入搜索类型..." autocomplete="off">
-                        <button class="btn btn-outline-secondary" type="button" onclick="clearFilterSelection('partTypeFilter')">
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </div>
-                      <select class="form-select" id="partTypeFilter" style="display: none;">
-                        <option value="">所有类型</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                <div class="row mt-3">
-                  <div class="col-12 text-end">
-                    <button class="btn btn-primary" id="applyFilterButton" type="button">
-                      <i class="fas fa-check"></i> 应用筛选
-                    </button>
-                    <button class="btn btn-secondary" id="clearFilterButton" type="button">
-                      <i class="fas fa-undo"></i> 重置
-                    </button>
-                  </div>
-                </div>
-              </div>
+    <div class="container-fluid mt-5 pt-3">
+      <div class="row">
+        <!-- ========== 左侧栏 ========== -->
+        <div class="col-md-3 col-lg-2" id="sidebar">
+          <div class="sidebar-header">
+            <button id="sidebarToggle" title="折叠/展开">
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <span class="sidebar-title"><i class="fas fa-filter"></i> 筛选栏</span>
+          </div>
+          <div class="sidebar-section sidebar-section-1">
+            <h6><i class="fas fa-tags"></i> 大类别</h6>
+            <div id="sidebarCategories" class="sidebar-list">
+              <div class="sidebar-empty">加载中...</div>
+            </div>
+          </div>
+          <div class="sidebar-section sidebar-section-2">
+            <h6><i class="fas fa-sitemap"></i> 子类别</h6>
+            <div id="sidebarSubcategories" class="sidebar-list">
+              <div class="sidebar-empty">选择类别后显示</div>
+            </div>
+          </div>
+          <div class="sidebar-section sidebar-section-3">
+            <h6><i class="fas fa-sliders-h"></i> 参数筛选</h6>
+            <div id="sidebarParams" class="sidebar-list" style="flex:1; overflow-y:auto;">
+              <div class="sidebar-empty">选择类别后显示</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- ==================== 数据表格区域 ==================== -->
-      <div class="table-container">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th scope="col" class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
-                <th scope="col" class="sortable" data-sort="name">型号 <i class="fas fa-sort"></i></th>
-                <th scope="col" class="sortable" data-sort="manufacturer">制造商 <i class="fas fa-sort"></i></th>
-                <th scope="col" class="sortable" data-sort="part_type">类型 <i class="fas fa-sort"></i></th>
-                <th scope="col" class="sortable" data-sort="package">封装 <i class="fas fa-sort"></i></th>
-                <th scope="col" class="sortable" data-sort="quantity">数量 <i class="fas fa-sort"></i></th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <!-- 表格主体 - 由JavaScript动态填充 -->
-            <tbody id="parts-table-body">
-              <tr><td colspan="7" class="text-center text-muted">正在加载数据...</td></tr>
-            </tbody>
-          </table>
-          
-          <!-- 分页控件 -->
-          <nav aria-label="零件分页" class="mt-4">
-            <ul class="pagination justify-content-center mb-2" id="pagination">
-            </ul>
-            <div class="text-center text-muted small" id="pagination-info">
-            </div>
-          </nav>
+        <!-- ========== 主内容区 ========== -->
+        <div class="col-md-9 col-lg-10" id="mainContent">
+          <!-- ==================== 数据表格区域 ==================== -->
+          <div class="table-container">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">编号</th>
+                    <th scope="col" class="sortable" data-sort="name">型号 <i class="fas fa-sort"></i></th>
+                    <th scope="col">描述</th>
+                    <th scope="col" class="sortable" data-sort="manufacturer">制造商 <i class="fas fa-sort"></i></th>
+                    <th scope="col" class="sortable" data-sort="part_type">类型 <i class="fas fa-sort"></i></th>
+                    <th scope="col" class="sortable" data-sort="package">封装 <i class="fas fa-sort"></i></th>
+                    <th scope="col" class="sortable" data-sort="quantity">数量 <i class="fas fa-sort"></i></th>
+                    <th scope="col">操作</th>
+                  </tr>
+                </thead>
+                <!-- 表格主体 - 由JavaScript动态填充 -->
+                <tbody id="parts-table-body">
+                  <tr><td colspan="8" class="text-center text-muted">正在加载数据...</td></tr>
+                </tbody>
+              </table>
+
+              <!-- 分页控件 -->
+              <nav aria-label="零件分页" class="mt-4">
+                <ul class="pagination justify-content-center mb-2" id="pagination">
+                </ul>
+                <div class="text-center text-muted small" id="pagination-info">
+                </div>
+              </nav>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -189,9 +107,21 @@
                     <input type="text" class="form-control" id="partManufacturer" name="manufacturer" placeholder="例如: TI" required>
                   </div>
                   <div class="col-md-6">
-                    <label for="partType" class="form-label">零件类型 *</label>
-                    <input type="text" class="form-control" id="partType" name="part_type" placeholder="例如: IC" required>
+                    <label for="addPartCategory" class="form-label">类别 *</label>
+                    <select class="form-select" id="addPartCategory" required>
+                      <option value="">-- 选择类别 --</option>
+                    </select>
+                    <input type="hidden" id="addPartCategoryId" name="category_id">
                   </div>
+                  <div class="col-md-6">
+                    <label for="addPartSubcategory" class="form-label">子类别</label>
+                    <select class="form-select" id="addPartSubcategory">
+                      <option value="">-- 无 --</option>
+                    </select>
+                    <input type="hidden" id="addPartSubcategoryId" name="subcategory_id">
+                  </div>
+                  <div id="paramTemplateFields" class="col-12"></div>
+                  <input type="hidden" id="partType" name="part_type" value="">
                   <div class="col-md-6">
                     <label for="partPackage" class="form-label">封装 *</label>
                     <input type="text" class="form-control" id="partPackage" name="package" placeholder="例如: DIP-8" required>
@@ -215,6 +145,7 @@
                     <label for="partDescription" class="form-label">描述</label>
                     <textarea class="form-control" id="partDescription" name="description" rows="3" placeholder="可选描述信息..."></textarea>
                   </div>
+                  <input type="hidden" id="partOther" name="other" value="">
               </div>
               <div class="modal-footer mt-4 px-0 pb-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -238,10 +169,11 @@
             <form id="importOrderForm">
                 <div class="mb-3">
                     <label for="orderFile" class="form-label">选择文件 (CSV 或 Excel)</label>
-                    <input class="form-control" type="file" id="orderFile" name="file" accept=".csv, .xlsx, .xls" required>
+                    <input class="form-control" type="file" id="orderFile" name="order_file" accept=".csv, .xlsx, .xls" required>
                 </div>
                 <div class="alert alert-info small">
-                    请确保文件包含以下列: Name, Manufacturer, Type, Package, Quantity.
+                    <p class="mb-1"><strong>导入说明：</strong>系统将自动检测表头。建议使用英文表头（Name, Manufacturer, Type, Package, Quantity 等）或直接使用从本系统导出的 CSV/Excel 文件。</p>
+                    <a href="/api/inventory/export_template" class="alert-link"><i class="fas fa-download"></i> 下载通用导入模板 (.csv)</a>
                 </div>
                 <div class="modal-footer px-0 pb-0">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -251,34 +183,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- 分页设置模态框 -->
-    <div class="modal fade" id="pageSettingsModal" tabindex="-1" aria-labelledby="pageSettingsModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="pageSettingsModalLabel"><i class="fas fa-cog"></i> 分页设置</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label for="pageSizeInput" class="form-label">每页显示条数</label>
-                    <select class="form-select" id="pageSizeInput">
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                        <option value="100" selected>100</option>
-                        <option value="200">200</option>
-                        <option value="500">500</option>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-primary" onclick="savePageSettings()">保存</button>
-            </div>
-          </div>
-        </div>
     </div>
 
     <!-- 入库操作模态框 -->
@@ -483,6 +387,87 @@
       </div>
     </div>
 
+    <!-- 器件详情模态框 -->
+    <div class="modal fade" id="componentDetailModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <!-- 头部：器件名称和制造商 -->
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title" id="detailPartName">器件名称</h5>
+              <small class="text-muted" id="detailPartManufacturer">制造商</small>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          
+          <!-- 内容区域 -->
+          <div class="modal-body">
+            <!-- 基本信息卡片 -->
+            <div class="card mb-3">
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <strong>零件ID:</strong> <span id="detailPartId"></span><br>
+                    <strong>类型:</strong> <span id="detailPartType"></span><br>
+                    <strong>封装:</strong> <span id="detailPartPackage"></span><br>
+                    <strong>LC编号:</strong> <span id="detailPartLcNumber">-</span>
+                  </div>
+                  <div class="col-md-6">
+                    <strong>数量:</strong> <span id="detailPartQuantity"></span><br>
+                    <strong>有库存:</strong> <span id="detailInStockStatus">是</span><br>
+                    <strong>单价:</strong> <span id="detailPartPrice">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 描述卡片 -->
+            <div class="card mb-3">
+              <div class="card-header bg-light"><strong>描述</strong></div>
+              <div class="card-body">
+                <p id="detailPartDescription" class="mb-0 text-muted">暂无描述</p>
+              </div>
+            </div>
+            
+            <!-- 操作选项卡片 -->
+            <div class="card">
+              <div class="card-header bg-light"><strong>零件选项</strong></div>
+              <div class="card-body">
+                <!-- 更新数量 -->
+                <div class="mb-3">
+                  <h6 class="fw-bold">更新数量</h6>
+                  <div class="input-group input-group-sm mb-2">
+                    <select class="form-select" id="detailOperationMode" style="max-width: 120px;">
+                      <option value="set">直接设置</option>
+                      <option value="add">增加</option>
+                      <option value="subtract">减少</option>
+                    </select>
+                    <input type="number" id="detailUpdateQuantity" class="form-control" placeholder="输入数量">
+                    <button class="btn btn-primary" id="detailUpdateQuantityBtn">更新</button>
+                  </div>
+                  <small class="text-muted" id="detailOperationHint">将数量直接设置为输入值</small>
+                </div>
+                
+                <!-- 其他操作按钮 -->
+                <hr>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-info btn-sm" id="detailViewHistoryBtn">
+                    <i class="fas fa-history"></i> 查看使用历史
+                  </button>
+                  <button class="btn btn-success btn-sm" id="detailExportDetailsBtn">
+                    <i class="fas fa-download"></i> 导出详情
+                  </button>
+                  <button class="btn btn-danger btn-sm" id="detailDeletePartBtn">
+                    <i class="fas fa-trash"></i> 删除零件
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 库存历史记录模态框 -->
     <div class="modal fade" id="inventoryHistoryModal" tabindex="-1" aria-labelledby="inventoryHistoryModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-xl">
@@ -534,6 +519,9 @@
 
     <!-- 模块化JavaScript文件 -->
     <script src="../static/js/inventory/utils.js"></script>
+    <script src="../static/js/inventory/config-loader.js"></script>
+    <script src="../static/js/inventory/sidebar.js"></script>
+    <script src="../static/js/inventory/form-cascade.js"></script>
     <script src="../static/js/inventory/cache.js"></script>
     <script src="../static/js/inventory/filter.js"></script>
     <script src="../static/js/inventory/table.js"></script>
