@@ -414,25 +414,62 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     
     // 解析已有参数
     let params = {};
+    let existingUnits = {};
     if (existingParams) {
         try {
-            params = JSON.parse(existingParams);
+            const data = JSON.parse(existingParams);
+            // 检查是否是新格式
+            if (data.fields && data.values) {
+                params = data.values || {};
+                existingUnits = data.units || {};
+            } else {
+                // 旧格式
+                params = data;
+            }
         } catch (e) {
             // 忽略解析错误
         }
     }
     
+    // 常用单位列表
+    const commonUnits = {
+        '阻值': ['Ω', 'kΩ', 'MΩ', 'mΩ'],
+        '功率': ['W', 'mW', 'kW'],
+        '精度': ['%', 'ppm'],
+        '耐压': ['V', 'mV', 'kV'],
+        '电流': ['A', 'mA', 'μA'],
+        '电容': ['F', 'μF', 'nF', 'pF'],
+        '电感': ['H', 'mH', 'μH', 'nH'],
+        '频率': ['Hz', 'kHz', 'MHz', 'GHz'],
+        '温度': ['℃', '℉'],
+        '温度系数': ['ppm/℃', 'ppm/℉'],
+        '默认': ['Ω', 'kΩ', 'MΩ', 'W', 'mW', 'V', 'A', 'mA', 'μF', 'nF', 'pF', 'Hz', 'MHz', '%', '℃']
+    };
+    
     // 渲染参数字段
     let html = '<div class="row g-2">';
     fields.forEach(function(field) {
-        const value = params[field] || '';
-        const unit = units[field] || '';
-        const unitHtml = unit ? '<span class="input-group-text">' + escapeHtml(unit) + '</span>' : '';
+        // 解析值和单位
+        let value = params[field] || '';
+        let selectedUnit = existingUnits[field] || units[field] || '';
+        
+        // 获取该字段对应的单位列表
+        const unitList = commonUnits[field] || commonUnits['默认'];
+        
+        // 生成单位下拉选项
+        let unitOptions = '<option value="">无</option>';
+        unitList.forEach(function(u) {
+            const selected = (u === selectedUnit) ? ' selected' : '';
+            unitOptions += '<option value="' + escapeHtml(u) + '"' + selected + '>' + escapeHtml(u) + '</option>';
+        });
+        
         html += '<div class="col-md-4">' +
-            '<label class="form-label">' + escapeHtml(field) + (unit ? ' (' + escapeHtml(unit) + ')' : '') + '</label>' +
+            '<label class="form-label">' + escapeHtml(field) + '</label>' +
             '<div class="input-group input-group-sm">' +
-            '<input type="text" class="form-control edit-param-field" data-param-name="' + escapeHtml(field) + '" value="' + escapeHtml(value) + '">' +
-            unitHtml +
+            '<input type="text" class="form-control edit-param-value" data-param-name="' + escapeHtml(field) + '" value="' + escapeHtml(value) + '" placeholder="输入值">' +
+            '<select class="form-select form-select-sm edit-param-unit" data-param-name="' + escapeHtml(field) + '" style="max-width: 80px;">' +
+            unitOptions +
+            '</select>' +
             '</div></div>';
     });
     html += '</div>';
@@ -441,15 +478,37 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
 
 // 序列化编辑模态框的参数字段
 function serializeEditParamFields() {
-    const fields = document.querySelectorAll('#editParamTemplateFields .edit-param-field');
-    if (fields.length === 0) return '';
+    const valueFields = document.querySelectorAll('#editParamTemplateFields .edit-param-value');
+    const unitFields = document.querySelectorAll('#editParamTemplateFields .edit-param-unit');
+    if (valueFields.length === 0) return '';
+    
     const params = {};
-    fields.forEach(function(f) {
-        if (f.value.trim()) {
-            params[f.dataset.paramName] = f.value.trim();
+    const units = {};
+    
+    valueFields.forEach(function(f) {
+        const paramName = f.dataset.paramName;
+        const value = f.value.trim();
+        if (value) {
+            params[paramName] = value;
         }
     });
-    return Object.keys(params).length > 0 ? JSON.stringify(params) : '';
+    
+    unitFields.forEach(function(f) {
+        const paramName = f.dataset.paramName;
+        const unit = f.value;
+        if (unit) {
+            units[paramName] = unit;
+        }
+    });
+    
+    // 返回包含字段和单位的JSON
+    const result = {
+        fields: Object.keys(params),
+        values: params,
+        units: units
+    };
+    
+    return Object.keys(params).length > 0 ? JSON.stringify(result) : '';
 }
 
 // 保存编辑的器件信息
@@ -490,9 +549,22 @@ async function saveEditPart() {
 function parsePartParams(otherJson) {
     if (!otherJson) return null;
     try {
-        const params = JSON.parse(otherJson);
-        if (typeof params === 'object' && params !== null && !Array.isArray(params)) {
-            return params;
+        const data = JSON.parse(otherJson);
+        if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+            // 检查是否是新格式（包含fields、values、units）
+            if (data.fields && data.values) {
+                return {
+                    values: data.values,
+                    units: data.units || {},
+                    isNewFormat: true
+                };
+            }
+            // 旧格式（直接是键值对）
+            return {
+                values: data,
+                units: {},
+                isNewFormat: false
+            };
         }
         return null;
     } catch (e) {
@@ -506,7 +578,7 @@ function populateParamsTable(params, catId, subcatId) {
     const tbody = document.getElementById('detailParamsBody');
     const card = document.getElementById('detailParamsCard');
 
-    if (!params || Object.keys(params).length === 0) {
+    if (!params || !params.values || Object.keys(params.values).length === 0) {
         card.style.display = 'none';
         return;
     }
@@ -514,31 +586,35 @@ function populateParamsTable(params, catId, subcatId) {
     card.style.display = 'block';
     tbody.innerHTML = '';
 
-    // 获取参数模板的单位信息
-    let units = {};
-    try {
-        let templates = [];
-        if (subcatId) {
-            templates = getTemplatesForSubcategory(subcatId);
+    // 获取单位信息
+    let units = params.units || {};
+    
+    // 如果是旧格式，尝试从模板获取单位
+    if (!params.isNewFormat && Object.keys(units).length === 0) {
+        try {
+            let templates = [];
+            if (subcatId) {
+                templates = getTemplatesForSubcategory(subcatId);
+            }
+            if (templates.length === 0 && catId) {
+                templates = getTemplatesForCategory(catId);
+            }
+            if (templates.length > 0) {
+                const def = JSON.parse(templates[0].definition_json || '{}');
+                units = def.units || {};
+            }
+        } catch (e) {
+            // 忽略错误
         }
-        if (templates.length === 0 && catId) {
-            templates = getTemplatesForCategory(catId);
-        }
-        if (templates.length > 0) {
-            const def = JSON.parse(templates[0].definition_json || '{}');
-            units = def.units || {};
-        }
-    } catch (e) {
-        // 忽略错误
     }
 
-    for (const [key, value] of Object.entries(params)) {
+    for (const [key, value] of Object.entries(params.values)) {
         const unit = units[key] || '';
-        const unitHtml = unit ? ' <small class="text-muted">(' + escapeHtml(unit) + ')</small>' : '';
+        const unitHtml = unit ? ' <span class="badge bg-secondary">' + escapeHtml(unit) + '</span>' : '';
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${escapeHtml(key)}</strong>${unitHtml}</td>
-            <td>${escapeHtml(String(value))}</td>
+            <td><strong>${escapeHtml(key)}</strong></td>
+            <td>${escapeHtml(String(value))}${unitHtml}</td>
         `;
         tbody.appendChild(row);
     }
