@@ -267,16 +267,21 @@
       ];
       
       // 添加字段行
-      function addFieldRow(name, unit) {
+      function addFieldRow(name, unit, filterType) {
         name = name || '';
         unit = unit || '';
+        filterType = filterType || 'text'; // 默认为文本类型
         var container = document.getElementById('tplFieldsContainer');
         var row = document.createElement('div');
         row.className = 'input-group mb-2';
         row.innerHTML = `
           <input type="text" class="form-control form-control-sm field-name" placeholder="字段名称" value="${escapeHtml(name)}">
-          <select class="form-select form-select-sm field-unit" style="max-width: 120px;">
+          <select class="form-select form-select-sm field-unit" style="max-width: 100px;">
             ${COMMON_UNITS.map(function(u) { return '<option value="' + escapeHtml(u) + '"' + (u === unit ? ' selected' : '') + '>' + (u || '无单位') + '</option>'; }).join('')}
+          </select>
+          <select class="form-select form-select-sm field-filter-type" style="max-width: 80px;" title="筛选类型">
+            <option value="text"${filterType === 'text' ? ' selected' : ''}>文本</option>
+            <option value="range"${filterType === 'range' ? ' selected' : ''}>范围</option>
           </select>
           <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFieldRow(this)">
             <i class="fas fa-times"></i>
@@ -294,18 +299,21 @@
       function getFieldsFromUI() {
         var fields = [];
         var units = {};
+        var filterTypes = {};
         var rows = document.querySelectorAll('#tplFieldsContainer .input-group');
         rows.forEach(function(row) {
           var name = row.querySelector('.field-name').value.trim();
           var unit = row.querySelector('.field-unit').value;
+          var filterType = row.querySelector('.field-filter-type').value;
           if (name) {
             fields.push(name);
             if (unit) {
               units[name] = unit;
             }
+            filterTypes[name] = filterType;
           }
         });
-        return { fields: fields, units: units };
+        return { fields: fields, units: units, filterTypes: filterTypes };
       }
       
       // 清空字段行
@@ -531,19 +539,21 @@
           sel.innerHTML += '<option value="' + s.id + '"' + (s.id === t.subcategory_id ? ' selected' : '') + '>' + s.name + '</option>';
         });
         
-        // 解析字段和单位
+        // 解析字段、单位和筛选类型
         var fields = [];
         var units = {};
+        var filterTypes = {};
         try {
           var def = JSON.parse(t.definition_json);
           fields = def.fields || [];
           units = def.units || {};
+          filterTypes = def.filterTypes || {};
         } catch(e) {}
         
         // 清空并重新添加字段行
         clearFieldRows();
         fields.forEach(function(field) {
-          addFieldRow(field, units[field] || '');
+          addFieldRow(field, units[field] || '', filterTypes[field] || 'text');
         });
         
         document.getElementById('tplModalTitle').textContent = '编辑参数模板';
@@ -556,11 +566,15 @@
         var name = document.getElementById('tplEditName').value.trim();
         if (!name) { alert('模板名称必填'); return; }
         
-        // 获取字段和单位
+        // 获取字段、单位和筛选类型
         var fieldData = getFieldsFromUI();
         if (fieldData.fields.length === 0) { alert('请至少添加一个参数字段'); return; }
         
-        var defJson = JSON.stringify({fields: fieldData.fields, units: fieldData.units});
+        var defJson = JSON.stringify({
+          fields: fieldData.fields, 
+          units: fieldData.units,
+          filterTypes: fieldData.filterTypes
+        });
         if (id) {
           await fetch('/api/config/param_templates/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: name, subcategory_id: subId, definition_json: defJson}) });
         } else {

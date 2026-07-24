@@ -95,26 +95,46 @@ function loadAndRenderParamFilters(catId) {
 
     var templates = getTemplatesForCategory(catId);
     var templateFields = GLOBAL_FILTER_FIELDS.slice(); // 全局字段始终存在
+    var filterTypes = {}; // 筛选类型配置
+    var units = {}; // 单位配置
+    
+    // 从模板中获取字段、筛选类型和单位
     templates.forEach(function(tpl) {
         try {
             var def = JSON.parse(tpl.definition_json || '{}');
             (def.fields || []).forEach(function(f) {
                 if (templateFields.indexOf(f) === -1) templateFields.push(f);
             });
+            // 获取筛选类型配置
+            if (def.filterTypes) {
+                Object.assign(filterTypes, def.filterTypes);
+            }
+            // 获取单位配置
+            if (def.units) {
+                Object.assign(units, def.units);
+            }
         } catch (e) {}
     });
+    
+    // 为封装字段设置默认筛选类型为 text
+    if (!filterTypes['封装']) {
+        filterTypes['封装'] = 'text';
+    }
 
     fetch('/api/inventory/category_param_values?category_id=' + catId)
         .then(function(r) { return r.json(); })
         .then(function(paramValues) {
-            renderParamFilterFields(container, templateFields, paramValues);
+            renderParamFilterFields(container, templateFields, paramValues, filterTypes, units);
         })
         .catch(function() {
-            renderParamFilterFields(container, templateFields, {});
+            renderParamFilterFields(container, templateFields, {}, filterTypes, units);
         });
 }
 
-function renderParamFilterFields(container, templateFields, paramValues) {
+function renderParamFilterFields(container, templateFields, paramValues, filterTypes, units) {
+    filterTypes = filterTypes || {};
+    units = units || {};
+    
     var allFields = templateFields.slice();
     Object.keys(paramValues).forEach(function(k) {
         if (allFields.indexOf(k) === -1) allFields.push(k);
@@ -127,89 +147,44 @@ function renderParamFilterFields(container, templateFields, paramValues) {
 
     sidebarState.paramFilters = JSON.parse(JSON.stringify(sidebarState.appliedParamFilters));
 
-    // 强制作为离散值的字段
-    var forceDiscreteFields = ['封装', '类型', '制造商'];
-
-    // 判断哪些字段是离散值（有少量可选值），哪些是范围值
-    var discreteFields = [];
-    var rangeFields = [];
-    allFields.forEach(function(field) {
-        // 强制离散值字段
-        if (forceDiscreteFields.indexOf(field) !== -1) {
-            discreteFields.push(field);
-            return;
-        }
-        var values = paramValues[field] || [];
-        if (values.length > 0 && values.length <= 30) {
-            // 检查是否看起来像数值范围（如阻值 100, 1K, 10K）
-            var numericCount = 0;
-            values.forEach(function(v) { if (/^[0-9.]/.test(v)) numericCount++; });
-            if (numericCount > values.length * 0.5 && values.length > 8) {
-                rangeFields.push(field);
-            } else {
-                discreteFields.push(field);
-            }
-        } else {
-            rangeFields.push(field);
-        }
-    });
-
     var html = '';
 
-    // 需要显示为文本输入 + 更多按钮的字段
-    var textWithMultiSelectFields = ['封装'];
-
-    // 离散值字段 - 下拉选择（排除需要特殊处理的字段）
-    discreteFields.forEach(function(field) {
-        // 如果是需要特殊处理的字段，跳过
-        if (textWithMultiSelectFields.indexOf(field) !== -1) return;
+    // 根据配置的筛选类型渲染每个字段
+    allFields.forEach(function(field) {
+        var type = filterTypes[field] || 'text'; // 默认为文本类型
+        var unit = units[field] || '';
+        var values = paramValues[field] || [];
         
-        var values = paramValues[field] || [];
-        var currentVal = sidebarState.paramFilters[field] || '';
-        html += '<div class="param-filter-group">' +
-            '<label class="param-filter-label"><i class="fas fa-list-ul me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + '</label>' +
-            '<select class="form-select form-select-sm param-filter-select" data-field="' + escapeHtml(field) + '">' +
-            '<option value="">全部</option>';
-        values.forEach(function(v) {
-            html += '<option value="' + escapeHtml(v) + '"' + (currentVal === v ? ' selected' : '') + '>' + escapeHtml(v) + '</option>';
-        });
-        html += '</select></div>';
-    });
-
-    // 文本输入 + 更多按钮的字段（如封装）
-    textWithMultiSelectFields.forEach(function(field) {
-        var values = paramValues[field] || [];
-        var currentVal = '';
-        // 检查是否是数组（多选值）
-        if (Array.isArray(sidebarState.paramFilters[field])) {
-            currentVal = sidebarState.paramFilters[field].length + '个值已选';
-        } else if (typeof sidebarState.paramFilters[field] === 'string') {
-            currentVal = sidebarState.paramFilters[field];
+        // 根据筛选类型渲染不同的控件
+        if (type === 'range') {
+            // 范围值 - 双输入框 + 更多按钮
+            var range = (typeof sidebarState.paramFilters[field] === 'object') ? sidebarState.paramFilters[field] : {};
+            html += '<div class="param-filter-group">' +
+                '<label class="param-filter-label"><i class="fas fa-arrows-alt-h me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + (unit ? ' (' + escapeHtml(unit) + ')' : '') + '</label>' +
+                '<div class="input-group input-group-sm">' +
+                '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="min" placeholder="最小" value="' + escapeHtml(range.min || '') + '">' +
+                '<span class="input-group-text">~</span>' +
+                '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="max" placeholder="最大" value="' + escapeHtml(range.max || '') + '">' +
+                '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
+                '</div></div>';
+        } else {
+            // 文本类型 - 文本输入 + 更多按钮
+            var currentVal = '';
+            // 检查是否是数组（多选值）
+            if (Array.isArray(sidebarState.paramFilters[field])) {
+                currentVal = sidebarState.paramFilters[field].length + '个值已选';
+            } else if (typeof sidebarState.paramFilters[field] === 'string') {
+                currentVal = sidebarState.paramFilters[field];
+            }
+            
+            html += '<div class="param-filter-group">' +
+                '<label class="param-filter-label"><i class="fas fa-cube me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + (unit ? ' (' + escapeHtml(unit) + ')' : '') + '</label>' +
+                '<div class="input-group input-group-sm">' +
+                '<input type="text" class="form-control param-filter-text" data-field="' + escapeHtml(field) + '" placeholder="输入' + escapeHtml(field) + '" value="' + escapeHtml(currentVal) + '">' +
+                '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
+                '</div></div>';
         }
         
-        html += '<div class="param-filter-group">' +
-            '<label class="param-filter-label"><i class="fas fa-cube me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + '</label>' +
-            '<div class="input-group input-group-sm">' +
-            '<input type="text" class="form-control param-filter-text" data-field="' + escapeHtml(field) + '" placeholder="输入' + escapeHtml(field) + '" value="' + escapeHtml(currentVal) + '">' +
-            '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
-            '</div></div>';
-        // 存储所有值供多选弹窗使用
-        if (!window._paramValuesCache) window._paramValuesCache = {};
-        window._paramValuesCache[field] = values;
-    });
-
-    // 范围值字段 - 双输入框 + 更多按钮
-    rangeFields.forEach(function(field) {
-        var range = (typeof sidebarState.paramFilters[field] === 'object') ? sidebarState.paramFilters[field] : {};
-        var values = paramValues[field] || [];
-        html += '<div class="param-filter-group">' +
-            '<label class="param-filter-label"><i class="fas fa-arrows-alt-h me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + '</label>' +
-            '<div class="input-group input-group-sm">' +
-            '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="min" placeholder="最小" value="' + escapeHtml(range.min || '') + '">' +
-            '<span class="input-group-text">~</span>' +
-            '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="max" placeholder="最大" value="' + escapeHtml(range.max || '') + '">' +
-            '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
-            '</div></div>';
         // 存储所有值供多选弹窗使用
         if (!window._paramValuesCache) window._paramValuesCache = {};
         window._paramValuesCache[field] = values;
