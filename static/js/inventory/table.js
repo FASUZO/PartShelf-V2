@@ -165,6 +165,10 @@ function populateModal(data) {
 
     // 保存当前零件ID用于后续操作
     document.getElementById('componentDetailModal').dataset.partId = data.id;
+
+    // 解析并填充参数
+    const params = parsePartParams(data.other);
+    populateParamsTable(params);
 }
 
 // 更新操作提示
@@ -269,6 +273,44 @@ async function deleteDetailPart() {
     }
 }
 
+// 解析器件参数
+function parsePartParams(otherJson) {
+    if (!otherJson) return null;
+    try {
+        const params = JSON.parse(otherJson);
+        if (typeof params === 'object' && params !== null && !Array.isArray(params)) {
+            return params;
+        }
+        return null;
+    } catch (e) {
+        console.error('解析参数失败:', e);
+        return null;
+    }
+}
+
+// 填充参数表格
+function populateParamsTable(params) {
+    const tbody = document.getElementById('detailParamsBody');
+    const card = document.getElementById('detailParamsCard');
+
+    if (!params || Object.keys(params).length === 0) {
+        card.style.display = 'none';
+        return;
+    }
+
+    card.style.display = 'block';
+    tbody.innerHTML = '';
+
+    for (const [key, value] of Object.entries(params)) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${escapeHtml(key)}</strong></td>
+            <td>${escapeHtml(String(value))}</td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
 // 导出到全局
 window.currentSort = currentSort;
 window.currentPartsData = currentPartsData;
@@ -284,3 +326,5 @@ window.updateDetailQuantity = updateDetailQuantity;
 window.viewDetailHistory = viewDetailHistory;
 window.exportDetailDetails = exportDetailDetails;
 window.deleteDetailPart = deleteDetailPart;
+window.parsePartParams = parsePartParams;
+window.populateParamsTable = populateParamsTable;
