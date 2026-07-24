@@ -81,6 +81,20 @@ class InventoryService:
         return InventoryService._subcategory_name_cache[subcategory_id]
 
     @staticmethod
+    def _parse_price(price_str: str) -> float | None:
+        """解析价格字符串，支持批量采购格式如 '0.06@100'"""
+        if not price_str:
+            return None
+        try:
+            # 处理批量采购格式：提取@前面的价格部分
+            if '@' in str(price_str):
+                price_part = str(price_str).split('@')[0]
+                return float(price_part)
+            return float(price_str)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
     def _create_part_inventory_flat_get(part: Part, db: Session = None) -> PartInventoryFlatGet:
         """创建零件库存扁平化对象（统一数据格式）"""
         cat_name = None
@@ -98,7 +112,7 @@ class InventoryService:
             package=part.package.package_type if part.package else None,
             quantity=part.inventory.quantity_available if part.inventory else None,
             description=part.description if part.description else None,
-            price=float(part.price) if part.price else None,
+            price=InventoryService._parse_price(part.price),
             lc_number=part.lc_number,
             other=part.other,
             category_id=getattr(part, 'category_id', None),
