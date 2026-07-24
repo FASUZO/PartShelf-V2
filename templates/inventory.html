@@ -602,6 +602,34 @@
       </div>
     </div>
 
+    <!-- 多选筛选弹窗 -->
+    <div class="modal fade" id="multiSelectFilterModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title" id="multiSelectFilterTitle">选择筛选值</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm" id="multiSelectSearch" placeholder="搜索...">
+            </div>
+            <div class="mb-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="multiSelectAll()">全选</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="multiSelectNone()">取消全选</button>
+            </div>
+            <div id="multiSelectList" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+              <!-- 由JavaScript动态填充 -->
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" onclick="applyMultiSelectFilter()">应用筛选</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 模块化JavaScript文件 -->
     <script src="../static/js/inventory/utils.js"></script>
     <script src="../static/js/inventory/config-loader.js"></script>

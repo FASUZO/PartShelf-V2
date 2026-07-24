@@ -127,10 +127,18 @@ function renderParamFilterFields(container, templateFields, paramValues) {
 
     sidebarState.paramFilters = JSON.parse(JSON.stringify(sidebarState.appliedParamFilters));
 
+    // 强制作为离散值的字段
+    var forceDiscreteFields = ['封装', '类型', '制造商'];
+
     // 判断哪些字段是离散值（有少量可选值），哪些是范围值
     var discreteFields = [];
     var rangeFields = [];
     allFields.forEach(function(field) {
+        // 强制离散值字段
+        if (forceDiscreteFields.indexOf(field) !== -1) {
+            discreteFields.push(field);
+            return;
+        }
         var values = paramValues[field] || [];
         if (values.length > 0 && values.length <= 30) {
             // 检查是否看起来像数值范围（如阻值 100, 1K, 10K）
@@ -162,16 +170,21 @@ function renderParamFilterFields(container, templateFields, paramValues) {
         html += '</select></div>';
     });
 
-    // 范围值字段 - 双输入框
+    // 范围值字段 - 双输入框 + 更多按钮
     rangeFields.forEach(function(field) {
         var range = (typeof sidebarState.paramFilters[field] === 'object') ? sidebarState.paramFilters[field] : {};
+        var values = paramValues[field] || [];
         html += '<div class="param-filter-group">' +
             '<label class="param-filter-label"><i class="fas fa-arrows-alt-h me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + '</label>' +
             '<div class="input-group input-group-sm">' +
             '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="min" placeholder="最小" value="' + escapeHtml(range.min || '') + '">' +
             '<span class="input-group-text">~</span>' +
             '<input type="text" class="form-control param-filter-range" data-field="' + escapeHtml(field) + '" data-bound="max" placeholder="最大" value="' + escapeHtml(range.max || '') + '">' +
+            '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
             '</div></div>';
+        // 存储所有值供多选弹窗使用
+        if (!window._paramValuesCache) window._paramValuesCache = {};
+        window._paramValuesCache[field] = values;
     });
 
     html += '<div class="param-filter-actions">' +
@@ -198,9 +211,21 @@ function applyParamFilters() {
         var bound = input.dataset.bound;
         var value = input.value.trim();
         if (value) {
-            if (!newFilters[field]) newFilters[field] = {};
-            if (typeof newFilters[field] !== 'object') newFilters[field] = {};
-            newFilters[field][bound] = value;
+            // 如果已经是数组（多选值），则保留
+            if (Array.isArray(sidebarState.paramFilters[field])) {
+                newFilters[field] = sidebarState.paramFilters[field];
+            } else {
+                if (!newFilters[field]) newFilters[field] = {};
+                if (typeof newFilters[field] !== 'object' || Array.isArray(newFilters[field])) newFilters[field] = {};
+                newFilters[field][bound] = value;
+            }
+        }
+    });
+
+    // 保留通过多选弹窗设置的数组值
+    Object.keys(sidebarState.paramFilters).forEach(function(field) {
+        if (Array.isArray(sidebarState.paramFilters[field]) && !newFilters[field]) {
+            newFilters[field] = sidebarState.paramFilters[field];
         }
     });
 
@@ -269,6 +294,121 @@ function getSidebarFilter() {
     return filter;
 }
 
+// === 多选筛选弹窗 ===
+var _currentMultiSelectField = null;
+
+function showMultiSelectModal(field) {
+    _currentMultiSelectField = field;
+    var values = (window._paramValuesCache && window._paramValuesCache[field]) || [];
+    var title = document.getElementById('multiSelectFilterTitle');
+    if (title) title.textContent = '选择 ' + field;
+
+    // 获取当前已选中的值
+    var currentValues = [];
+    if (sidebarState.paramFilters[field]) {
+        if (Array.isArray(sidebarState.paramFilters[field])) {
+            currentValues = sidebarState.paramFilters[field];
+        } else if (typeof sidebarState.paramFilters[field] === 'string') {
+            currentValues = [sidebarState.paramFilters[field]];
+        }
+    }
+
+    var listContainer = document.getElementById('multiSelectList');
+    if (!listContainer) return;
+
+    var html = '';
+    values.forEach(function(v) {
+        var checked = currentValues.indexOf(v) !== -1 ? ' checked' : '';
+        html += '<div class="form-check">' +
+            '<input class="form-check-input multi-select-item" type="checkbox" value="' + escapeHtml(v) + '" id="ms_' + escapeHtml(v) + '"' + checked + '>' +
+            '<label class="form-check-label" for="ms_' + escapeHtml(v) + '">' + escapeHtml(v) + '</label>' +
+            '</div>';
+    });
+    listContainer.innerHTML = html;
+
+    // 清空搜索框
+    var searchInput = document.getElementById('multiSelectSearch');
+    if (searchInput) searchInput.value = '';
+
+    // 显示弹窗
+    var modal = new bootstrap.Modal(document.getElementById('multiSelectFilterModal'));
+    modal.show();
+}
+
+function multiSelectAll() {
+    document.querySelectorAll('#multiSelectList .multi-select-item').forEach(function(cb) {
+        if (cb.parentElement.style.display !== 'none') {
+            cb.checked = true;
+        }
+    });
+}
+
+function multiSelectNone() {
+    document.querySelectorAll('#multiSelectList .multi-select-item').forEach(function(cb) {
+        if (cb.parentElement.style.display !== 'none') {
+            cb.checked = false;
+        }
+    });
+}
+
+function applyMultiSelectFilter() {
+    if (!_currentMultiSelectField) return;
+    var selectedValues = [];
+    document.querySelectorAll('#multiSelectList .multi-select-item:checked').forEach(function(cb) {
+        selectedValues.push(cb.value);
+    });
+
+    if (selectedValues.length > 0) {
+        sidebarState.paramFilters[_currentMultiSelectField] = selectedValues;
+    } else {
+        delete sidebarState.paramFilters[_currentMultiSelectField];
+    }
+    sidebarState.appliedParamFilters = JSON.parse(JSON.stringify(sidebarState.paramFilters));
+
+    // 关闭弹窗
+    bootstrap.Modal.getInstance(document.getElementById('multiSelectFilterModal')).hide();
+
+    // 更新界面上的范围输入框显示
+    updateRangeInputDisplay(_currentMultiSelectField, selectedValues);
+
+    // 应用筛选
+    applyAdvancedFilter();
+}
+
+function updateRangeInputDisplay(field, selectedValues) {
+    var minInput = document.querySelector('.param-filter-range[data-field="' + field + '"][data-bound="min"]');
+    var maxInput = document.querySelector('.param-filter-range[data-field="' + field + '"][data-bound="max"]');
+    if (minInput && maxInput) {
+        if (selectedValues.length === 1) {
+            minInput.value = selectedValues[0];
+            maxInput.value = selectedValues[0];
+        } else if (selectedValues.length > 1) {
+            minInput.value = selectedValues.length + '个值已选';
+            maxInput.value = '';
+        } else {
+            minInput.value = '';
+            maxInput.value = '';
+        }
+    }
+}
+
+// 搜索过滤功能
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('multiSelectSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            var keyword = this.value.toLowerCase();
+            document.querySelectorAll('#multiSelectList .form-check').forEach(function(item) {
+                var label = item.querySelector('label');
+                if (label) {
+                    var text = label.textContent.toLowerCase();
+                    item.style.display = text.indexOf(keyword) !== -1 ? '' : 'none';
+                }
+            });
+        });
+    }
+});
+
 // 全局导出
 window.sidebarState = sidebarState;
 window.initSidebar = initSidebar;
@@ -278,3 +418,7 @@ window.applyParamFilters = applyParamFilters;
 window.resetParamFilters = resetParamFilters;
 window.toggleSidebar = toggleSidebar;
 window.getSidebarFilter = getSidebarFilter;
+window.showMultiSelectModal = showMultiSelectModal;
+window.multiSelectAll = multiSelectAll;
+window.multiSelectNone = multiSelectNone;
+window.applyMultiSelectFilter = applyMultiSelectFilter;

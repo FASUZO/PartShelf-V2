@@ -482,6 +482,11 @@ class InventoryService:
                         except (ValueError, TypeError):
                             match = False
                             break
+                    elif isinstance(condition, list):
+                        # 多选匹配
+                        if str(val) not in [str(v) for v in condition]:
+                            match = False
+                            break
                     else:
                         # 精确匹配
                         if str(val) != str(condition):
