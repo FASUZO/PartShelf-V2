@@ -90,6 +90,12 @@ function renderParamTemplateFields(container, catId, subcatId) {
     }
     if (fields.length === 0) return;
 
+    // 过滤掉已经作为固定字段的参数
+    var fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+    fields = fields.filter(function(field) {
+        return fixedFields.indexOf(field) === -1;
+    });
+
     var html = '<div class="row g-2">';
     fields.forEach(function(field) {
         html += '<div class="col-md-4">' +

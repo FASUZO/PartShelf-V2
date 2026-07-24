@@ -394,6 +394,12 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     }
     if (fields.length === 0) return;
     
+    // 过滤掉已经作为固定字段的参数
+    const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+    fields = fields.filter(function(field) {
+        return !fixedFields.includes(field);
+    });
+    
     // 解析已有参数
     let params = {};
     if (existingParams) {
