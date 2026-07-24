@@ -473,7 +473,7 @@ class InventoryService:
         if filter_data.subcategory_id:
             query = query.filter(Part.subcategory_id == filter_data.subcategory_id)
 
-        # 参数筛选（解析 other JSON 字段）
+        # 参数筛选（解析 other JSON 字段和 package 字段）
         if filter_data.param_filters:
             import json as _json
             # 先获取所有候选零件，Python 侧解析 JSON 筛选
@@ -481,22 +481,37 @@ class InventoryService:
             all_parts = query.all()
             filtered_ids = []
             for part in all_parts:
-                if not part.other or part.other == 'None':
-                    continue
-                try:
-                    data = _json.loads(part.other)
-                    
-                    # 检查是否是新格式（包含 fields、values、units）
-                    if isinstance(data, dict) and 'fields' in data and 'values' in data:
-                        # 新格式：从 values 中提取参数值
-                        params = data.get('values', {})
-                    else:
-                        # 旧格式：直接使用整个对象
-                        params = data
-                    
-                    if not isinstance(params, dict):
-                        continue
-                except (ValueError, TypeError):
+                # 构建参数字典
+                params = {}
+                
+                # 从 package 字段获取封装值
+                if part.package:
+                    try:
+                        package_name = part.package.package_type if hasattr(part.package, 'package_type') else str(part.package)
+                        if package_name:
+                            params['封装'] = package_name
+                    except:
+                        pass
+                
+                # 从 other 字段获取其他参数值
+                if part.other and part.other != 'None':
+                    try:
+                        data = _json.loads(part.other)
+                        
+                        # 检查是否是新格式（包含 fields、values、units）
+                        if isinstance(data, dict) and 'fields' in data and 'values' in data:
+                            # 新格式：从 values 中提取参数值
+                            other_params = data.get('values', {})
+                            if isinstance(other_params, dict):
+                                params.update(other_params)
+                        else:
+                            # 旧格式：直接使用整个对象
+                            if isinstance(data, dict):
+                                params.update(data)
+                    except (ValueError, TypeError):
+                        pass
+                
+                if not params:
                     continue
                 match = True
                 for field_name, condition in filter_data.param_filters.items():
@@ -584,17 +599,32 @@ class InventoryService:
 
     @staticmethod
     def get_category_param_values(db: Session, category_id: int) -> Dict[str, list]:
-        """获取指定类别下所有零件的参数值分布（从 other JSON 字段解析）"""
+        """获取指定类别下所有零件的参数值分布（从 other JSON 字段和 package 字段解析）"""
         import json as _json
+        
+        # 获取该类别下所有零件（包括没有other字段的）
         parts = db.query(Part).filter(
-            Part.category_id == category_id,
-            Part.other.isnot(None),
-            Part.other != '',
-            Part.other != 'None'
+            Part.category_id == category_id
         ).all()
 
         param_values: Dict[str, set] = {}
+        
         for part in parts:
+            # 从 package 字段获取封装值
+            if part.package:
+                try:
+                    package_name = part.package.package_type if hasattr(part.package, 'package_type') else str(part.package)
+                    if package_name:
+                        if '封装' not in param_values:
+                            param_values['封装'] = set()
+                        param_values['封装'].add(package_name)
+                except:
+                    pass
+            
+            # 从 other 字段获取其他参数值
+            if not part.other or part.other == '' or part.other == 'None':
+                continue
+                
             try:
                 data = _json.loads(part.other)
                 if not isinstance(data, dict):
