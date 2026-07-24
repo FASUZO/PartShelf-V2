@@ -82,9 +82,11 @@ function renderParamTemplateFields(container, catId, subcatId) {
 
     var tpl = templates[0];
     var fields = [];
+    var units = {};
     try {
         var def = JSON.parse(tpl.definition_json || '{}');
         fields = def.fields || [];
+        units = def.units || {};
     } catch (e) {
         return;
     }
@@ -98,10 +100,14 @@ function renderParamTemplateFields(container, catId, subcatId) {
 
     var html = '<div class="row g-2">';
     fields.forEach(function(field) {
+        var unit = units[field] || '';
+        var unitHtml = unit ? '<span class="input-group-text">' + escapeHtml(unit) + '</span>' : '';
         html += '<div class="col-md-4">' +
-            '<label class="form-label">' + escapeHtml(field) + '</label>' +
+            '<label class="form-label">' + escapeHtml(field) + (unit ? ' (' + escapeHtml(unit) + ')' : '') + '</label>' +
+            '<div class="input-group input-group-sm">' +
             '<input type="text" class="form-control param-field" data-param-name="' + escapeHtml(field) + '" placeholder="' + escapeHtml(field) + '">' +
-            '</div>';
+            unitHtml +
+            '</div></div>';
     });
     html += '</div>';
     container.innerHTML = html;

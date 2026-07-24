@@ -188,8 +188,18 @@ function populateModal(data) {
     document.getElementById('detailPartDescription').textContent = data.description || '暂无描述';
     document.getElementById('detailPartLcNumber').textContent = data.lc_number || '-';
 
-    // 单价
-    document.getElementById('detailPartPrice').textContent = data.price ? `¥${data.price}` : '-';
+    // 单价（支持批量采购格式如 0.06@100）
+    if (data.price) {
+        const priceStr = String(data.price);
+        if (priceStr.includes('@')) {
+            const parts = priceStr.split('@');
+            document.getElementById('detailPartPrice').textContent = `¥${parts[0]} @${parts[1]}`;
+        } else {
+            document.getElementById('detailPartPrice').textContent = `¥${priceStr}`;
+        }
+    } else {
+        document.getElementById('detailPartPrice').textContent = '-';
+    }
 
     // 库存状态
     const inStockSpan = document.getElementById('detailInStockStatus');
@@ -206,7 +216,7 @@ function populateModal(data) {
 
     // 解析并填充参数
     const params = parsePartParams(data.other);
-    populateParamsTable(params);
+    populateParamsTable(params, data.category_id, data.subcategory_id);
 }
 
 // 更新操作提示
@@ -386,9 +396,11 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     
     const tpl = templates[0];
     let fields = [];
+    let units = {};
     try {
         const def = JSON.parse(tpl.definition_json || '{}');
         fields = def.fields || [];
+        units = def.units || {};
     } catch (e) {
         return;
     }
@@ -414,10 +426,14 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     let html = '<div class="row g-2">';
     fields.forEach(function(field) {
         const value = params[field] || '';
+        const unit = units[field] || '';
+        const unitHtml = unit ? '<span class="input-group-text">' + escapeHtml(unit) + '</span>' : '';
         html += '<div class="col-md-4">' +
-            '<label class="form-label">' + escapeHtml(field) + '</label>' +
+            '<label class="form-label">' + escapeHtml(field) + (unit ? ' (' + escapeHtml(unit) + ')' : '') + '</label>' +
+            '<div class="input-group input-group-sm">' +
             '<input type="text" class="form-control edit-param-field" data-param-name="' + escapeHtml(field) + '" value="' + escapeHtml(value) + '">' +
-            '</div>';
+            unitHtml +
+            '</div></div>';
     });
     html += '</div>';
     container.innerHTML = html;
@@ -486,7 +502,7 @@ function parsePartParams(otherJson) {
 }
 
 // 填充参数表格
-function populateParamsTable(params) {
+function populateParamsTable(params, catId, subcatId) {
     const tbody = document.getElementById('detailParamsBody');
     const card = document.getElementById('detailParamsCard');
 
@@ -498,10 +514,30 @@ function populateParamsTable(params) {
     card.style.display = 'block';
     tbody.innerHTML = '';
 
+    // 获取参数模板的单位信息
+    let units = {};
+    try {
+        let templates = [];
+        if (subcatId) {
+            templates = getTemplatesForSubcategory(subcatId);
+        }
+        if (templates.length === 0 && catId) {
+            templates = getTemplatesForCategory(catId);
+        }
+        if (templates.length > 0) {
+            const def = JSON.parse(templates[0].definition_json || '{}');
+            units = def.units || {};
+        }
+    } catch (e) {
+        // 忽略错误
+    }
+
     for (const [key, value] of Object.entries(params)) {
+        const unit = units[key] || '';
+        const unitHtml = unit ? ' <small class="text-muted">(' + escapeHtml(unit) + ')</small>' : '';
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${escapeHtml(key)}</strong></td>
+            <td><strong>${escapeHtml(key)}</strong>${unitHtml}</td>
             <td>${escapeHtml(String(value))}</td>
         `;
         tbody.appendChild(row);
