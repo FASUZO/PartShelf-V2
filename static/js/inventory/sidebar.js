@@ -156,8 +156,14 @@ function renderParamFilterFields(container, templateFields, paramValues) {
 
     var html = '';
 
-    // 离散值字段 - 下拉选择
+    // 需要显示为文本输入 + 更多按钮的字段
+    var textWithMultiSelectFields = ['封装'];
+
+    // 离散值字段 - 下拉选择（排除需要特殊处理的字段）
     discreteFields.forEach(function(field) {
+        // 如果是需要特殊处理的字段，跳过
+        if (textWithMultiSelectFields.indexOf(field) !== -1) return;
+        
         var values = paramValues[field] || [];
         var currentVal = sidebarState.paramFilters[field] || '';
         html += '<div class="param-filter-group">' +
@@ -168,6 +174,28 @@ function renderParamFilterFields(container, templateFields, paramValues) {
             html += '<option value="' + escapeHtml(v) + '"' + (currentVal === v ? ' selected' : '') + '>' + escapeHtml(v) + '</option>';
         });
         html += '</select></div>';
+    });
+
+    // 文本输入 + 更多按钮的字段（如封装）
+    textWithMultiSelectFields.forEach(function(field) {
+        var values = paramValues[field] || [];
+        var currentVal = '';
+        // 检查是否是数组（多选值）
+        if (Array.isArray(sidebarState.paramFilters[field])) {
+            currentVal = sidebarState.paramFilters[field].length + '个值已选';
+        } else if (typeof sidebarState.paramFilters[field] === 'string') {
+            currentVal = sidebarState.paramFilters[field];
+        }
+        
+        html += '<div class="param-filter-group">' +
+            '<label class="param-filter-label"><i class="fas fa-cube me-1" style="font-size:0.6rem;opacity:0.6"></i>' + escapeHtml(field) + '</label>' +
+            '<div class="input-group input-group-sm">' +
+            '<input type="text" class="form-control param-filter-text" data-field="' + escapeHtml(field) + '" placeholder="输入' + escapeHtml(field) + '" value="' + escapeHtml(currentVal) + '">' +
+            '<button class="btn btn-outline-secondary btn-sm" type="button" onclick="showMultiSelectModal(\'' + escapeHtml(field) + '\')" title="查看所有值"><i class="fas fa-list"></i></button>' +
+            '</div></div>';
+        // 存储所有值供多选弹窗使用
+        if (!window._paramValuesCache) window._paramValuesCache = {};
+        window._paramValuesCache[field] = values;
     });
 
     // 范围值字段 - 双输入框 + 更多按钮
@@ -203,6 +231,19 @@ function applyParamFilters() {
     document.querySelectorAll('#sidebarParams .param-filter-select').forEach(function(sel) {
         if (sel.value) {
             newFilters[sel.dataset.field] = sel.value;
+        }
+    });
+
+    document.querySelectorAll('#sidebarParams .param-filter-text').forEach(function(input) {
+        var field = input.dataset.field;
+        var value = input.value.trim();
+        if (value) {
+            // 如果已经是数组（多选值），则保留
+            if (Array.isArray(sidebarState.paramFilters[field])) {
+                newFilters[field] = sidebarState.paramFilters[field];
+            } else {
+                newFilters[field] = value;
+            }
         }
     });
 
