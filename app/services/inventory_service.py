@@ -484,7 +484,18 @@ class InventoryService:
                 if not part.other or part.other == 'None':
                     continue
                 try:
-                    params = _json.loads(part.other)
+                    data = _json.loads(part.other)
+                    
+                    # 检查是否是新格式（包含 fields、values、units）
+                    if isinstance(data, dict) and 'fields' in data and 'values' in data:
+                        # 新格式：从 values 中提取参数值
+                        params = data.get('values', {})
+                    else:
+                        # 旧格式：直接使用整个对象
+                        params = data
+                    
+                    if not isinstance(params, dict):
+                        continue
                 except (ValueError, TypeError):
                     continue
                 match = True
@@ -585,9 +596,21 @@ class InventoryService:
         param_values: Dict[str, set] = {}
         for part in parts:
             try:
-                params = _json.loads(part.other)
+                data = _json.loads(part.other)
+                if not isinstance(data, dict):
+                    continue
+                
+                # 检查是否是新格式（包含 fields、values、units）
+                if 'fields' in data and 'values' in data:
+                    # 新格式：从 values 中提取参数值
+                    params = data.get('values', {})
+                else:
+                    # 旧格式：直接使用整个对象
+                    params = data
+                
                 if not isinstance(params, dict):
                     continue
+                    
             except (ValueError, TypeError):
                 continue
             for k, v in params.items():
