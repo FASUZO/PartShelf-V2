@@ -456,6 +456,16 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
         // 获取该字段对应的单位列表
         const unitList = commonUnits[field] || commonUnits['默认'];
         
+        // 如果没有值，设置缺省值00
+        if (!value) {
+            value = '00';
+        }
+        
+        // 如果没有选中的单位，默认选择第一个（跳过空值）
+        if (!selectedUnit && unitList.length > 0) {
+            selectedUnit = unitList[0] || '';
+        }
+        
         // 生成单位下拉选项
         let unitOptions = '<option value="">无</option>';
         unitList.forEach(function(u) {
