@@ -85,6 +85,12 @@ logs/
 htmlcov/
 .tox/
 .nox/
+test_scripts/
+check_*.py
+fix_*.py
+test_*.py
+run_test.py
+full_test.py
 
 # ==================== Jupyter Notebook ====================
 .ipynb_checkpoints
