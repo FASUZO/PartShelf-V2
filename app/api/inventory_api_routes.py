@@ -276,17 +276,26 @@ def export_inventory_csv(db: Session = Depends(get_db)):
     writer = csv.writer(output)
     
     # 写入表头
-    headers = ['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers = ['编号', 'Name', 'Manufacturer', '类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     headers.extend(param_fields)
     writer.writerow(headers)
     
     # 写入数据
     for item in inventory_data:
+        # 类型字段：优先使用 category_name/subcategory_name
+        type_str = ''
+        if item.category_name:
+            type_str = item.category_name
+            if item.subcategory_name:
+                type_str += '/' + item.subcategory_name
+        else:
+            type_str = item.part_type or ''
+        
         row = [
-            item.id,
+            item.part_number or '',
             item.name,
             item.manufacturer,
-            item.part_type,
+            type_str,
             item.package,
             item.quantity,
             item.lc_number if item.lc_number else '',
@@ -378,7 +387,7 @@ def export_inventory_excel(db: Session = Depends(get_db)):
     worksheet.title = "库存清单"
     
     # 写入表头
-    headers = ['ID', 'Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers = ['编号', 'Name', 'Manufacturer', '类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     headers.extend(param_fields)
     
     for col, header in enumerate(headers, 1):
@@ -387,10 +396,19 @@ def export_inventory_excel(db: Session = Depends(get_db)):
     
     # 写入数据
     for row_idx, item in enumerate(inventory_data, 2):
-        worksheet.cell(row=row_idx, column=1, value=item.id)
+        # 类型字段：优先使用 category_name/subcategory_name
+        type_str = ''
+        if item.category_name:
+            type_str = item.category_name
+            if item.subcategory_name:
+                type_str += '/' + item.subcategory_name
+        else:
+            type_str = item.part_type or ''
+        
+        worksheet.cell(row=row_idx, column=1, value=item.part_number or '')
         worksheet.cell(row=row_idx, column=2, value=item.name)
         worksheet.cell(row=row_idx, column=3, value=item.manufacturer)
-        worksheet.cell(row=row_idx, column=4, value=item.part_type)
+        worksheet.cell(row=row_idx, column=4, value=type_str)
         worksheet.cell(row=row_idx, column=5, value=item.package)
         worksheet.cell(row=row_idx, column=6, value=item.quantity)
         worksheet.cell(row=row_idx, column=7, value=item.lc_number if item.lc_number else '')

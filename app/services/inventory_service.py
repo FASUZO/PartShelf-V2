@@ -390,6 +390,14 @@ class InventoryService:
         if not db_package:
             db_package = create_part_package(db, package)
         
+        # 如果编号为空，自动生成
+        if not part.part_number and part.category_id:
+            try:
+                from app.services.part_id_service import generate_part_number
+                part.part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+            except Exception as e:
+                logger.warning(f"Failed to generate part_number: {e}")
+        
         # 更新零件信息
         part.name = name
         part.manufacturer_id = db_manufacturer.id
