@@ -14,6 +14,8 @@
 - ✅ 按类型、封装、制造商分类管理
 - ✅ 库存预警（低库存提示）
 - ✅ 单件入库/出库操作
+- ✅ 器件详情弹窗（无需跳转页面）
+- ✅ 器件参数显示（JSON 格式）
 
 ### 📊 批量操作
 - ✅ CSV/Excel 批量导入
@@ -43,6 +45,19 @@
 - ✅ 实时操作反馈
 - ✅ 模块化前端架构
 
+### ⚙️ 可配置化
+- ✅ 自定义类别管理
+- ✅ 自定义子类别管理
+- ✅ 参数模板配置
+- ✅ 位号前缀自动分配
+- ✅ 设置页面管理
+
+### 📡 IoT 集成（可选）
+- ✅ MQTT 消息推送
+- ✅ 库存变更事件发布
+- ✅ 可配置的 MQTT 代理
+- ✅ 断线重连机制
+
 ## 🛠️ 技术栈
 
 ### 后端
@@ -64,6 +79,9 @@
 - **openpyxl** - Excel 文件处理
 - **python-multipart** - 文件上传支持
 
+### IoT 集成（可选）
+- **paho-mqtt** - MQTT 客户端库
+
 ## 📁 项目结构
 
 ```
@@ -72,11 +90,23 @@ PartShelf-V2/
 │   ├── api/                  # API 路由
 │   │   ├── inventory_api_routes.py   # 库存管理API
 │   │   ├── project_api_routes.py     # 项目管理API
+│   │   ├── config_api_routes.py      # 配置管理API
 │   │   └── web_routes.py             # Web页面路由
 │   ├── crud/                 # 数据库操作层
 │   ├── models/               # 数据模型
+│   │   ├── part.py                   # 零件模型
+│   │   ├── config.py                 # 配置模型（类别/子类别/参数模板）
+│   │   └── ...
 │   ├── schemas/              # Pydantic 数据验证
+│   │   ├── inventory.py              # 库存数据验证
+│   │   ├── config.py                 # 配置数据验证
+│   │   └── ...
 │   ├── services/             # 业务逻辑层
+│   │   ├── inventory_service.py      # 库存服务
+│   │   ├── config_service.py         # 配置服务
+│   │   ├── mqtt_service.py           # MQTT 服务（可选）
+│   │   ├── part_id_service.py        # 零件ID生成服务
+│   │   └── ...
 │   └── main.py               # 应用入口
 ├── db/                       # 数据库
 │   ├── database.py           # 数据库配置
@@ -86,24 +116,29 @@ PartShelf-V2/
 │   │   ├── bootstrap.css     # Bootstrap 样式
 │   │   └── custom.css        # 自定义样式
 │   ├── js/                   # JavaScript 文件
-│   │   ├── inventory/        # 库存管理模块（8个模块）
+│   │   ├── inventory/        # 库存管理模块（10个模块）
 │   │   │   ├── utils.js              # 工具函数
 │   │   │   ├── cache.js              # 数据缓存
 │   │   │   ├── filter.js             # 筛选搜索
-│   │   │   ├── table.js              # 表格排序
+│   │   │   ├── table.js              # 表格排序和器件详情弹窗
 │   │   │   ├── stock-operations.js   # 库存操作
 │   │   │   ├── batch-operations.js   # 批量操作
 │   │   │   ├── history.js            # 历史记录
+│   │   │   ├── sidebar.js            # 侧栏筛选
+│   │   │   ├── form-cascade.js       # 表单级联
+│   │   │   ├── config-loader.js      # 配置加载
 │   │   │   └── main.js               # 主入口
 │   │   ├── bootstrap.bundle.js
 │   │   ├── projects.js
 │   │   └── project_details.js
 │   └── favicon.ico
 ├── templates/                # HTML 模板
-│   ├── inventory.html        # 库存管理页面
+│   ├── inventory.html        # 库存管理页面（含器件详情弹窗）
 │   ├── projects.html         # 项目管理页面
 │   ├── project_details.html  # 项目详情页面
-│   └── component_details.html # 元件详情页面
+│   ├── component_details.html # 元件详情页面（独立页面）
+│   ├── settings.html         # 设置页面
+│   └── _navbar.html          # 导航栏模板
 ├── Dockerfile                # Docker 构建文件
 ├── docker-compose.yml        # Docker 编排
 ├── requirements.txt          # Python 依赖
@@ -147,6 +182,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 访问 http://localhost:8000 查看应用
 
+访问 http://localhost:8000/settings 管理配置
+
 ## 🐳 Docker 部署教程
 
 ### 前置要求
@@ -167,6 +204,14 @@ APP_PORT=8000
 
 # 数据库配置
 DATABASE_URL=sqlite:///./db/partshelf.db
+
+# MQTT 配置（可选）
+MQTT_ENABLED=false
+MQTT_BROKER=127.0.0.1
+MQTT_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_TOPIC_PREFIX=partshelf
 ```
 
 #### 2. 构建并启动容器
@@ -180,6 +225,20 @@ docker-compose logs -f
 
 # 查看运行状态
 docker-compose ps
+```
+
+#### 3. 配置 MQTT（可选）
+
+如果需要 MQTT 功能，可以在设置页面（/settings）中配置，或通过环境变量配置：
+
+```bash
+# 在 .env 文件中添加
+MQTT_ENABLED=true
+MQTT_BROKER=your-mqtt-broker.com
+MQTT_PORT=1883
+MQTT_USERNAME=your-username
+MQTT_PASSWORD=your-password
+MQTT_TOPIC_PREFIX=partshelf
 ```
 
 #### 3. 访问应用
@@ -431,6 +490,22 @@ docker-compose up -d
 3. **批量导入** - 通过 CSV/Excel 文件批量导入
 4. **搜索筛选** - 使用搜索框和高级筛选查找元件
 5. **库存操作** - 点击入库/出库按钮调整库存
+6. **查看详情** - 点击眼睛图标查看器件详情弹窗
+7. **器件参数** - 在详情弹窗中查看器件参数（JSON 格式）
+
+### 器件详情弹窗
+
+1. 点击器件列表中的眼睛图标
+2. 弹窗显示器件基本信息、描述、参数和操作选项
+3. 可以在弹窗中更新数量、查看历史、导出详情、删除零件
+4. 参数表格显示器件的自定义参数（如阻值、功率、精度等）
+
+### 可配置化管理
+
+1. 访问设置页面（/settings）
+2. 管理类别和子类别
+3. 配置参数模板
+4. 设置位号前缀
 
 ### 批量出库流程
 
@@ -464,6 +539,7 @@ docker-compose up -d
 - JavaScript: 使用模块化架构
 - 注释: 所有函数添加中文注释
 - 提交: 使用清晰的提交信息
+- 配置: 使用 JSON 格式存储参数模板
 
 ## 📄 许可证
 
@@ -482,6 +558,7 @@ docker-compose up -d
 - [Bootstrap](https://getbootstrap.com/)
 - [SQLAlchemy](https://www.sqlalchemy.org/)
 - [Font Awesome](https://fontawesome.com/)
+- [Paho MQTT](https://www.eclipse.org/paho/)
 
 ---
 
