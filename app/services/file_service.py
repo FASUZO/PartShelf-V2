@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import re
 import zipfile
 import xml.etree.ElementTree as ET
@@ -13,6 +14,8 @@ from app.models.config import Category, Subcategory
 from app.schemas.file_template import FileTemplateAdd, FileTemplateGet
 from app.schemas.inventory import PartToInventoryAdd
 from app.services.inventory_service import InventoryService
+
+logger = logging.getLogger("partshelf.import")
 
 class FileService:
     @staticmethod
@@ -357,6 +360,10 @@ class FileService:
                 
                 # 匹配类别
                 category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
+                if category_id:
+                    logger.info(f"行{row_idx}: 类型'{part_type}'匹配到类别ID={category_id}, 子类别ID={subcategory_id}")
+                else:
+                    logger.debug(f"行{row_idx}: 类型'{part_type}'未匹配到类别")
                 
                 # 创建零件数据
                 part_to_add = PartToInventoryAdd(
@@ -520,6 +527,10 @@ class FileService:
                     
                     # 匹配类别
                     category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
+                    if category_id:
+                        logger.info(f"行{row_idx}: 类型'{part_type}'匹配到类别ID={category_id}, 子类别ID={subcategory_id}")
+                    else:
+                        logger.debug(f"行{row_idx}: 类型'{part_type}'未匹配到类别")
                     
                     # 创建零件数据
                     part_to_add = PartToInventoryAdd(
