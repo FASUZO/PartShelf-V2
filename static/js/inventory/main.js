@@ -65,6 +65,57 @@ function applyAdvancedFilter() {
     });
 }
 
+// 跳转到指定页
+function goToPage(page) {
+    if (!currentSearchFilter) return;
+    
+    const searchInput = document.getElementById('searchInput');
+    const searchKey = searchInput ? searchInput.value.trim() : '';
+
+    const filterData = {
+        ...currentSearchFilter,
+        page: page,
+        search_key: searchKey || null
+    };
+
+    // 构建排序参数
+    let queryParams = '';
+    if (currentSort.field) {
+        queryParams = `?sort_field=${currentSort.field}&sort_direction=${currentSort.direction}`;
+    }
+
+    // 显示加载状态
+    const tbody = document.getElementById('parts-table-body');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
+    }
+
+    fetch('/api/inventory/advanced_search' + queryParams, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(filterData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        currentSearchFilter = filterData;
+        updateTable(data);
+        
+        // 保存筛选状态到URL和localStorage
+        if (typeof saveFilterStateToURL === 'function') {
+            saveFilterStateToURL();
+        }
+        if (typeof saveToLocalStorage === 'function') {
+            saveToLocalStorage();
+        }
+    })
+    .catch(error => {
+        console.error('Page navigation failed:', error);
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">加载失败，请重试</td></tr>';
+        }
+    });
+}
+
 // 清除筛选
 function clearAdvancedFilter() {
     const searchInput = document.getElementById('searchInput');
@@ -342,3 +393,4 @@ window.currentSearchFilter = currentSearchFilter;
 window.applyAdvancedFilter = applyAdvancedFilter;
 window.clearAdvancedFilter = clearAdvancedFilter;
 window.loadAllParts = loadAllParts;
+window.goToPage = goToPage;

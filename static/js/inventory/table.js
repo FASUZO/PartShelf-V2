@@ -111,13 +111,65 @@ function updateTable(data) {
     updatePaginationInfo(data.pagination);
 }
 
-// 更新分页信息
+// 更新分页信息和分页按钮
 function updatePaginationInfo(pagination) {
     const paginationInfo = document.getElementById('pagination-info');
-    if (paginationInfo && pagination) {
+    const paginationUl = document.getElementById('pagination');
+    
+    if (!pagination) {
+        if (paginationInfo) paginationInfo.textContent = '';
+        if (paginationUl) paginationUl.innerHTML = '';
+        return;
+    }
+
+    // 更新分页信息文字
+    if (paginationInfo) {
         paginationInfo.textContent = `显示 ${pagination.page} / ${pagination.total_pages} 页 (共 ${pagination.total_count} 条)`;
-    } else if (paginationInfo) {
-        paginationInfo.textContent = '';
+    }
+
+    // 生成分页按钮
+    if (paginationUl) {
+        const totalPages = pagination.total_pages;
+        const currentPage = pagination.page;
+        
+        if (totalPages <= 1) {
+            paginationUl.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        
+        // 上一页
+        html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goToPage(${currentPage - 1}); return false;">上一页</a>
+        </li>`;
+
+        // 页码
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(totalPages, currentPage + 2);
+
+        if (startPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+            if (startPage > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>
+            </li>`;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+        }
+
+        // 下一页
+        html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goToPage(${currentPage + 1}); return false;">下一页</a>
+        </li>`;
+
+        paginationUl.innerHTML = html;
     }
 }
 
