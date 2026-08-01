@@ -170,7 +170,13 @@ function bindImportForm() {
                 applyAdvancedFilter();
                 this.reset();
             } else {
-                showToast('导入失败，请重试', 'danger');
+                // 尝试解析后端返回的详细错误信息
+                response.json().then(data => {
+                    const detail = data.detail || '导入失败，请重试';
+                    showToast('导入失败: ' + detail, 'danger');
+                }).catch(() => {
+                    showToast('导入失败，请重试', 'danger');
+                });
             }
         })
         .catch(error => {

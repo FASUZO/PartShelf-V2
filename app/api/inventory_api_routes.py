@@ -9,6 +9,7 @@
 
 import csv
 import io
+import logging
 from typing import List
 from openpyxl import Workbook
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
@@ -20,6 +21,7 @@ from app.services.file_service import FileService
 from app.services.inventory_service import InventoryService
 from db.database import get_db
 
+logger = logging.getLogger("partshelf.api")
 router = APIRouter()
 
 # ==================== 零件管理接口 ====================
@@ -156,9 +158,15 @@ async def import_order_csv_file(
     db: Session = Depends(get_db)
 ):
     """导入CSV文件"""
-    content = await order_file.read()
-    FileService.import_order_csv_file_direct(content, db, import_mode)
-    return RedirectResponse("/inventory", status_code=303)
+    logger.info(f"开始导入CSV文件: {order_file.filename}, 模式: {import_mode}")
+    try:
+        content = await order_file.read()
+        FileService.import_order_csv_file_direct(content, db, import_mode)
+        logger.info(f"CSV文件导入成功: {order_file.filename}")
+        return {"message": "导入成功"}
+    except Exception as e:
+        logger.error(f"CSV文件导入失败: {order_file.filename}, 错误: {str(e)}")
+        raise
 
 @router.post("/import_order_excel_file")
 async def import_order_excel_file(
@@ -167,9 +175,15 @@ async def import_order_excel_file(
     db: Session = Depends(get_db)
 ):
     """导入Excel文件"""
-    content = await order_file.read()
-    FileService.import_order_excel_file_direct(content, db, import_mode)
-    return RedirectResponse("/inventory", status_code=303)
+    logger.info(f"开始导入Excel文件: {order_file.filename}, 模式: {import_mode}")
+    try:
+        content = await order_file.read()
+        FileService.import_order_excel_file_direct(content, db, import_mode)
+        logger.info(f"Excel文件导入成功: {order_file.filename}")
+        return {"message": "导入成功"}
+    except Exception as e:
+        logger.error(f"Excel文件导入失败: {order_file.filename}, 错误: {str(e)}")
+        raise
 
 @router.get("/get_part_by_id")
 def get_part_by_id(part_id: int = Query(..., description="ID of the part to retrieve"), db: Session = Depends(get_db)):
