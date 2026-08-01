@@ -167,35 +167,40 @@ class InventoryService:
             if part.category_id:
                 try:
                     from app.services.part_id_service import generate_part_number
-                    # 尝试生成唯一编号，最多重试3次
-                    for attempt in range(3):
-                        try:
-                            part_number = generate_part_number(db, part.category_id, part.subcategory_id)
-                            # 检查编号是否已存在
-                            from app.crud.part import get_part_by_part_number
-                            if not get_part_by_part_number(db, part_number):
-                                break
-                            logger.warning(f"Part number {part_number} already exists, retrying...")
-                        except Exception as e:
-                            logger.warning(f"Attempt {attempt + 1} failed: {e}")
-                            if attempt == 2:
-                                raise
+                    part_number = generate_part_number(db, part.category_id, part.subcategory_id)
                 except Exception as e:
                     logger.warning(f"Failed to generate part_number: {e}")
 
-            db_part = create_part(db, Part(
-                part_number=part_number,
-                name=part.name,
-                description=part.description,
-                manufacturer_id=db_manufacturer.id,
-                package_id=db_package.id,
-                type_id=db_type.id,
-                price=str(part.price) if part.price is not None else None,
-                lc_number=part.lc_number,
-                other=part.other,
-                category_id=part.category_id,
-                subcategory_id=part.subcategory_id
-            ))
+            # 创建零件，处理编号重复情况
+            from sqlalchemy.exc import IntegrityError
+            for attempt in range(3):
+                try:
+                    db_part = create_part(db, Part(
+                        part_number=part_number,
+                        name=part.name,
+                        description=part.description,
+                        manufacturer_id=db_manufacturer.id,
+                        package_id=db_package.id,
+                        type_id=db_type.id,
+                        price=str(part.price) if part.price is not None else None,
+                        lc_number=part.lc_number,
+                        other=part.other,
+                        category_id=part.category_id,
+                        subcategory_id=part.subcategory_id
+                    ))
+                    break
+                except IntegrityError as e:
+                    if 'part_number' in str(e) and attempt < 2:
+                        db.rollback()
+                        logger.warning(f"Part number {part_number} already exists, generating new one...")
+                        try:
+                            from app.services.part_id_service import generate_part_number
+                            part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                        except Exception as gen_e:
+                            logger.warning(f"Failed to generate new part_number: {gen_e}")
+                            part_number = None
+                    else:
+                        raise
         else:
             logger.info(f"Found existing part ID: {db_part.id}, updating quantity")
         
