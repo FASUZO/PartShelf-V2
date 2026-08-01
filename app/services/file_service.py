@@ -20,9 +20,43 @@ logger = logging.getLogger("partshelf.import")
 class FileService:
     @staticmethod
     def match_category_by_type(db: Session, part_type: str):
-        """根据类型名称匹配类别ID，支持模糊匹配"""
+        """根据类型名称匹配类别ID，支持'类别/子类别'格式和模糊匹配"""
         if not part_type:
             return None, None
+        
+        # 支持"类别/子类别"格式
+        if '/' in part_type:
+            parts = part_type.split('/', 1)
+            cat_name = parts[0].strip()
+            sub_name = parts[1].strip() if len(parts) > 1 else ''
+            
+            # 匹配类别
+            category = db.query(Category).filter(Category.name == cat_name).first()
+            if not category:
+                # 模糊匹配
+                for cat in db.query(Category).all():
+                    if cat.name in cat_name or cat_name in cat.name:
+                        category = cat
+                        break
+            
+            if category and sub_name:
+                # 匹配子类别
+                subcategory = db.query(Subcategory).filter(
+                    Subcategory.category_id == category.id,
+                    Subcategory.name == sub_name
+                ).first()
+                if not subcategory:
+                    # 模糊匹配
+                    for sub in db.query(Subcategory).filter(Subcategory.category_id == category.id).all():
+                        if sub.name in sub_name or sub_name in sub.name:
+                            subcategory = sub
+                            break
+                
+                if subcategory:
+                    return category.id, subcategory.id
+            
+            if category:
+                return category.id, None
         
         # 精确匹配类别名称
         category = db.query(Category).filter(Category.name == part_type).first()
