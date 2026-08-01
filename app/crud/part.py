@@ -18,6 +18,12 @@ def get_part_by_name_manufacturer_package(db: Session, name: str, manufacturer_i
         Part.package_id == package_id
     ).first()
     return db_part
+
+def get_part_by_part_number(db: Session, part_number: str):
+    """按零件编号查找零件"""
+    if not part_number:
+        return None
+    return db.query(Part).filter(Part.part_number == part_number).first()
         
 
 def create_part(db: Session, new_part: Part):

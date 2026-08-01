@@ -209,17 +209,64 @@ function bindImportForm() {
         
         const formData = new FormData(this);
         
+        // 显示进度条
+        const progressContainer = document.getElementById('importProgressContainer');
+        const progressBar = document.getElementById('importProgressBar');
+        const progressText = document.getElementById('importProgressText');
+        const submitBtn = this.querySelector('button[type="submit"]');
+        
+        if (progressContainer) progressContainer.style.display = 'block';
+        if (progressBar) {
+            progressBar.style.width = '0%';
+            progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+        }
+        if (progressText) progressText.textContent = '正在导入...';
+        if (submitBtn) submitBtn.disabled = true;
+        
+        // 模拟进度
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += Math.random() * 10;
+                const currentProgress = Math.min(progress, 90);
+                if (progressBar) {
+                    progressBar.style.width = currentProgress + '%';
+                    progressBar.textContent = Math.round(currentProgress) + '%';
+                }
+            }
+        }, 200);
+        
         fetch(apiEndpoint, {
             method: 'POST',
             body: formData
         })
         .then(response => {
+            clearInterval(progressInterval);
             if (response.ok) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addComponentOrderModal'));
-                modal.hide();
-                showToast('文件导入成功', 'success');
-                applyAdvancedFilter();
-                this.reset();
+                if (progressBar) {
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = '100%';
+                    progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                }
+                if (progressText) progressText.textContent = '导入完成！';
+                
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addComponentOrderModal'));
+                    modal.hide();
+                    // 重置进度条
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    if (progressBar) {
+                        progressBar.style.width = '0%';
+                        progressBar.classList.remove('bg-success');
+                        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                    }
+                    if (submitBtn) submitBtn.disabled = false;
+                    
+                    showToast('文件导入成功', 'success');
+                    applyAdvancedFilter();
+                    this.reset();
+                }, 1000);
             } else {
                 // 尝试解析后端返回的详细错误信息
                 response.json().then(data => {
@@ -228,11 +275,30 @@ function bindImportForm() {
                 }).catch(() => {
                     showToast('导入失败，请重试', 'danger');
                 });
+                
+                // 重置进度条
+                if (progressContainer) progressContainer.style.display = 'none';
+                if (progressBar) {
+                    progressBar.style.width = '0%';
+                    progressBar.classList.remove('bg-success');
+                    progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                }
+                if (submitBtn) submitBtn.disabled = false;
             }
         })
         .catch(error => {
+            clearInterval(progressInterval);
             console.error('Error:', error);
             showToast('发生错误: ' + error.message, 'danger');
+            
+            // 重置进度条
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (progressBar) {
+                progressBar.style.width = '0%';
+                progressBar.classList.remove('bg-success');
+                progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+            }
+            if (submitBtn) submitBtn.disabled = false;
         });
     });
 }

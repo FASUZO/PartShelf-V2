@@ -167,7 +167,19 @@ class InventoryService:
             if part.category_id:
                 try:
                     from app.services.part_id_service import generate_part_number
-                    part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                    # 尝试生成唯一编号，最多重试3次
+                    for attempt in range(3):
+                        try:
+                            part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                            # 检查编号是否已存在
+                            from app.crud.part import get_part_by_part_number
+                            if not get_part_by_part_number(db, part_number):
+                                break
+                            logger.warning(f"Part number {part_number} already exists, retrying...")
+                        except Exception as e:
+                            logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                            if attempt == 2:
+                                raise
                 except Exception as e:
                     logger.warning(f"Failed to generate part_number: {e}")
 
