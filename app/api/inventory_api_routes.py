@@ -357,6 +357,46 @@ def export_import_template(db: Session = Depends(get_db)):
         headers=headers
     )
 
+@router.get("/export_template_excel")
+def export_import_template_excel(db: Session = Depends(get_db)):
+    """导出导入模板为Excel格式"""
+    # 创建工作簿和工作表
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "导入模板"
+    
+    # 写入表头
+    headers = ['Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    for col, header in enumerate(headers, 1):
+        cell = worksheet.cell(row=1, column=col, value=header)
+        cell.font = cell.font.copy(bold=True)
+    
+    # 写入示例行
+    worksheet.cell(row=2, column=1, value='NE555')
+    worksheet.cell(row=2, column=2, value='TI')
+    worksheet.cell(row=2, column=3, value='IC')
+    worksheet.cell(row=2, column=4, value='DIP-8')
+    worksheet.cell(row=2, column=5, value=10)
+    worksheet.cell(row=2, column=6, value='C12345')
+    worksheet.cell(row=2, column=7, value=0.5)
+    worksheet.cell(row=2, column=8, value='Timer IC')
+    
+    # 调整列宽
+    for col in range(1, len(headers) + 1):
+        worksheet.column_dimensions[worksheet.cell(row=1, column=col).column_letter].width = 15
+    
+    # 保存到内存
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    
+    headers = {'Content-Disposition': 'attachment; filename="inventory_template.xlsx"'}
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers
+    )
+
 @router.get("/export_excel")
 def export_inventory_excel(db: Session = Depends(get_db)):
     """导出库存数据为Excel格式"""
