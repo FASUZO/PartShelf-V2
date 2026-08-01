@@ -1,8 +1,12 @@
+import logging
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.models.inventory import Inventory
 from app.models.package import Package
 from app.models.part import Part
 from sqlalchemy.orm import joinedload
+
+logger = logging.getLogger(__name__)
 
 
 def get_part_by_name(db: Session, name: str):
@@ -27,10 +31,24 @@ def get_part_by_part_number(db: Session, part_number: str):
         
 
 def create_part(db: Session, new_part: Part):
-    db.add(new_part)
-    db.commit()
-    db.refresh(new_part)
-    return new_part
+    """创建零件，处理编号重复情况"""
+    try:
+        db.add(new_part)
+        db.commit()
+        db.refresh(new_part)
+        return new_part
+    except IntegrityError as e:
+        if 'part_number' in str(e) and new_part.part_number:
+            db.rollback()
+            logger.warning(f"Part number {new_part.part_number} already exists, clearing and retrying...")
+            # 清除编号，使用None重试
+            new_part.part_number = None
+            db.add(new_part)
+            db.commit()
+            db.refresh(new_part)
+            return new_part
+        else:
+            raise
 
 def get_all_parts(db: Session, limit = 0):
     return db.query(Part).options(

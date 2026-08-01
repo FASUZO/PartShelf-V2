@@ -171,36 +171,20 @@ class InventoryService:
                 except Exception as e:
                     logger.warning(f"Failed to generate part_number: {e}")
 
-            # 创建零件，处理编号重复情况
-            from sqlalchemy.exc import IntegrityError
-            for attempt in range(3):
-                try:
-                    db_part = create_part(db, Part(
-                        part_number=part_number,
-                        name=part.name,
-                        description=part.description,
-                        manufacturer_id=db_manufacturer.id,
-                        package_id=db_package.id,
-                        type_id=db_type.id,
-                        price=str(part.price) if part.price is not None else None,
-                        lc_number=part.lc_number,
-                        other=part.other,
-                        category_id=part.category_id,
-                        subcategory_id=part.subcategory_id
-                    ))
-                    break
-                except IntegrityError as e:
-                    if 'part_number' in str(e) and attempt < 2:
-                        db.rollback()
-                        logger.warning(f"Part number {part_number} already exists, generating new one...")
-                        try:
-                            from app.services.part_id_service import generate_part_number
-                            part_number = generate_part_number(db, part.category_id, part.subcategory_id)
-                        except Exception as gen_e:
-                            logger.warning(f"Failed to generate new part_number: {gen_e}")
-                            part_number = None
-                    else:
-                        raise
+            # 创建零件（create_part会处理编号重复情况）
+            db_part = create_part(db, Part(
+                part_number=part_number,
+                name=part.name,
+                description=part.description,
+                manufacturer_id=db_manufacturer.id,
+                package_id=db_package.id,
+                type_id=db_type.id,
+                price=str(part.price) if part.price is not None else None,
+                lc_number=part.lc_number,
+                other=part.other,
+                category_id=part.category_id,
+                subcategory_id=part.subcategory_id
+            ))
         else:
             logger.info(f"Found existing part ID: {db_part.id}, updating quantity")
         
