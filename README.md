@@ -193,7 +193,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### 方式一：使用 Docker Compose（推荐）
 
-#### 1. 配置环境变量
+#### 1. 拉取项目代码
+
+```bash
+# 克隆仓库
+git clone https://github.com/FASUZO/PartShelf-V2.git
+
+# 进入项目目录
+cd PartShelf-V2
+```
+
+#### 2. 配置环境变量
 
 创建或编辑 `.env` 文件：
 
@@ -214,7 +224,7 @@ MQTT_PASSWORD=
 MQTT_TOPIC_PREFIX=partshelf
 ```
 
-#### 2. 构建并启动容器
+#### 3. 构建并启动容器
 
 ```bash
 # 构建并启动（后台运行）
@@ -227,7 +237,7 @@ docker-compose logs -f
 docker-compose ps
 ```
 
-#### 3. 配置 MQTT（可选）
+#### 4. 配置 MQTT（可选）
 
 如果需要 MQTT 功能，可以在设置页面（/settings）中配置，或通过环境变量配置：
 
@@ -241,11 +251,11 @@ MQTT_PASSWORD=your-password
 MQTT_TOPIC_PREFIX=partshelf
 ```
 
-#### 3. 访问应用
+#### 5. 访问应用
 
 打开浏览器访问：http://localhost:8000
 
-#### 4. 常用命令
+#### 6. 常用命令
 
 ```bash
 # 停止容器
@@ -269,7 +279,17 @@ docker-compose down -v
 
 ### 方式二：使用 Dockerfile 手动构建
 
-#### 1. 构建镜像
+#### 1. 拉取项目代码
+
+```bash
+# 克隆仓库
+git clone https://github.com/FASUZO/PartShelf-V2.git
+
+# 进入项目目录
+cd PartShelf-V2
+```
+
+#### 2. 构建镜像
 
 ```bash
 # 构建 Docker 镜像
@@ -279,7 +299,7 @@ docker build -t partshelf-v2 .
 docker images
 ```
 
-#### 2. 运行容器
+#### 3. 运行容器
 
 ```bash
 # 创建数据持久化目录
@@ -309,7 +329,7 @@ docker run -d `
   partshelf-v2
 ```
 
-#### 3. 管理容器
+#### 4. 管理容器
 
 ```bash
 # 查看运行状态
