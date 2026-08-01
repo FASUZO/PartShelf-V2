@@ -1,9 +1,21 @@
 import sys
 import os
+import logging
 
 # 获取当前文件所在目录的父目录（即项目根目录）
 project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(project_root))
+app_root = os.path.dirname(project_root)
+sys.path.append(app_root)
+
+# 配置日志
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("partshelf")
+logger.info(f"日志级别: {log_level}")
+logger.info(f"应用根目录: {app_root}")
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -55,7 +67,11 @@ with SessionLocal() as _db:
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 使用绝对路径挂载静态文件
+static_dir = os.path.join(app_root, "static")
+logger.info(f"静态文件目录: {static_dir}")
+logger.info(f"静态文件目录存在: {os.path.exists(static_dir)}")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 app.include_router(web_routes.router, tags=["Web Pages"])
 app.include_router(inventory_api_routes.router, prefix="/api/inventory")
