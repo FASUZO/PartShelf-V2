@@ -333,7 +333,7 @@ class FileService:
                     description=description,
                     part_type=part_type,
                     lc_number=row_data.get('lc_number', None),
-                    price=float(row_data['price']) if row_data.get('price') else None
+                    price=InventoryService._parse_price(row_data.get('price'))
                 )
                 
                 # 添加到库存
@@ -491,7 +491,7 @@ class FileService:
                         description=description,
                         part_type=part_type,
                         lc_number=row_data.get('lc_number', None),
-                        price=float(row_data['price']) if row_data.get('price') else None
+                        price=InventoryService._parse_price(row_data.get('price'))
                     )
                     
                     # 添加到库存
