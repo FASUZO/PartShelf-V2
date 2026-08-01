@@ -9,11 +9,42 @@ from app.crud.file_templates import create_file_template, get_available_file_tem
 from app.models.file_template import FileTemplate
 from app.models.part import Part
 from app.models.inventory import Inventory
+from app.models.config import Category, Subcategory
 from app.schemas.file_template import FileTemplateAdd, FileTemplateGet
 from app.schemas.inventory import PartToInventoryAdd
 from app.services.inventory_service import InventoryService
 
 class FileService:
+    @staticmethod
+    def match_category_by_type(db: Session, part_type: str):
+        """根据类型名称匹配类别ID，支持模糊匹配"""
+        if not part_type:
+            return None, None
+        
+        # 精确匹配类别名称
+        category = db.query(Category).filter(Category.name == part_type).first()
+        if category:
+            return category.id, None
+        
+        # 模糊匹配类别名称（包含关系）
+        categories = db.query(Category).all()
+        for cat in categories:
+            if cat.name in part_type or part_type in cat.name:
+                return cat.id, None
+        
+        # 尝试匹配子类别
+        subcategory = db.query(Subcategory).filter(Subcategory.name == part_type).first()
+        if subcategory:
+            return subcategory.category_id, subcategory.id
+        
+        # 模糊匹配子类别
+        subcategories = db.query(Subcategory).all()
+        for sub in subcategories:
+            if sub.name in part_type or part_type in sub.name:
+                return sub.category_id, sub.id
+        
+        return None, None
+
     def add_file_template(db: Session, template: FileTemplateAdd):
         return create_file_template(db ,FileTemplate(
             template_type = template.template_type,
@@ -324,6 +355,9 @@ class FileService:
                 if not part_type:
                     value, part_type = FileService.extract_info(description)
                 
+                # 匹配类别
+                category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
+                
                 # 创建零件数据
                 part_to_add = PartToInventoryAdd(
                     name=row_data['name'],
@@ -333,7 +367,9 @@ class FileService:
                     description=description,
                     part_type=part_type,
                     lc_number=row_data.get('lc_number', None),
-                    price=InventoryService._parse_price(row_data.get('price'))
+                    price=InventoryService._parse_price(row_data.get('price')),
+                    category_id=category_id,
+                    subcategory_id=subcategory_id
                 )
                 
                 # 添加到库存
@@ -482,6 +518,9 @@ class FileService:
                     if not part_type:
                         value, part_type = FileService.extract_info(description)
                     
+                    # 匹配类别
+                    category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
+                    
                     # 创建零件数据
                     part_to_add = PartToInventoryAdd(
                         name=row_data['name'],
@@ -491,7 +530,9 @@ class FileService:
                         description=description,
                         part_type=part_type,
                         lc_number=row_data.get('lc_number', None),
-                        price=InventoryService._parse_price(row_data.get('price'))
+                        price=InventoryService._parse_price(row_data.get('price')),
+                        category_id=category_id,
+                        subcategory_id=subcategory_id
                     )
                     
                     # 添加到库存
