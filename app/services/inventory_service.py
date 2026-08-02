@@ -654,15 +654,75 @@ class InventoryService:
         高级筛选（支持多条件组合和排序）
         - 支持按搜索关键字、制造商、封装、类型筛选
         - 支持分页和排序
+        - 支持正则表达式搜索（前缀 re: 或 regex:）
         """
+        from sqlalchemy import or_, func
+        import re as regex_module
+
         query = db.query(Part).join(Inventory)
-        
+
         # 跟踪已连接的表以避免重复连接
         joined_tables = {"Inventory"}
-        
+
         # 应用筛选条件
         if filter_data.search_key:
-            query = query.filter(Part.name.contains(filter_data.search_key))
+            search_key = filter_data.search_key.strip()
+
+            # 检测正则表达式模式
+            is_regex = False
+            if search_key.startswith('re:') or search_key.startswith('regex:'):
+                is_regex = True
+                pattern = search_key.split(':', 1)[1] if ':' in search_key else search_key
+
+            if is_regex:
+                # 正则表达式搜索模式
+                # 确保连接 Manufacturer 和 Type 表
+                if "Manufacturer" not in joined_tables:
+                    query = query.join(Manufacturer, isouter=True)
+                    joined_tables.add("Manufacturer")
+                if "Type" not in joined_tables:
+                    query = query.join(Type, isouter=True)
+                    joined_tables.add("Type")
+
+                # 注册 SQLite REGEXP 函数
+                @db.event.listens_for(db.get_bind(), "connect")
+                def _regexp(dbapi_conn, connection_rec):
+                    dbapi_conn.create_function("REGEXP", 2, lambda p, s: 1 if s and regex_module.search(p, str(s)) else 0)
+
+                # 对多个字段应用正则匹配
+                try:
+                    regex_filter = or_(
+                        Part.name.op('REGEXP')(pattern),
+                        Part.description.op('REGEXP')(pattern),
+                        Part.part_number.op('REGEXP')(pattern),
+                        Part.lc_number.op('REGEXP')(pattern),
+                        Manufacturer.name.op('REGEXP')(pattern),
+                        Type.part_type.op('REGEXP')(pattern),
+                    )
+                    query = query.filter(regex_filter)
+                except Exception:
+                    # 正则表达式无效时回退到普通搜索
+                    query = query.filter(Part.name.contains(search_key))
+            else:
+                # 普通搜索模式 - 搜索多个字段
+                # 确保连接 Manufacturer 和 Type 表
+                if "Manufacturer" not in joined_tables:
+                    query = query.join(Manufacturer, isouter=True)
+                    joined_tables.add("Manufacturer")
+                if "Type" not in joined_tables:
+                    query = query.join(Type, isouter=True)
+                    joined_tables.add("Type")
+
+                search_pattern = f'%{search_key}%'
+                multi_field_filter = or_(
+                    Part.name.ilike(search_pattern),
+                    Part.description.ilike(search_pattern),
+                    Part.part_number.ilike(search_pattern),
+                    Part.lc_number.ilike(search_pattern),
+                    Manufacturer.name.ilike(search_pattern),
+                    Type.part_type.ilike(search_pattern),
+                )
+                query = query.filter(multi_field_filter)
         
         if filter_data.manufacturer:
             if "Manufacturer" not in joined_tables:
