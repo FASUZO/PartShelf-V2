@@ -4,11 +4,11 @@
 """
 
 import os
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("partshelf.auth")
@@ -18,18 +18,18 @@ SECRET_KEY = os.getenv("SECRET_KEY", "partshelf-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 天
 
-# 密码哈希
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 密码盐值
+PASSWORD_SALT = "partshelf-salt-2024"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return get_password_hash(plain_password) == hashed_password
 
 
 def get_password_hash(password: str) -> str:
-    """获取密码哈希"""
-    return pwd_context.hash(password)
+    """获取密码哈希（SHA256 + salt）"""
+    return hashlib.sha256(f"{PASSWORD_SALT}{password}".encode()).hexdigest()
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
