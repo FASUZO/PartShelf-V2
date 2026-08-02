@@ -152,18 +152,26 @@ class FileService:
         return value, part_type
 
     def parse_excel_file(file_path):
-        """使用pandas解析Excel文件"""
+        """解析Excel文件"""
         try:
-            import pandas as pd
-            # 使用pandas读取Excel文件，header=None表示不将第一行作为列名
-            df = pd.read_excel(file_path, header=None)
-            # 将DataFrame转换为二维列表
-            data = df.values.tolist()
+            # 优先使用openpyxl直接解析（兼容性更好）
+            from openpyxl import load_workbook
+            wb = load_workbook(file_path, read_only=True, data_only=True)
+            ws = wb.active
+            data = []
+            for row in ws.iter_rows(values_only=True):
+                data.append(list(row))
+            wb.close()
             return data
-        except ImportError:
-            # 如果pandas不可用，回退到原始方法
-            import zipfile
-            import xml.etree.ElementTree as ET
+        except Exception:
+            try:
+                import pandas as pd
+                df = pd.read_excel(file_path, header=None)
+                data = df.values.tolist()
+                return data
+            except Exception:
+                import zipfile
+                import xml.etree.ElementTree as ET
             
             data = []
             
