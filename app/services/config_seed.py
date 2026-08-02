@@ -35,24 +35,23 @@ DEFAULT_CATEGORIES = [
 
 DEFAULT_SUBCATEGORIES = {
     "resistor": ["贴片电阻", "精密电阻", "功率电阻", "热敏电阻", "压敏电阻", "排阻"],
-    "capacitor": ["陶瓷电容", "铝电解电容", "钽电容", "薄膜电容", "超级电容"],  
+    "capacitor": ["陶瓷电容", "铝电解电容", "钽电容", "薄膜电容", "超级电容"],
     "inductor": ["贴片电感", "功率电感", "共模电感", "色环电感"],
-    "bjt": ["NPN三极管", "PNP三极管", "达林顿管", "带阻三极管"],
-    "fet": ["N沟道MOSFET", "P沟道MOSFET", "IGBT单管", "IGBT模块", "氮化镓晶体管", "碳化硅晶体管"], # 原 fet_igbt 拆分合并入此
+    "transistor": ["NPN三极管", "PNP三极管", "达林顿管", "带阻三极管"],
+    "fet_igbt": ["N沟道MOSFET", "P沟道MOSFET", "IGBT单管", "IGBT模块", "氮化镓晶体管", "碳化硅晶体管"],
     "diode": ["整流二极管", "稳压二极管", "肖特基二极管", "快恢复二极管"],
-    "protection": ["熔断保险丝", "自恢复保险丝", "TVS瞬态抑制管", "ESD静电保护管", "气体放电管"], # Fuse 等归入此处
-    "electroacoustic_display": ["贴片单色LED", "RGB发光二极管", "数码管", "LCD液晶屏", "OLED显示屏", "蜂鸣器", "扬声器喇叭", "咪头麦克风"], # 合并声光显示
+    "protection": ["熔断保险丝", "自恢复保险丝", "TVS瞬态抑制管", "ESD静电保护管", "气体放电管"],
+    "electroacoustic_display": ["贴片单色LED", "RGB发光二极管", "数码管", "LCD液晶屏", "OLED显示屏", "蜂鸣器", "扬声器喇叭", "咪头麦克风"],
     "ic": ["光电耦合器", "隔离器", "逻辑芯片", "接口芯片", "ADC转换器", "DAC转换器", "电平转换芯片"],
     "power_chip": ["LDO稳压器", "DCDC开关电源", "锂电池充电管理", "PMIC电源管理", "锂电保护芯片"],
     "processor": ["MCU", "DSP", "FPGA", "SoC"],
     "crystal": ["无源晶体", "有源晶体振荡器", "温补晶振TCXO", "恒温晶振OCXO"],
     "memory_chip": ["EEPROM", "SPI Flash", "NAND Flash", "SRAM", "DRAM", "eMMC"],
-    "led": ["贴片LED", "直插LED", "大功率LED", "RGB LED"],
     "sensor_chip": ["温湿度传感器", "加速度计", "陀螺仪IMU", "环境光传感器", "气压传感器", "霍尔传感器", "电流传感器"],
-    "switch": ["轻触开关", "拨动开关", "旋转开关", "拨码开关", "信号继电器", "功率继电器", "固态继电器"], # 吸收继电器
+    "switch": ["轻触开关", "拨动开关", "旋转开关", "拨码开关", "信号继电器", "功率继电器", "固态继电器"],
     "filter": ["LC滤波器", "EMI电源滤波器", "SAW声表面波滤波器"],
     "module": ["WiFi模块", "蓝牙模块", "蜂窝通信模块", "GNSS定位模块", "电源模块"],
-    "connector": ["FPC插座", "排针排母", "USB接口", "TypeC接口", "音频插座", "接线端子", "板对板连接器"], # 吸收线材 Cable
+    "connector": ["FPC插座", "排针排母", "USB接口", "TypeC接口", "音频插座", "接线端子", "板对板连接器"],
 }
 
 DEFAULT_TEMPLATES = [
@@ -64,8 +63,8 @@ DEFAULT_TEMPLATES = [
     
     # 半导体分立器件
     {"category_key": "diode", "subcategory_name": None, "name": "二极管-通用参数", "definition_json": '{"fields":["反向耐压","正向电流","正向压降","封装"]}'},
-    {"category_key": "bjt", "subcategory_name": None, "name": "三极管-通用参数", "definition_json": '{"fields":["极性","集电极耐压","集电极电流","放大倍数","特征频率","封装"]}'},
-    {"category_key": "fet", "subcategory_name": None, "name": "场效应管/IGBT-通用参数", "definition_json": '{"fields":["器件类型","漏源耐压","漏极电流","导通内阻","开启电压","封装"]}'},
+    {"category_key": "transistor", "subcategory_name": None, "name": "三极管-通用参数", "definition_json": '{"fields":["极性","集电极耐压","集电极电流","放大倍数","特征频率","封装"]}'},
+    {"category_key": "fet_igbt", "subcategory_name": None, "name": "场效应管/IGBT-通用参数", "definition_json": '{"fields":["器件类型","漏源耐压","漏极电流","导通内阻","开启电压","封装"]}'},
     {"category_key": "protection", "subcategory_name": None, "name": "保护器件-通用参数", "definition_json": '{"fields":["保护类型","关断电压/额定电流","钳位电压/熔断电压","响应时间","封装"]}'},
     
     # 声光与显示器件
@@ -156,6 +155,9 @@ def seed_default_config(db: Session):
     if new_tpl_count:
         logger.info(f"Added {new_tpl_count} new param templates")
 
+    # 清理重复的子类别
+    _cleanup_duplicate_subcategories(db)
+
     if new_count or new_sub_count or new_tpl_count:
         db.commit()
         logger.info("Config seed update complete.")
@@ -212,3 +214,36 @@ def _ensure_location_prefixes(db: Session):
     if changed:
         db.commit()
         logger.info("Initialized location prefixes")
+
+
+def _cleanup_duplicate_subcategories(db: Session):
+    """清理重复的子类别（保留第一个，删除后续重复）"""
+    from sqlalchemy import func
+
+    # 查找重复的子类别（同类别下同名）
+    duplicates = db.query(
+        Subcategory.category_id,
+        Subcategory.name,
+        func.min(Subcategory.id).label('keep_id'),
+        func.count(Subcategory.id).label('cnt')
+    ).group_by(
+        Subcategory.category_id,
+        Subcategory.name
+    ).having(func.count(Subcategory.id) > 1).all()
+
+    if not duplicates:
+        return
+
+    deleted_count = 0
+    for dup in duplicates:
+        # 删除除 keep_id 以外的重复记录
+        deleted = db.query(Subcategory).filter(
+            Subcategory.category_id == dup.category_id,
+            Subcategory.name == dup.name,
+            Subcategory.id != dup.keep_id
+        ).delete(synchronize_session=False)
+        deleted_count += deleted
+
+    if deleted_count:
+        db.commit()
+        logger.info(f"Cleaned up {deleted_count} duplicate subcategories")
