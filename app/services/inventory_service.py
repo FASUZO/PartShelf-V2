@@ -370,9 +370,10 @@ class InventoryService:
     @staticmethod
     def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None):
         """更新零件信息"""
-        from app.crud.part import update_part
+        from app.crud.part import update_part, get_part_by_part_number
         from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
         from app.crud.package import get_package_by_name, create_part_package
+        from sqlalchemy.exc import IntegrityError
         
         part = get_part_by_id(db, part_id)
         if part is None:
@@ -395,7 +396,18 @@ class InventoryService:
         if not part.part_number and part.category_id:
             try:
                 from app.services.part_id_service import generate_part_number
-                part.part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                for attempt in range(3):
+                    try:
+                        new_part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                        # 检查编号是否已存在
+                        if not get_part_by_part_number(db, new_part_number):
+                            part.part_number = new_part_number
+                            break
+                        logger.warning(f"Part number {new_part_number} already exists, retrying...")
+                    except Exception as e:
+                        logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                        if attempt == 2:
+                            raise
             except Exception as e:
                 logger.warning(f"Failed to generate part_number: {e}")
         
@@ -419,8 +431,18 @@ class InventoryService:
         else:
             part.other = None
         
-        db.commit()
-        db.refresh(part)
+        try:
+            db.commit()
+            db.refresh(part)
+        except IntegrityError as e:
+            if 'part_number' in str(e):
+                db.rollback()
+                # 清除编号重试
+                part.part_number = None
+                db.commit()
+                db.refresh(part)
+            else:
+                raise
         
         return {"success": True, "message": "零件更新成功"}
 
