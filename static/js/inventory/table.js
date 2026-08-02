@@ -74,11 +74,11 @@ function updateTable(data) {
                              (item.quantity > 0 ? 'bg-warning text-dark' : 'bg-danger');
         
         row.innerHTML = `
-            <td><code class="text-primary">${item.part_number || '-'}</code></td>
+            <td class="d-none d-md-table-cell"><code class="text-primary">${item.part_number || '-'}</code></td>
             <td><strong>${escapeHtml(item.name)}</strong></td>
-            <td class="desc-cell" title="${escapeHtml(item.description || '')}">${escapeHtml(item.description || '-')}</td>
-            <td>${escapeHtml(item.manufacturer)}</td>
-            <td><span class="badge bg-secondary">${item.category_name ? escapeHtml(item.category_name) + (item.subcategory_name ? '/' + escapeHtml(item.subcategory_name) : '') : escapeHtml(item.part_type)}</span></td>
+            <td class="desc-cell d-none d-lg-table-cell" title="${escapeHtml(item.description || '')}">${escapeHtml(item.description || '-')}</td>
+            <td class="d-none d-md-table-cell">${escapeHtml(item.manufacturer)}</td>
+            <td class="d-none d-lg-table-cell"><span class="badge bg-secondary">${item.category_name ? escapeHtml(item.category_name) + (item.subcategory_name ? '/' + escapeHtml(item.subcategory_name) : '') : escapeHtml(item.part_type)}</span></td>
             <td>${escapeHtml(item.package)}</td>
             <td>
                 <span class="badge quantity-badge ${quantityClass}">${item.quantity}</span>
@@ -87,11 +87,11 @@ function updateTable(data) {
                 <div class="action-buttons">
                     <button class="btn action-btn action-btn-stock-in" data-part-id="${item.id}" 
                             data-bs-toggle="modal" data-bs-target="#stockInModal" title="入库">
-                        <i class="fas fa-arrow-down"></i> 入库
+                        <i class="fas fa-arrow-down"></i><span class="d-none d-sm-inline"> 入库</span>
                     </button>
                     <button class="btn action-btn action-btn-stock-out" data-part-id="${item.id}" 
                             data-bs-toggle="modal" data-bs-target="#stockOutModal" title="出库">
-                        <i class="fas fa-arrow-up"></i> 出库
+                        <i class="fas fa-arrow-up"></i><span class="d-none d-sm-inline"> 出库</span>
                     </button>
                     <button class="btn btn-sm btn-outline-info action-btn" onclick="viewDetails(${item.id})" title="详情">
                         <i class="fas fa-eye"></i>

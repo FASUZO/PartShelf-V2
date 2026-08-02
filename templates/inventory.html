@@ -54,14 +54,15 @@
         <div class="col-md-9 col-lg-10" id="mainContent">
           <!-- ==================== 数据表格区域 ==================== -->
           <div class="table-container">
+              <div class="table-responsive">
               <table class="table table-hover align-middle">
                 <thead class="table-light">
                   <tr>
-                    <th scope="col">编号</th>
+                    <th scope="col" class="d-none d-md-table-cell">编号</th>
                     <th scope="col" class="sortable" data-sort="name">型号 <i class="fas fa-sort"></i></th>
-                    <th scope="col">描述</th>
-                    <th scope="col" class="sortable" data-sort="manufacturer">制造商 <i class="fas fa-sort"></i></th>
-                    <th scope="col" class="sortable" data-sort="part_type">类型 <i class="fas fa-sort"></i></th>
+                    <th scope="col" class="d-none d-lg-table-cell">描述</th>
+                    <th scope="col" class="d-none d-md-table-cell sortable" data-sort="manufacturer">制造商 <i class="fas fa-sort"></i></th>
+                    <th scope="col" class="d-none d-lg-table-cell sortable" data-sort="part_type">类型 <i class="fas fa-sort"></i></th>
                     <th scope="col" class="sortable" data-sort="package">封装 <i class="fas fa-sort"></i></th>
                     <th scope="col" class="sortable" data-sort="quantity">数量 <i class="fas fa-sort"></i></th>
                     <th scope="col">操作</th>
@@ -72,6 +73,7 @@
                   <tr><td colspan="8" class="text-center text-muted">正在加载数据...</td></tr>
                 </tbody>
               </table>
+              </div>
 
               <!-- 分页控件 -->
               <nav aria-label="零件分页" class="mt-4">
@@ -89,7 +91,7 @@
     
     <!-- 添加零件模态框 -->
     <div class="modal fade" id="addComponentModal" tabindex="-1" aria-labelledby="addComponentModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-primary text-white">
             <h5 class="modal-title" id="addComponentModalLabel"><i class="fas fa-plus-circle"></i> 添加新零件</h5>
@@ -160,7 +162,7 @@
 
     <!-- 编辑零件模态框 -->
     <div class="modal fade" id="editPartModal" tabindex="-1" aria-labelledby="editPartModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-warning text-dark">
             <h5 class="modal-title" id="editPartModalLabel"><i class="fas fa-edit"></i> 编辑零件</h5>
@@ -231,7 +233,7 @@
 
     <!-- 导入文件模态框 -->
     <div class="modal fade" id="addComponentOrderModal" tabindex="-1" aria-labelledby="addComponentOrderModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-success text-white">
             <h5 class="modal-title" id="addComponentOrderModalLabel"><i class="fas fa-file-import"></i> 导入文件</h5>
@@ -364,7 +366,7 @@
 
     <!-- 批量入库模态框 -->
     <div class="modal fade" id="batchStockInModal" tabindex="-1" aria-labelledby="batchStockInModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-success text-white">
             <h5 class="modal-title" id="batchStockInModalLabel"><i class="fas fa-arrow-down"></i> 批量入库</h5>
@@ -428,7 +430,7 @@
 
     <!-- 批量出库模态框 -->
     <div class="modal fade" id="batchStockOutModal" tabindex="-1" aria-labelledby="batchStockOutModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-warning text-dark">
             <h5 class="modal-title" id="batchStockOutModalLabel"><i class="fas fa-arrow-up"></i> 一键出库</h5>
@@ -491,7 +493,7 @@
 
     <!-- 器件详情模态框 -->
     <div class="modal fade" id="componentDetailModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
           <!-- 头部：器件名称和制造商 -->
           <div class="modal-header">
@@ -592,7 +594,7 @@
 
     <!-- 库存历史记录模态框 -->
     <div class="modal fade" id="inventoryHistoryModal" tabindex="-1" aria-labelledby="inventoryHistoryModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl">
+      <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
         <div class="modal-content">
           <div class="modal-header bg-info text-white">
             <h5 class="modal-title" id="inventoryHistoryModalLabel"><i class="fas fa-history"></i> 库存使用历史</h5>
@@ -666,6 +668,12 @@
         </div>
       </div>
     </div>
+
+    <!-- 移动端侧栏切换按钮 -->
+    <button class="btn btn-primary sidebar-mobile-toggle d-md-none" id="sidebarMobileToggle" onclick="toggleMobileSidebar()">
+      <i class="fas fa-filter"></i>
+    </button>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
 
     <!-- 模块化JavaScript文件 -->
     <script src="/static/js/inventory/utils.js"></script>

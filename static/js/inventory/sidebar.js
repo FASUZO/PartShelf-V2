@@ -295,6 +295,20 @@ function toggleSidebar() {
     }
 }
 
+// === 移动端侧栏切换 ===
+function toggleMobileSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+    
+    var isShow = sidebar.classList.toggle('show');
+    if (overlay) {
+        overlay.classList.toggle('show', isShow);
+    }
+    // 防止背景滚动
+    document.body.style.overflow = isShow ? 'hidden' : '';
+}
+
 // === 获取当前筛选状态（供 main.js 调用）===
 function getSidebarFilter() {
     var filter = {};
