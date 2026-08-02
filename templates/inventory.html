@@ -238,6 +238,26 @@
                     <label for="orderFile" class="form-label">选择文件 (CSV 或 Excel)</label>
                     <input class="form-control" type="file" id="orderFile" name="order_file" accept=".csv, .xlsx, .xls" required>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">导入模式</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="import_mode" id="importModeAppend" value="append" checked>
+                            <label class="form-check-label" for="importModeAppend">
+                                <i class="fas fa-plus-circle text-success me-1"></i>追加（合并到现有库存）
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="import_mode" id="importModeOverwrite" value="overwrite">
+                            <label class="form-check-label" for="importModeOverwrite">
+                                <i class="fas fa-exchange-alt text-warning me-1"></i>覆盖（清空后导入）
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-text text-danger" id="overwriteWarning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i> 覆盖模式将清空所有现有库存数据！
+                    </div>
+                </div>
                 <div class="alert alert-info small">
                     <p class="mb-1"><strong>导入说明：</strong>系统将自动检测表头。建议使用英文表头（Name, Manufacturer, Type, Package, Quantity 等）或直接使用从本系统导出的 CSV/Excel 文件。</p>
                     <a href="/api/inventory/export_template" class="alert-link me-3"><i class="fas fa-download"></i> 下载通用导入模板 (.csv)</a>

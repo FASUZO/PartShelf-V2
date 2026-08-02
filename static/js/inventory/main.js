@@ -179,10 +179,31 @@ function bindEditPartForm() {
 
 // ==================== 表单处理 ====================
 
+// 绑定导入模式切换警告
+function bindImportModeWarning() {
+    const overwriteRadio = document.getElementById('importModeOverwrite');
+    const appendRadio = document.getElementById('importModeAppend');
+    const warning = document.getElementById('overwriteWarning');
+    
+    if (overwriteRadio && warning) {
+        overwriteRadio.addEventListener('change', function() {
+            warning.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+    if (appendRadio && warning) {
+        appendRadio.addEventListener('change', function() {
+            warning.style.display = 'none';
+        });
+    }
+}
+
 // 绑定文件导入表单
 function bindImportForm() {
     const importForm = document.getElementById('importOrderForm');
     if (!importForm) return;
+    
+    // 绑定导入模式警告
+    bindImportModeWarning();
     
     importForm.addEventListener('submit', function(event) {
         event.preventDefault();
