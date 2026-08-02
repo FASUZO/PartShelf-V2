@@ -223,6 +223,43 @@ async function editPart(id) {
     }
 }
 
+// 从编辑弹窗删除零件（二次确认）
+function confirmDeleteFromEdit() {
+    const partId = document.getElementById('editPartId').value;
+    const partName = document.getElementById('editPartName').value;
+
+    if (!partId) return;
+
+    // 二次确认
+    const confirmed = confirm(`确定要删除零件 "${partName}" 吗？\n\n此操作不可撤销，将同时删除库存记录和历史记录。`);
+
+    if (!confirmed) return;
+
+    // 调用删除API
+    fetch(`/api/inventory/delete_part?part_id=${partId}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('删除失败');
+        return response.json();
+    })
+    .then(data => {
+        // 关闭编辑模态框
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editPartModal'));
+        if (editModal) editModal.hide();
+
+        showToast('零件已删除', 'success');
+
+        // 刷新列表
+        if (typeof applyAdvancedFilter === 'function') {
+            applyAdvancedFilter();
+        }
+    })
+    .catch(err => {
+        showToast('删除失败: ' + err.message, 'danger');
+    });
+}
+
 // 加载器件详情数据
 async function loadComponentDetails(partId) {
     try {
