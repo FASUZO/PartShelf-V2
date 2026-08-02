@@ -1,12 +1,22 @@
-﻿from fastapi import APIRouter, Request
+import os
+from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 templates = Jinja2Templates(directory="templates")
 
 router = APIRouter()
 
-favicon_path = 'favicon.ico'
+# 获取静态文件目录的绝对路径
+_static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static")
+
+@router.get("/favicon.ico")
+def get_favicon():
+    """返回网站图标"""
+    favicon_path = os.path.join(_static_dir, "favicon.ico")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/x-icon")
+    return FileResponse(os.path.join(_static_dir, "favicon.ico"))
 
 @router.get("/", response_class=HTMLResponse)
 def get_home_template(request: Request):
