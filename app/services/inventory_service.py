@@ -536,7 +536,7 @@ class InventoryService:
 
         # 孤立库存记录
         orphaned_inventory = db.execute(text(
-            "SELECT COUNT(*) FROM inventory WHERE part_id NOT IN (SELECT id FROM parts)"
+            "SELECT COUNT(*) FROM inventories WHERE part_id NOT IN (SELECT id FROM parts)"
         )).scalar()
         report["orphaned_inventory"] = orphaned_inventory
 
