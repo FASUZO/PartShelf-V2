@@ -7,6 +7,7 @@
 - 库存历史记录
 """
 
+import logging
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
@@ -25,6 +26,8 @@ from app.models.config import Category, Subcategory
 from app.schemas.inventory import PartDetailsFlatGet, PartInventoryFlatGet, PartInventoryQuantity, PartInventoryQuantityUpdate, PartToInventoryAdd, PartInventoryFilter
 
 from app.services.mqtt_service import publish_event
+
+logger = logging.getLogger("partshelf.inventory")
 
 
 def _parse_param_number(val: str) -> float:
