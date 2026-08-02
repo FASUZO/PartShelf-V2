@@ -310,7 +310,52 @@ function bindQrStockInForm() {
     });
 }
 
+// 手动解析二维码内容
+function parseManualQrInput() {
+    const input = document.getElementById('qrManualInput');
+    const resultEl = document.getElementById('qr-scan-result');
+    const confirmSection = document.getElementById('qr-confirm-section');
+
+    if (!input || !input.value.trim()) {
+        showToast('请输入二维码内容', 'warning');
+        return;
+    }
+
+    try {
+        const parsed = parseQrCode(input.value.trim());
+
+        if (!parsed) {
+            showToast('无法解析内容，请检查格式', 'danger');
+            return;
+        }
+
+        // 显示解析结果
+        resultEl.innerHTML = `
+            <div class="alert alert-success py-2 mb-2">
+                <i class="fas fa-check-circle me-1"></i><strong>解析成功</strong>
+            </div>
+            <div class="small">
+                <div><strong>LC Number:</strong> ${escapeHtml(parsed.pc || '-')}</div>
+                <div><strong>名称:</strong> ${escapeHtml(parsed.pm || '-')}</div>
+                <div><strong>数量:</strong> ${parsed.qty || '-'}</div>
+            </div>
+        `;
+
+        // 查询库存中是否存在该零件
+        searchPartByLcNumber(parsed.pc, parsed);
+
+        // 切换到结果显示
+        document.querySelector('[data-bs-target="#tabCamera"]').classList.remove('active');
+        document.querySelector('[data-bs-target="#tabCamera"]').setAttribute('aria-selected', 'false');
+        document.getElementById('tabCamera').classList.remove('show', 'active');
+
+    } catch (e) {
+        showToast('解析错误: ' + e.message, 'danger');
+    }
+}
+
 // 导出函数
 window.initQrScan = initQrScan;
 window.openQrScanModal = openQrScanModal;
 window.openAddPartFromQr = openAddPartFromQr;
+window.parseManualQrInput = parseManualQrInput;

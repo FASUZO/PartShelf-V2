@@ -694,10 +694,43 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
           </div>
           <div class="modal-body">
-            <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
-            <div id="qr-scan-result" class="mt-3 text-center">
-              <p class="text-muted">点击下方按钮开始扫描</p>
+            <!-- 扫描方式切换 -->
+            <ul class="nav nav-pills nav-justified mb-3" role="tablist">
+              <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabCamera" type="button">
+                  <i class="fas fa-camera me-1"></i>摄像头扫描
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabManual" type="button">
+                  <i class="fas fa-keyboard me-1"></i>手动输入
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content">
+              <!-- 摄像头扫描 -->
+              <div class="tab-pane fade show active" id="tabCamera">
+                <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
+                <div id="qr-scan-result" class="mt-3 text-center">
+                  <p class="text-muted">点击下方按钮开始扫描</p>
+                </div>
+              </div>
+
+              <!-- 手动输入 -->
+              <div class="tab-pane fade" id="tabManual">
+                <div class="mb-3">
+                  <label for="qrManualInput" class="form-label">粘贴二维码内容</label>
+                  <textarea class="form-control" id="qrManualInput" rows="4"
+                    placeholder='{pbn:PICK241130100025,on:SO2411309996,pc:C22452,pm:SS54,qty:10,...}'></textarea>
+                  <div class="form-text">支持JSON格式，自动提取 pc(LC编号)、pm(名称)、qty(数量)</div>
+                </div>
+                <button class="btn btn-success w-100" onclick="parseManualQrInput()">
+                  <i class="fas fa-search me-1"></i>解析并入库
+                </button>
+              </div>
             </div>
+
             <div id="qr-confirm-section" style="display: none;" class="mt-3">
               <hr>
               <form id="qrStockInForm">
