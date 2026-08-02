@@ -507,9 +507,11 @@ class InventoryService:
         }
 
     @staticmethod
-    def get_database_report(db: Session):
+    def get_database_report(db: Session, include_details: bool = False):
         """生成数据库健康检查报告"""
         from sqlalchemy import func, text
+        from app.models.manufacturer import Manufacturer
+        from app.models.package import Package
 
         report = {}
 
@@ -560,7 +562,7 @@ class InventoryService:
         report["total_history"] = db.query(InventoryHistory).count()
 
         # LocationPrefix 状态
-        from app.models.config import LocationPrefix, PartIdSequence
+        from app.models.config import LocationPrefix, PartIdSequence, Category, Subcategory
         location_prefixes = db.query(LocationPrefix).all()
         report["location_prefixes"] = [
             {"category_id": lp.category_id, "prefix": lp.prefix, "next_seq": lp.next_seq}
@@ -573,6 +575,58 @@ class InventoryService:
             {"category_id": ps.category_id, "subcategory_id": ps.subcategory_id, "next_seq": ps.next_seq}
             for ps in part_sequences
         ]
+
+        # 详细数据（用于导出）
+        if include_details:
+            # 构建查找字典
+            categories = {c.id: c.name for c in db.query(Category).all()}
+            subcategories = {s.id: s.name for s in db.query(Subcategory).all()}
+            manufacturers = {m.id: m.name for m in db.query(Manufacturer).all()}
+            packages = {p.id: p.package_type for p in db.query(Package).all()}
+
+            # 无编号零件详情
+            no_number_parts = db.query(Part).filter(Part.part_number.is_(None)).all()
+            report["no_part_number_details"] = [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "manufacturer": manufacturers.get(p.manufacturer_id, ""),
+                    "package": packages.get(p.package_id, ""),
+                    "category": categories.get(p.category_id, ""),
+                    "subcategory": subcategories.get(p.subcategory_id, ""),
+                }
+                for p in no_number_parts
+            ]
+
+            # 无类别零件详情
+            no_category_parts = db.query(Part).filter(Part.category_id.is_(None)).all()
+            report["no_category_details"] = [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "manufacturer": manufacturers.get(p.manufacturer_id, ""),
+                    "package": packages.get(p.package_id, ""),
+                    "part_number": p.part_number or "",
+                }
+                for p in no_category_parts
+            ]
+
+            # 无子类别（有编号）零件详情
+            no_subcategory_parts = db.query(Part).filter(
+                Part.part_number.isnot(None),
+                Part.subcategory_id.is_(None)
+            ).all()
+            report["no_subcategory_details"] = [
+                {
+                    "id": p.id,
+                    "part_number": p.part_number,
+                    "name": p.name,
+                    "manufacturer": manufacturers.get(p.manufacturer_id, ""),
+                    "package": packages.get(p.package_id, ""),
+                    "category": categories.get(p.category_id, ""),
+                }
+                for p in no_subcategory_parts
+            ]
 
         return report
 

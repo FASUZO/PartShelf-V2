@@ -232,3 +232,86 @@ def get_database_report(db: Session = Depends(get_db)):
     """获取数据库健康检查报告"""
     from app.services.inventory_service import InventoryService
     return InventoryService.get_database_report(db)
+
+
+@router.get("/database_report/export")
+def export_database_report(db: Session = Depends(get_db)):
+    """导出数据库详细报告为CSV"""
+    import csv
+    import io
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    from app.services.inventory_service import InventoryService
+
+    report = InventoryService.get_database_report(db, include_details=True)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # 写入标题
+    writer.writerow(["PartShelf 数据库检查报告"])
+    writer.writerow([f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"])
+    writer.writerow([])
+
+    # 概览统计
+    writer.writerow(["概览统计"])
+    writer.writerow(["零件总数", report["total_parts"]])
+    writer.writerow(["库存记录", report["total_inventory"]])
+    writer.writerow(["历史记录", report["total_history"]])
+    writer.writerow(["无编号零件", report["no_part_number"]])
+    writer.writerow(["无类别零件", report["no_category_id"]])
+    writer.writerow(["无子类别（有编号）", report["no_subcategory_id"]])
+    writer.writerow(["孤立库存记录", report["orphaned_inventory"]])
+    writer.writerow(["重复编号", len(report["duplicate_numbers"])])
+    writer.writerow([])
+
+    # 无编号零件详情
+    if report.get("no_part_number_details"):
+        writer.writerow(["无编号零件详情"])
+        writer.writerow(["ID", "名称", "制造商", "封装", "类别", "子类别"])
+        for p in report["no_part_number_details"]:
+            writer.writerow([p["id"], p["name"], p["manufacturer"], p["package"], p["category"], p["subcategory"]])
+        writer.writerow([])
+
+    # 无类别零件详情
+    if report.get("no_category_details"):
+        writer.writerow(["无类别零件详情"])
+        writer.writerow(["ID", "名称", "制造商", "封装", "编号"])
+        for p in report["no_category_details"]:
+            writer.writerow([p["id"], p["name"], p["manufacturer"], p["package"], p["part_number"]])
+        writer.writerow([])
+
+    # 无子类别零件详情
+    if report.get("no_subcategory_details"):
+        writer.writerow(["无子类别零件详情（有编号）"])
+        writer.writerow(["ID", "编号", "名称", "制造商", "封装", "类别"])
+        for p in report["no_subcategory_details"]:
+            writer.writerow([p["id"], p["part_number"], p["name"], p["manufacturer"], p["package"], p["category"]])
+        writer.writerow([])
+
+    # 重复编号详情
+    if report.get("duplicate_numbers"):
+        writer.writerow(["重复编号详情"])
+        writer.writerow(["编号", "重复次数"])
+        for d in report["duplicate_numbers"]:
+            writer.writerow([d["part_number"], d["count"]])
+        writer.writerow([])
+
+    # 类别统计
+    if report.get("category_stats"):
+        writer.writerow(["类别统计"])
+        writer.writerow(["类别", "零件数量"])
+        for s in report["category_stats"]:
+            writer.writerow([s["category"], s["count"]])
+
+    output.seek(0)
+    content = output.getvalue()
+    output.close()
+
+    filename = f"partshelf_db_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv",
+        headers=headers
+    )

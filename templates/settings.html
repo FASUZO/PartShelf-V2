@@ -191,10 +191,13 @@
       <div class="card mt-3 mb-4" style="max-width:520px;">
         <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
           <span><i class="fas fa-database me-2"></i><strong>数据库检查</strong></span>
-          <button class="btn btn-sm btn-outline-light" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt me-1"></i>运行检查</button>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-light" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt me-1"></i>检查</button>
+            <a class="btn btn-sm btn-outline-success" href="/api/config/database_report/export" target="_blank"><i class="fas fa-download me-1"></i>导出</a>
+          </div>
         </div>
         <div class="card-body" id="dbReportBody">
-          <p class="text-muted mb-0" style="font-size:0.85rem;">点击"运行检查"按钮查看数据库健康状态。</p>
+          <p class="text-muted mb-0" style="font-size:0.85rem;">点击"检查"按钮查看数据库健康状态，点击"导出"下载详细报告。</p>
         </div>
       </div>
     </div>
