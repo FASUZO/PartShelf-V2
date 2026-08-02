@@ -73,6 +73,26 @@ function updateTable(data) {
         const quantityClass = item.quantity > 10 ? 'bg-success' : 
                              (item.quantity > 0 ? 'bg-warning text-dark' : 'bg-danger');
         
+        var actionButtons = `
+                    <button class="btn btn-sm btn-outline-info action-btn" onclick="viewDetails(${item.id})" title="详情">
+                        <i class="fas fa-eye"></i>
+                    </button>`;
+
+        if (typeof isAuthenticated !== 'undefined' && isAuthenticated) {
+            actionButtons += `
+                    <button class="btn action-btn action-btn-stock-in" data-part-id="${item.id}" 
+                            data-bs-toggle="modal" data-bs-target="#stockInModal" title="入库">
+                        <i class="fas fa-arrow-down"></i><span class="d-none d-sm-inline"> 入库</span>
+                    </button>
+                    <button class="btn action-btn action-btn-stock-out" data-part-id="${item.id}" 
+                            data-bs-toggle="modal" data-bs-target="#stockOutModal" title="出库">
+                        <i class="fas fa-arrow-up"></i><span class="d-none d-sm-inline"> 出库</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning action-btn" onclick="editPart(${item.id})" title="编辑">
+                        <i class="fas fa-edit"></i>
+                    </button>`;
+        }
+
         row.innerHTML = `
             <td class="d-none d-md-table-cell"><code class="text-primary">${item.part_number || '-'}</code></td>
             <td><strong>${escapeHtml(item.name)}</strong></td>
@@ -85,20 +105,7 @@ function updateTable(data) {
             </td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn action-btn action-btn-stock-in" data-part-id="${item.id}" 
-                            data-bs-toggle="modal" data-bs-target="#stockInModal" title="入库">
-                        <i class="fas fa-arrow-down"></i><span class="d-none d-sm-inline"> 入库</span>
-                    </button>
-                    <button class="btn action-btn action-btn-stock-out" data-part-id="${item.id}" 
-                            data-bs-toggle="modal" data-bs-target="#stockOutModal" title="出库">
-                        <i class="fas fa-arrow-up"></i><span class="d-none d-sm-inline"> 出库</span>
-                    </button>
-                    <button class="btn btn-sm btn-outline-info action-btn" onclick="viewDetails(${item.id})" title="详情">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-warning action-btn" onclick="editPart(${item.id})" title="编辑">
-                        <i class="fas fa-edit"></i>
-                    </button>
+                    ${actionButtons}
                 </div>
             </td>
         `;
