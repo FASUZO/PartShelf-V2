@@ -580,17 +580,12 @@
                 <!-- 其他操作按钮 -->
                 <hr>
                 <div class="d-flex gap-2">
-                  <button class="btn btn-info btn-sm" id="detailViewHistoryBtn">
+                  <button class="btn btn-info btn-sm" id="detailViewHistoryBtn" onclick="viewDetailHistory()">
                     <i class="fas fa-history"></i> 查看使用历史
                   </button>
-                  <button class="btn btn-success btn-sm" id="detailExportDetailsBtn">
+                  <button class="btn btn-success btn-sm" id="detailExportDetailsBtn" onclick="exportDetailDetails()">
                     <i class="fas fa-download"></i> 导出详情
                   </button>
-                  {% if user %}
-                  <button class="btn btn-danger btn-sm" id="detailDeletePartBtn">
-                    <i class="fas fa-trash"></i> 删除零件
-                  </button>
-                  {% endif %}
                 </div>
               </div>
             </div>

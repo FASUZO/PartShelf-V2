@@ -388,18 +388,92 @@ async function updateDetailQuantity() {
     }
 }
 
-// 查看使用历史（复用现有逻辑）
+// 查看使用历史
 function viewDetailHistory() {
     const modal = document.getElementById('componentDetailModal');
     const partId = modal.dataset.partId;
-    viewHistory(partId);
+    if (!partId) return;
+
+    // 关闭详情模态框
+    const detailModal = bootstrap.Modal.getInstance(modal);
+    if (detailModal) detailModal.hide();
+
+    // 打开历史模态框
+    const historyModal = new bootstrap.Modal(document.getElementById('inventoryHistoryModal'));
+    historyModal.show();
+
+    // 加载该零件的历史记录
+    loadPartHistory(partId);
 }
 
-// 导出详情（复用现有逻辑）
+// 加载指定零件的历史记录
+function loadPartHistory(partId) {
+    const url = `/api/inventory/inventory_history?page=1&page_size=50&part_id=${partId}`;
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('加载失败');
+            return response.json();
+        })
+        .then(data => {
+            renderHistoryTable(data.data || []);
+            updateHistoryPagination(data.pagination || { page: 1, total_pages: 1, total_count: 0 });
+        })
+        .catch(err => {
+            console.error('加载历史记录失败:', err);
+            showToast('加载历史记录失败', 'danger');
+        });
+}
+
+// 导出详情
 function exportDetailDetails() {
     const modal = document.getElementById('componentDetailModal');
     const partId = modal.dataset.partId;
-    exportDetails(partId);
+    if (!partId) return;
+
+    // 获取零件详情并导出为CSV
+    fetch(`/api/inventory/get_part_by_id?part_id=${partId}`)
+        .then(response => {
+            if (!response.ok) throw new Error('获取失败');
+            return response.json();
+        })
+        .then(data => {
+            // 构建CSV内容
+            let csv = '字段,值\n';
+            csv += `编号,${data.part_number || ''}\n`;
+            csv += `名称,${data.name || ''}\n`;
+            csv += `制造商,${data.manufacturer || ''}\n`;
+            csv += `类型,${data.category_name || ''}${data.subcategory_name ? '/' + data.subcategory_name : ''}\n`;
+            csv += `封装,${data.package || ''}\n`;
+            csv += `数量,${data.quantity || 0}\n`;
+            csv += `LC编号,${data.lc_number || ''}\n`;
+            csv += `单价,${data.price_display || data.price || ''}\n`;
+            csv += `描述,${data.description || ''}\n`;
+
+            // 解析参数
+            if (data.other) {
+                try {
+                    const params = JSON.parse(data.other);
+                    if (params.fields && params.values) {
+                        params.fields.forEach(field => {
+                            csv += `${field},${params.values[field] || ''}\n`;
+                        });
+                    }
+                } catch (e) {}
+            }
+
+            // 下载CSV
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${data.name || 'part'}_详情.csv`;
+            link.click();
+
+            showToast('导出成功', 'success');
+        })
+        .catch(err => {
+            showToast('导出失败: ' + err.message, 'danger');
+        });
 }
 
 // 删除零件（复用现有逻辑）

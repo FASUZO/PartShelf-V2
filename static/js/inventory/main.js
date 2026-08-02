@@ -161,9 +161,6 @@ function bindDetailModalEvents() {
 
     const exportBtn = document.getElementById('detailExportDetailsBtn');
     if (exportBtn) exportBtn.addEventListener('click', exportDetailDetails);
-
-    const deleteBtn = document.getElementById('detailDeletePartBtn');
-    if (deleteBtn) deleteBtn.addEventListener('click', deleteDetailPart);
 }
 
 // 绑定编辑零件表单
