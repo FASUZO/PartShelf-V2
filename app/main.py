@@ -25,6 +25,9 @@ from app.api import auth_routes
 from db.database import engine, Base
 import uvicorn
 
+# 导入所有模型以确保 create_all 能创建所有表
+from app.models.user import User
+
 Base.metadata.create_all(bind=engine)
 
 # Seed default config data (idempotent)
