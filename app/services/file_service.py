@@ -513,16 +513,36 @@ class FileService:
                         detail="Excel文件为空或格式不正确"
                     )
                 
-                # 查找有效的列名行（跳过空行）
+                # 查找有效的列名行（跳过空行和标题行）
                 header_row = None
                 data_start_row = 0
-                
-                for i, row in enumerate(data):
-                    if any(cell and str(cell).strip() for cell in row):
+
+                # 已知的列名关键词（用于识别表头行）
+                known_keywords = {'name', '型号', '名称', 'manufacturer', '制造商',
+                                  'package', '封装', 'quantity', '数量', 'description',
+                                  '描述', '类型', 'type', 'price', '单价', 'lc', '编号'}
+
+                for i, row in enumerate(data[:10]):  # 只检查前10行
+                    if not any(cell and str(cell).strip() for cell in row):
+                        continue  # 跳过空行
+
+                    # 检查该行是否包含已知列名关键词
+                    row_text = ' '.join(str(cell).lower() for cell in row if cell)
+                    keyword_count = sum(1 for kw in known_keywords if kw in row_text)
+
+                    if keyword_count >= 3:  # 至少匹配3个关键词才认为是表头
                         header_row = row
                         data_start_row = i
                         break
-                
+
+                # 如果没有找到匹配的表头，使用第一个非空行
+                if header_row is None:
+                    for i, row in enumerate(data):
+                        if any(cell and str(cell).strip() for cell in row):
+                            header_row = row
+                            data_start_row = i
+                            break
+
                 if header_row is None:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
