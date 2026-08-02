@@ -9,10 +9,13 @@ services:
       - ./db:/app/db
     environment:
       - DATABASE_URL=sqlite:////app/db/partshelf.db
-      - LOG_LEVEL=WARNING  # 可选值: DEBUG, INFO, WARNING, ERROR
+      - LOG_LEVEL=WARNING
     working_dir: /app
     networks:
       - cloudflare_net
+      - internal
+    depends_on:
+      - mosquitto
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
       interval: 30s
@@ -20,7 +23,23 @@ services:
       retries: 3
       start_period: 40s
 
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - internal
+
 networks:
   cloudflare_net:
     external: true
     name: cloudflared_cloudflare_net
+  internal:
+    driver: bridge
