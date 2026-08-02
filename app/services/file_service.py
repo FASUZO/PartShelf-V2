@@ -506,9 +506,6 @@ class FileService:
                     'other': ['other', '其他', '其他信息', 'remarks', 'note']
                 }
 
-                # 已映射的列索引（用于识别额外参数列）
-                mapped_col_indices = set(col_mapping.values())
-                
                 # 获取列名，处理第一行可能是空行的情况
                 if not data or len(data) < 2:
                     raise HTTPException(
@@ -539,7 +536,10 @@ class FileService:
                         if col_name and any(name.lower() in str(col_name).lower() for name in possible_names):
                             col_mapping[field] = idx
                             break
-                
+
+                # 已映射的列索引（用于识别额外参数列）
+                mapped_col_indices = set(col_mapping.values())
+
                 # 检查是否找到了所有必需的列
                 required_fields = ['name', 'manufacturer', 'package', 'quantity']
                 missing_fields = [f for f in required_fields if f not in col_mapping]
