@@ -683,6 +683,9 @@ class InventoryService:
                 if "Type" not in joined_tables:
                     query = query.join(Type, isouter=True)
                     joined_tables.add("Type")
+                if "Package" not in joined_tables:
+                    query = query.join(Package, isouter=True)
+                    joined_tables.add("Package")
 
                 # 注册 SQLite REGEXP 函数
                 @db.event.listens_for(db.get_bind(), "connect")
@@ -698,6 +701,7 @@ class InventoryService:
                         Part.lc_number.op('REGEXP')(pattern),
                         Manufacturer.name.op('REGEXP')(pattern),
                         Type.part_type.op('REGEXP')(pattern),
+                        Package.package_type.op('REGEXP')(pattern),
                     )
                     query = query.filter(regex_filter)
                 except Exception:
@@ -705,13 +709,16 @@ class InventoryService:
                     query = query.filter(Part.name.contains(search_key))
             else:
                 # 普通搜索模式 - 搜索多个字段
-                # 确保连接 Manufacturer 和 Type 表
+                # 确保连接 Manufacturer、Type 和 Package 表
                 if "Manufacturer" not in joined_tables:
                     query = query.join(Manufacturer, isouter=True)
                     joined_tables.add("Manufacturer")
                 if "Type" not in joined_tables:
                     query = query.join(Type, isouter=True)
                     joined_tables.add("Type")
+                if "Package" not in joined_tables:
+                    query = query.join(Package, isouter=True)
+                    joined_tables.add("Package")
 
                 search_pattern = f'%{search_key}%'
                 multi_field_filter = or_(
@@ -721,6 +728,7 @@ class InventoryService:
                     Part.lc_number.ilike(search_pattern),
                     Manufacturer.name.ilike(search_pattern),
                     Type.part_type.ilike(search_pattern),
+                    Package.package_type.ilike(search_pattern),
                 )
                 query = query.filter(multi_field_filter)
         
