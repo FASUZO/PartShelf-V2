@@ -9,7 +9,7 @@ services:
       - ./db:/app/db
     environment:
       - DATABASE_URL=sqlite:////app/db/partshelf.db
-      - LOG_LEVEL=DEBUG
+      - LOG_LEVEL=WARNING  # 可选值: DEBUG, INFO, WARNING, ERROR
     working_dir: /app
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
