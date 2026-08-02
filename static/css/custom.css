@@ -871,3 +871,29 @@ html {
 .sidebar-overlay.show {
     display: block;
 }
+
+/* 移动端二维码扫描按钮（默认隐藏） */
+.qr-scan-btn {
+    display: none;
+}
+
+/* 移动端显示 */
+@media (max-width: 767.98px) {
+    .qr-scan-btn {
+        display: block !important;
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        z-index: 1050;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    #qr-reader {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+}

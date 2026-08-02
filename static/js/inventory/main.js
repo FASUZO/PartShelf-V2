@@ -432,9 +432,13 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     // 绑定详情模态框事件
     bindDetailModalEvents();
-    
+
     // 绑定编辑零件表单
     bindEditPartForm();
+
+    // 初始化二维码扫描
+    if (typeof initQrScan === 'function') initQrScan();
+    if (typeof bindQrStockInForm === 'function') bindQrStockInForm();
     
     // 绑定历史记录筛选
     const historyFilter = document.getElementById('historyOperationFilter');
