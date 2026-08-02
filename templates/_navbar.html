@@ -13,9 +13,11 @@
         <li class="nav-item">
           <a class="nav-link{% if active_page == 'projects' %} active{% endif %}" href="/projects"><i class="fas fa-project-diagram"></i> 我的项目</a>
         </li>
+        {% if user %}
         <li class="nav-item">
           <a class="nav-link{% if active_page == 'settings' %} active{% endif %}" href="/settings"><i class="fas fa-sliders-h"></i> 配置管理</a>
         </li>
+        {% endif %}
       </ul>
       <a href="/settings" class="nav-link px-2" title="MQTT 状态" id="navMqttIndicator" style="font-size:0.8rem;">
         <i class="fas fa-broadcast-tower" id="navMqttIcon" style="opacity:0.4;"></i>
@@ -26,7 +28,7 @@
         <button class="btn btn-primary" id="searchButton" type="button"><i class="fas fa-search"></i></button>
       </div>
       {% endif %}
-      {% if active_page == 'inventory' %}
+      {% if user and active_page == 'inventory' %}
       <ul class="navbar-nav ms-3">
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -46,10 +48,36 @@
         </li>
       </ul>
       {% endif %}
+      <!-- 登录/登出按钮 -->
+      <ul class="navbar-nav ms-2">
+        {% if user %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-user-circle me-1"></i> {{ user.username }}
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+            <li><a class="dropdown-item" href="#" onclick="logout()"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+          </ul>
+        </li>
+        {% else %}
+        <li class="nav-item">
+          <a class="nav-link" href="/login"><i class="fas fa-sign-in-alt me-1"></i> 登录</a>
+        </li>
+        {% endif %}
+      </ul>
     </div>
   </div>
 </nav>
 <script>
+// 全局认证状态
+var isAuthenticated = {{ 'true' if user else 'false' }};
+
+// 退出登录
+async function logout() {
+  await fetch('/api/auth/logout', {method: 'POST'});
+  window.location.href = '/';
+}
+
 (function() {
   var icon = document.getElementById('navMqttIcon');
   if (!icon) return;

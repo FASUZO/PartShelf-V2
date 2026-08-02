@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.api import inventory_api_routes, web_routes, project_api_routes, config_api_routes
+from app.api import auth_routes
 from db.database import engine, Base
 import uvicorn
 
@@ -29,6 +30,7 @@ Base.metadata.create_all(bind=engine)
 # Seed default config data (idempotent)
 from db.database import SessionLocal
 from app.services.config_seed import seed_default_config
+from app.services.auth_service import seed_default_user
 
 
 def migrate_database(db):
@@ -64,6 +66,7 @@ def migrate_database(db):
 with SessionLocal() as _db:
     migrate_database(_db)
     seed_default_config(_db)
+    seed_default_user(_db)
 
 app = FastAPI()
 
@@ -73,6 +76,7 @@ logger.info(f"静态文件目录: {static_dir}")
 logger.info(f"静态文件目录存在: {os.path.exists(static_dir)}")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+app.include_router(auth_routes.router)
 app.include_router(web_routes.router, tags=["Web Pages"])
 app.include_router(inventory_api_routes.router, prefix="/api/inventory")
 app.include_router(project_api_routes.router, prefix="/api/project")

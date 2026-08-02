@@ -19,6 +19,7 @@ from app.schemas.file_template import FileTemplateAdd
 from app.schemas.inventory import PartToInventoryAdd, PartInventoryQuantityUpdate, PartInventoryFilter
 from app.services.file_service import FileService
 from app.services.inventory_service import InventoryService
+from app.api.deps import get_current_user_required
 from db.database import get_db
 
 logger = logging.getLogger("partshelf.api")
@@ -39,7 +40,8 @@ def add_part_to_inventory(
     other: str = Form(None),
     category_id: int = Form(None),
     subcategory_id: int = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user_required)
 ):
     """添加新零件到库存"""
     part_data = PartToInventoryAdd(
@@ -63,7 +65,8 @@ def update_quantity(
     part_id: int = Form(...),
     quantity_change: int = Form(...),
     remark: str = Form(""),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user_required)
 ):
     """
     更新库存数量
@@ -155,7 +158,8 @@ def get_parts_inventory_list(
 async def import_order_csv_file(
     order_file: UploadFile = File(...),
     import_mode: str = Form("append"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user_required)
 ):
     """导入CSV文件"""
     logger.info(f"开始导入CSV文件: {order_file.filename}, 模式: {import_mode}")
@@ -172,7 +176,8 @@ async def import_order_csv_file(
 async def import_order_excel_file(
     order_file: UploadFile = File(...),
     import_mode: str = Form("append"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user_required)
 ):
     """导入Excel文件"""
     logger.info(f"开始导入Excel文件: {order_file.filename}, 模式: {import_mode}")
@@ -201,13 +206,14 @@ def update_part(
     description: str = Form(None),
     other: str = Form(None),
     part_number: str = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user_required)
 ):
     """更新零件信息"""
     return InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number)
 
 @router.post("/fix_missing_part_numbers")
-def fix_missing_part_numbers(db: Session = Depends(get_db)):
+def fix_missing_part_numbers(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """批量修复无编号的零件"""
     return InventoryService.fix_missing_part_numbers(db)
 
@@ -255,7 +261,7 @@ def get_all_types(db: Session = Depends(get_db)):
     
 
 @router.delete("/delete_part")
-def delete_part_with_id(part_id:int, db: Session = Depends(get_db)):
+def delete_part_with_id(part_id:int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """删除指定零件"""
     InventoryService.delete_part_with_id(part_id, db)
     return {"message": f"Part with ID {part_id} deleted successfully"}

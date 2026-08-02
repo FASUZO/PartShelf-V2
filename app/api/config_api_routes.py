@@ -31,6 +31,7 @@ from app.services.config_service import (
     update_param_template,
     update_subcategory,
 )
+from app.api.deps import get_current_user_required
 
 router = APIRouter()
 
@@ -43,17 +44,17 @@ def get_bundle(db: Session = Depends(get_db)):
 # ==================== Category ====================
 
 @router.post("/categories", response_model=CategoryOut)
-def add_category(payload: CategoryCreate, db: Session = Depends(get_db)):
+def add_category(payload: CategoryCreate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return create_category(db, payload)
 
 
 @router.put("/categories/{category_id}", response_model=CategoryOut)
-def edit_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)):
+def edit_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return update_category(db, category_id, payload)
 
 
 @router.delete("/categories/{category_id}")
-def remove_category(category_id: int, db: Session = Depends(get_db)):
+def remove_category(category_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     delete_category(db, category_id)
     return {"message": "Category deleted"}
 
@@ -61,17 +62,17 @@ def remove_category(category_id: int, db: Session = Depends(get_db)):
 # ==================== Subcategory ====================
 
 @router.post("/subcategories", response_model=SubcategoryOut)
-def add_subcategory(payload: SubcategoryCreate, db: Session = Depends(get_db)):
+def add_subcategory(payload: SubcategoryCreate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return create_subcategory(db, payload)
 
 
 @router.put("/subcategories/{subcategory_id}", response_model=SubcategoryOut)
-def edit_subcategory(subcategory_id: int, payload: SubcategoryUpdate, db: Session = Depends(get_db)):
+def edit_subcategory(subcategory_id: int, payload: SubcategoryUpdate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return update_subcategory(db, subcategory_id, payload)
 
 
 @router.delete("/subcategories/{subcategory_id}")
-def remove_subcategory(subcategory_id: int, db: Session = Depends(get_db)):
+def remove_subcategory(subcategory_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     delete_subcategory(db, subcategory_id)
     return {"message": "Subcategory deleted"}
 
@@ -79,17 +80,17 @@ def remove_subcategory(subcategory_id: int, db: Session = Depends(get_db)):
 # ==================== ParamTemplate ====================
 
 @router.post("/param_templates", response_model=ParamTemplateOut)
-def add_param_template(payload: ParamTemplateCreate, db: Session = Depends(get_db)):
+def add_param_template(payload: ParamTemplateCreate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return create_param_template(db, payload)
 
 
 @router.put("/param_templates/{template_id}", response_model=ParamTemplateOut)
-def edit_param_template(template_id: int, payload: ParamTemplateUpdate, db: Session = Depends(get_db)):
+def edit_param_template(template_id: int, payload: ParamTemplateUpdate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return update_param_template(db, template_id, payload)
 
 
 @router.delete("/param_templates/{template_id}")
-def remove_param_template(template_id: int, db: Session = Depends(get_db)):
+def remove_param_template(template_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     delete_param_template(db, template_id)
     return {"message": "ParamTemplate deleted"}
 
@@ -97,7 +98,7 @@ def remove_param_template(template_id: int, db: Session = Depends(get_db)):
 # ==================== LocationPrefix ====================
 
 @router.post("/location_prefixes", response_model=LocationPrefixOut)
-def add_location_prefix(payload: LocationPrefixCreate, db: Session = Depends(get_db)):
+def add_location_prefix(payload: LocationPrefixCreate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return create_location_prefix(db, payload)
 
 
@@ -162,7 +163,7 @@ def get_mqtt_config(db: Session = Depends(get_db)):
 
 
 @router.put("/mqtt", response_model=MqttConfigOut)
-def update_mqtt_config(payload: MqttConfigIn, db: Session = Depends(get_db)):
+def update_mqtt_config(payload: MqttConfigIn, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     if payload.mqtt_enabled is not None:
         _set_config_value(db, "mqtt_enabled", str(payload.mqtt_enabled).lower())
     if payload.mqtt_broker is not None:
@@ -191,7 +192,7 @@ def get_mqtt_status():
 
 
 @router.post("/mqtt/test")
-def test_mqtt_connection(db: Session = Depends(get_db)):
+def test_mqtt_connection(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """测试 MQTT 连接"""
     broker = _get_config_value(db, "mqtt_broker")
     port = int(_get_config_value(db, "mqtt_port") or 1883)
