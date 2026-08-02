@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
 
 templates = Jinja2Templates(directory="templates")
 
@@ -16,7 +16,17 @@ def get_favicon():
     favicon_path = os.path.join(_static_dir, "favicon.ico")
     if os.path.exists(favicon_path):
         return FileResponse(favicon_path, media_type="image/x-icon")
-    return FileResponse(os.path.join(_static_dir, "favicon.ico"))
+    return Response(status_code=204)
+
+@router.get("/.well-known/{path:path}")
+async def well_known(path: str):
+    """忽略Chrome DevTools等well-known请求"""
+    return Response(status_code=204)
+
+@router.get("/static/{path:path}.map")
+async def source_map(path: str):
+    """忽略源映射文件请求"""
+    return Response(status_code=204)
 
 @router.get("/", response_class=HTMLResponse)
 def get_home_template(request: Request):
