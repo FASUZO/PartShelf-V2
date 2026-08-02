@@ -50,40 +50,40 @@ async def source_map(path: str):
 def login_page(request: Request, db: Session = Depends(get_db)):
     """登录页面"""
     context = get_template_context(request, db)
-    return templates.TemplateResponse("login.html", context)
+    return templates.TemplateResponse(request=request, name="login.html", context=context)
 
 
 @router.get("/", response_class=HTMLResponse)
 def get_home_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
-    return templates.TemplateResponse("inventory.html", context)
+    return templates.TemplateResponse(request=request, name="inventory.html", context=context)
 
 
 @router.get("/inventory", response_class=HTMLResponse)
 def get_inventory_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
-    return templates.TemplateResponse("inventory.html", context)
+    return templates.TemplateResponse(request=request, name="inventory.html", context=context)
 
 
 @router.get("/component_details", response_class=HTMLResponse)
 def get_component_details_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
-    return templates.TemplateResponse("component_details.html", context)
+    return templates.TemplateResponse(request=request, name="component_details.html", context=context)
 
 
 @router.get("/projects", response_class=HTMLResponse)
 def get_projects_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
-    return templates.TemplateResponse("projects.html", context)
+    return templates.TemplateResponse(request=request, name="projects.html", context=context)
 
 
 @router.get("/project_details", response_class=HTMLResponse)
 def get_project_details_template(request: Request, project_id: int, db: Session = Depends(get_db)):
     context = get_template_context(request, db, project_id=project_id)
-    return templates.TemplateResponse("project_details.html", context)
+    return templates.TemplateResponse(request=request, name="project_details.html", context=context)
 
 
 @router.get("/settings", response_class=HTMLResponse)
 def get_settings_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
-    return templates.TemplateResponse("settings.html", context)
+    return templates.TemplateResponse(request=request, name="settings.html", context=context)
