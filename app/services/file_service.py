@@ -344,7 +344,7 @@ class FileService:
         try:
             text_io = io.StringIO(file_content.decode("utf-8"))
             reader = csv.DictReader(text_io)
-            
+
             # 预设的列名映射（支持中英文，不区分大小写）
             column_mapping = {
                 'name': ['name', '型号', '名称', 'product name', 'part name'],
@@ -355,18 +355,56 @@ class FileService:
                 'part_type': ['part_type', '类型', 'type', '商品类型', '零件类型', 'category'],
                 'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
                 'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number', 'lc_number'],
+                'part_number': ['part_number', '编号', '位号', '零件编号'],
                 'other': ['other', '其他', '其他信息', 'remarks', 'note']
             }
-            
+
+            # 已映射的列名（用于识别额外参数列）
+            mapped_col_names = set()
+            for possible_names in column_mapping.values():
+                mapped_col_names.update(p.lower() for p in possible_names)
+
             for row_idx, row in enumerate(reader, start=2):
                 # 自动检测列名（不区分大小写）
                 row_data = {}
+                extra_params = {}
                 for field, possible_names in column_mapping.items():
                     for col_name in row.keys():
                         if col_name and any(p.lower() == str(col_name).strip().lower() for p in possible_names):
                             row_data[field] = row[col_name].strip() if row[col_name] else ""
                             break
-                
+
+                # 收集额外的参数列（不在预设映射中的列）
+                for col_name in row.keys():
+                    if col_name and col_name.strip().lower() not in mapped_col_names:
+                        value = row[col_name].strip() if row[col_name] else ""
+                        if value:  # 只保存有值的参数
+                            extra_params[col_name.strip()] = value
+
+                # 如果有额外参数，合并到 other 字段
+                if extra_params:
+                    import json as _json
+                    existing_other = row_data.get('other', '')
+                    if existing_other:
+                        try:
+                            other_data = _json.loads(existing_other)
+                            if isinstance(other_data, dict) and 'fields' in other_data:
+                                # 新格式，追加到 values
+                                other_data.get('values', {}).update(extra_params)
+                            else:
+                                # 旧格式，直接合并
+                                other_data.update(extra_params)
+                        except:
+                            other_data = extra_params
+                    else:
+                        # 构建新格式
+                        other_data = {
+                            "fields": list(extra_params.keys()),
+                            "values": extra_params,
+                            "units": {}
+                        }
+                    row_data['other'] = _json.dumps(other_data, ensure_ascii=False)
+
                 # 检查必需字段
                 required_fields = ['name', 'manufacturer', 'package', 'quantity']
                 missing_fields = [f for f in required_fields if f not in row_data or not row_data[f]]
@@ -409,6 +447,7 @@ class FileService:
                     part_type=part_type,
                     lc_number=row_data.get('lc_number', None),
                     price=InventoryService._parse_price(row_data.get('price')),
+                    other=row_data.get('other', None),
                     category_id=category_id,
                     subcategory_id=subcategory_id
                 )
@@ -463,8 +502,12 @@ class FileService:
                     'part_type': ['part_type', '类型', '商品类型', '零件类型', 'type', 'category'],
                     'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
                     'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number'],
+                    'part_number': ['part_number', '编号', '位号', '零件编号'],
                     'other': ['other', '其他', '其他信息', 'remarks', 'note']
                 }
+
+                # 已映射的列索引（用于识别额外参数列）
+                mapped_col_indices = set(col_mapping.values())
                 
                 # 获取列名，处理第一行可能是空行的情况
                 if not data or len(data) < 2:
@@ -525,12 +568,43 @@ class FileService:
                     
                     # 获取行数据
                     row_data = {}
+                    extra_params = {}
                     for field, col_idx in col_mapping.items():
                         if col_idx < len(row):
                             value = row[col_idx]
                             row_data[field] = str(value).strip() if value is not None else ""
                         else:
                             row_data[field] = ""
+
+                    # 收集额外的参数列（不在预设映射中的列）
+                    for idx, cell in enumerate(row):
+                        if idx not in mapped_col_indices and idx < len(header_row):
+                            col_name = header_row[idx]
+                            if col_name and str(col_name).strip():
+                                value = str(cell).strip() if cell is not None else ""
+                                if value:
+                                    extra_params[str(col_name).strip()] = value
+
+                    # 如果有额外参数，合并到 other 字段
+                    if extra_params:
+                        import json as _json
+                        existing_other = row_data.get('other', '')
+                        if existing_other:
+                            try:
+                                other_data = _json.loads(existing_other)
+                                if isinstance(other_data, dict) and 'fields' in other_data:
+                                    other_data.get('values', {}).update(extra_params)
+                                else:
+                                    other_data.update(extra_params)
+                            except:
+                                other_data = extra_params
+                        else:
+                            other_data = {
+                                "fields": list(extra_params.keys()),
+                                "values": extra_params,
+                                "units": {}
+                            }
+                        row_data['other'] = _json.dumps(other_data, ensure_ascii=False)
                     
                     # 检查必需字段，但只跳过完全空白的行
                     # 如果行中有任何数据，尝试处理
@@ -576,6 +650,7 @@ class FileService:
                         part_type=part_type,
                         lc_number=row_data.get('lc_number', None),
                         price=InventoryService._parse_price(row_data.get('price')),
+                        other=row_data.get('other', None),
                         category_id=category_id,
                         subcategory_id=subcategory_id
                     )
