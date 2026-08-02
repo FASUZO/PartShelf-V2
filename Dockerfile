@@ -3,6 +3,9 @@ FROM python:3.11-slim
 # 设置工作目录
 WORKDIR /app
 
+# 配置pip使用国内镜像源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
 # 复制依赖文件
 COPY requirements.txt .
 
