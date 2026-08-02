@@ -13,6 +13,11 @@ logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
+
+# 设置SQLAlchemy日志级别（避免显示SQL查询日志）
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+
 logger = logging.getLogger("partshelf")
 logger.info(f"日志级别: {log_level}")
 logger.info(f"应用根目录: {app_root}")
