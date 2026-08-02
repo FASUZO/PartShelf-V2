@@ -108,7 +108,7 @@ MQTT_KEYS = ["mqtt_enabled", "mqtt_broker", "mqtt_port", "mqtt_username", "mqtt_
 
 MQTT_DEFAULTS = {
     "mqtt_enabled": "false",
-    "mqtt_broker": "127.0.0.1",
+    "mqtt_broker": "mosquitto",
     "mqtt_port": "1883",
     "mqtt_username": "",
     "mqtt_password": "",
@@ -118,7 +118,7 @@ MQTT_DEFAULTS = {
 
 class MqttConfigOut(BaseModel):
     mqtt_enabled: bool = False
-    mqtt_broker: str = "127.0.0.1"
+    mqtt_broker: str = "mosquitto"
     mqtt_port: int = 1883
     mqtt_username: str = ""
     mqtt_password: str = ""
