@@ -308,10 +308,14 @@ def export_database_report(db: Session = Depends(get_db)):
     content = output.getvalue()
     output.close()
 
+    # 添加UTF-8 BOM头，确保Excel正确显示中文
+    bom = '\ufeff'
+    content_with_bom = bom + content
+
     filename = f"partshelf_db_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
     return StreamingResponse(
-        iter([content]),
-        media_type="text/csv",
+        iter([content_with_bom]),
+        media_type="text/csv; charset=utf-8",
         headers=headers
     )
