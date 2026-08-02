@@ -200,10 +200,16 @@ def update_part(
     lc_number: str = Form(None),
     description: str = Form(None),
     other: str = Form(None),
+    part_number: str = Form(None),
     db: Session = Depends(get_db)
 ):
     """更新零件信息"""
-    return InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other)
+    return InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number)
+
+@router.post("/fix_missing_part_numbers")
+def fix_missing_part_numbers(db: Session = Depends(get_db)):
+    """批量修复无编号的零件"""
+    return InventoryService.fix_missing_part_numbers(db)
 
 @router.get("/search")
 def search_in_inventory(search_key:str, db: Session = Depends(get_db)):

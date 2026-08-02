@@ -371,32 +371,42 @@ class InventoryService:
         delete_part(db, part_to_delete)
 
     @staticmethod
-    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None):
+    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None):
         """更新零件信息"""
         from app.crud.part import update_part, get_part_by_part_number
         from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
         from app.crud.package import get_package_by_name, create_part_package
         from sqlalchemy.exc import IntegrityError
-        
+
         part = get_part_by_id(db, part_id)
         if part is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Part with id = {part_id} does not exist"
             )
-        
+
         # 获取或创建制造商
         db_manufacturer = get_manufacturer_by_name(db, manufacturer)
         if not db_manufacturer:
             db_manufacturer = create_manufacturer(db, manufacturer)
-        
+
         # 获取或创建封装
         db_package = get_package_by_name(db, package)
         if not db_package:
             db_package = create_part_package(db, package)
-        
-        # 如果编号为空，自动生成
-        if not part.part_number and part.category_id:
+
+        # 处理手动指定的编号
+        if part_number is not None and part_number.strip():
+            # 检查编号唯一性（排除自身）
+            existing = get_part_by_part_number(db, part_number.strip())
+            if existing and existing.id != part_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"零件编号 {part_number} 已存在"
+                )
+            part.part_number = part_number.strip()
+        # 如果编号为空且没有手动指定，自动生成
+        elif not part.part_number and part.category_id:
             try:
                 from app.services.part_id_service import generate_part_number
                 for attempt in range(3):
@@ -448,6 +458,123 @@ class InventoryService:
                 raise
         
         return {"success": True, "message": "零件更新成功"}
+
+    @staticmethod
+    def fix_missing_part_numbers(db: Session):
+        """批量为无编号的零件生成编号"""
+        from app.services.part_id_service import generate_part_number
+        from app.crud.part import get_part_by_part_number
+
+        # 查询无编号且有类别ID的零件
+        parts = db.query(Part).filter(
+            Part.part_number.is_(None),
+            Part.category_id.isnot(None)
+        ).all()
+
+        fixed = 0
+        skipped = 0
+        errors = []
+
+        for part in parts:
+            try:
+                for attempt in range(3):
+                    try:
+                        new_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                        if not get_part_by_part_number(db, new_number):
+                            part.part_number = new_number
+                            fixed += 1
+                            break
+                    except Exception as e:
+                        if attempt == 2:
+                            raise
+            except Exception as e:
+                logger.warning(f"Failed to generate part_number for part {part.id}: {e}")
+                skipped += 1
+                errors.append(f"零件 {part.name} (ID:{part.id}): {str(e)}")
+
+        # 查询无类别ID的零件数量
+        no_category_count = db.query(Part).filter(Part.category_id.is_(None)).count()
+
+        db.commit()
+
+        return {
+            "success": True,
+            "fixed": fixed,
+            "skipped": skipped,
+            "no_category_count": no_category_count,
+            "errors": errors[:10],  # 只返回前10个错误
+            "message": f"修复完成: {fixed}个已修复, {skipped}个跳过, {no_category_count}个无类别"
+        }
+
+    @staticmethod
+    def get_database_report(db: Session):
+        """生成数据库健康检查报告"""
+        from sqlalchemy import func, text
+
+        report = {}
+
+        # 零件总数
+        report["total_parts"] = db.query(Part).count()
+
+        # 无编号的零件
+        report["no_part_number"] = db.query(Part).filter(Part.part_number.is_(None)).count()
+
+        # 无类别ID的零件
+        report["no_category_id"] = db.query(Part).filter(Part.category_id.is_(None)).count()
+
+        # 无子类别ID的零件
+        report["no_subcategory_id"] = db.query(Part).filter(
+            Part.part_number.isnot(None),
+            Part.subcategory_id.is_(None)
+        ).count()
+
+        # 重复编号检查
+        duplicate_numbers = db.execute(text(
+            "SELECT part_number, COUNT(*) as cnt FROM parts WHERE part_number IS NOT NULL GROUP BY part_number HAVING cnt > 1"
+        )).fetchall()
+        report["duplicate_numbers"] = [{"part_number": row[0], "count": row[1]} for row in duplicate_numbers]
+
+        # 孤立库存记录
+        orphaned_inventory = db.execute(text(
+            "SELECT COUNT(*) FROM inventory WHERE part_id NOT IN (SELECT id FROM parts)"
+        )).scalar()
+        report["orphaned_inventory"] = orphaned_inventory
+
+        # 各类别零件统计
+        category_stats = db.execute(text(
+            "SELECT c.name, COUNT(p.id) as cnt FROM categories c LEFT JOIN parts p ON c.id = p.category_id GROUP BY c.id, c.name ORDER BY cnt DESC"
+        )).fetchall()
+        report["category_stats"] = [{"category": row[0], "count": row[1]} for row in category_stats]
+
+        # 无类别的零件
+        uncategorized = db.execute(text(
+            "SELECT COUNT(*) FROM parts WHERE category_id IS NULL"
+        )).scalar()
+        report["uncategorized_parts"] = uncategorized
+
+        # 库存记录总数
+        report["total_inventory"] = db.query(Inventory).count()
+
+        # 历史记录总数
+        from app.models.inventory_history import InventoryHistory
+        report["total_history"] = db.query(InventoryHistory).count()
+
+        # LocationPrefix 状态
+        from app.models.config import LocationPrefix, PartIdSequence
+        location_prefixes = db.query(LocationPrefix).all()
+        report["location_prefixes"] = [
+            {"category_id": lp.category_id, "prefix": lp.prefix, "next_seq": lp.next_seq}
+            for lp in location_prefixes
+        ]
+
+        # PartIdSequence 状态
+        part_sequences = db.query(PartIdSequence).all()
+        report["part_id_sequences"] = [
+            {"category_id": ps.category_id, "subcategory_id": ps.subcategory_id, "next_seq": ps.next_seq}
+            for ps in part_sequences
+        ]
+
+        return report
 
     @staticmethod
     def get_all_manufacturers(db: Session):

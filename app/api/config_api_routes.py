@@ -225,3 +225,10 @@ def test_mqtt_connection(db: Session = Depends(get_db)):
             return {"success": False, "message": f"连接失败 rc={result.get('rc', '?')}"}
     except Exception as e:
         return {"success": False, "message": f"连接异常: {str(e)}"}
+
+
+@router.get("/database_report")
+def get_database_report(db: Session = Depends(get_db)):
+    """获取数据库健康检查报告"""
+    from app.services.inventory_service import InventoryService
+    return InventoryService.get_database_report(db)

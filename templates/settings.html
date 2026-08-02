@@ -188,6 +188,17 @@
       </div>
     </div>
 
+    <!-- 数据库检查 -->
+    <div class="card mt-3 mb-4" style="max-width:600px;">
+      <div class="card-header d-flex align-items-center justify-content-between" style="background:#1f6feb;color:#fff;">
+        <span><i class="fas fa-database me-2"></i><strong>数据库检查</strong></span>
+        <button class="btn btn-sm btn-light" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt me-1"></i>运行检查</button>
+      </div>
+      <div class="card-body" id="dbReportBody">
+        <p class="text-muted mb-0">点击"运行检查"按钮查看数据库健康状态。</p>
+      </div>
+    </div>
+
     <!-- 模态框 -->
     <div class="modal fade" id="categoryModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
       <div class="modal-header bg-primary text-white"><h5 class="modal-title" id="catModalTitle">新增类别</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
@@ -692,6 +703,85 @@
 
       // 初始化分页设置
       document.getElementById('pageSizeSelect').value = localStorage.getItem('pageSize') || '100';
+
+      // 数据库检查
+      async function runDatabaseCheck() {
+        var body = document.getElementById('dbReportBody');
+        body.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>正在检查数据库...</p>';
+        try {
+          var resp = await fetch('/api/config/database_report');
+          var report = await resp.json();
+          var html = '<div class="table-responsive"><table class="table table-sm mb-2">';
+
+          // 基本统计
+          html += '<tr><td class="fw-bold">零件总数</td><td>' + report.total_parts + '</td></tr>';
+          html += '<tr><td class="fw-bold">库存记录</td><td>' + report.total_inventory + '</td></tr>';
+          html += '<tr><td class="fw-bold">历史记录</td><td>' + report.total_history + '</td></tr>';
+
+          // 问题检查
+          html += '<tr><td colspan="2" class="fw-bold text-primary" style="border-top:2px solid #0d6efd;">问题检查</td></tr>';
+          html += '<tr><td>无编号零件</td><td class="' + (report.no_part_number > 0 ? 'text-danger fw-bold' : 'text-success') + '">' + report.no_part_number + '</td></tr>';
+          html += '<tr><td>无类别零件</td><td class="' + (report.no_category_id > 0 ? 'text-warning fw-bold' : 'text-success') + '">' + report.no_category_id + '</td></tr>';
+          html += '<tr><td>无子类别零件（有编号）</td><td>' + report.no_subcategory_id + '</td></tr>';
+          html += '<tr><td>孤立库存记录</td><td class="' + (report.orphaned_inventory > 0 ? 'text-danger fw-bold' : 'text-success') + '">' + report.orphaned_inventory + '</td></tr>';
+          html += '<tr><td>重复编号</td><td class="' + (report.duplicate_numbers.length > 0 ? 'text-danger fw-bold' : 'text-success') + '">' + report.duplicate_numbers.length + '</td></tr>';
+
+          // 重复编号详情
+          if (report.duplicate_numbers.length > 0) {
+            html += '<tr><td colspan="2"><small class="text-danger">';
+            report.duplicate_numbers.forEach(function(d) {
+              html += '编号 ' + d.part_number + ' 重复 ' + d.count + ' 次<br>';
+            });
+            html += '</small></td></tr>';
+          }
+
+          html += '</table></div>';
+
+          // 类别统计
+          if (report.category_stats && report.category_stats.length > 0) {
+            html += '<div class="mt-2"><strong class="small">类别统计：</strong><div class="small">';
+            report.category_stats.forEach(function(s) {
+              html += '<span class="badge bg-light text-dark me-1 mb-1">' + escapeHtml(s.category) + ': ' + s.count + '</span>';
+            });
+            html += '</div></div>';
+          }
+
+          // 修复按钮
+          if (report.no_part_number > 0 || report.no_category_id > 0) {
+            html += '<div class="mt-3">';
+            if (report.no_part_number > 0) {
+              html += '<button class="btn btn-sm btn-warning me-2" onclick="fixMissingPartNumbers()"><i class="fas fa-wrench me-1"></i>修复无编号零件</button>';
+            }
+            if (report.no_category_id > 0) {
+              html += '<button class="btn btn-sm btn-outline-info" onclick="alert(\'无类别零件需要手动编辑或重新导入来分配类别\')"><i class="fas fa-info-circle me-1"></i>查看无类别说明</button>';
+            }
+            html += '</div>';
+          }
+
+          body.innerHTML = html;
+        } catch (e) {
+          body.innerHTML = '<p class="text-danger"><i class="fas fa-times-circle me-1"></i>检查失败: ' + e.message + '</p>';
+        }
+      }
+
+      // 修复无编号零件
+      async function fixMissingPartNumbers() {
+        if (!confirm('确定要为无编号的零件自动生成编号吗？')) return;
+        var body = document.getElementById('dbReportBody');
+        body.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>正在修复...</p>';
+        try {
+          var resp = await fetch('/api/inventory/fix_missing_part_numbers', { method: 'POST' });
+          var result = await resp.json();
+          if (result.success) {
+            body.innerHTML = '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-1"></i>' + escapeHtml(result.message) + '</div>';
+            setTimeout(runDatabaseCheck, 1500);
+          } else {
+            body.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-1"></i>修复失败</div>';
+          }
+        } catch (e) {
+          body.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-1"></i>修复失败: ' + e.message + '</div>';
+        }
+      }
 
       loadBundle();
       loadMqttConfig();

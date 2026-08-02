@@ -187,9 +187,10 @@ async function editPart(id) {
         if (!response.ok) throw new Error('加载失败');
 
         const data = await response.json();
-        
+
         // 填充编辑表单
         document.getElementById('editPartId').value = data.id;
+        document.getElementById('editPartNumber').value = data.part_number || '';
         document.getElementById('editPartName').value = data.name || '';
         document.getElementById('editPartManufacturer').value = data.manufacturer || '';
         document.getElementById('editPartPackage').value = data.package || '';
@@ -198,14 +199,14 @@ async function editPart(id) {
         document.getElementById('editPartDescription').value = data.description || '';
         document.getElementById('editPartCategoryId').value = data.category_id || '';
         document.getElementById('editPartSubcategoryId').value = data.subcategory_id || '';
-        
+
         // 加载类别和子类别选项
         populateEditCategorySelect(data.category_id);
         populateEditSubcategorySelect(data.category_id, data.subcategory_id);
-        
+
         // 加载参数模板并预填参数值
         loadEditParamTemplate(data.category_id, data.subcategory_id, data.other);
-        
+
         // 显示编辑模态框
         const modal = new bootstrap.Modal(document.getElementById('editPartModal'));
         modal.show();
@@ -584,8 +585,9 @@ function serializeEditParamFields() {
 async function saveEditPart() {
     const partId = document.getElementById('editPartId').value;
     const formData = new FormData();
-    
+
     formData.append('part_id', partId);
+    formData.append('part_number', document.getElementById('editPartNumber').value || '');
     formData.append('name', document.getElementById('editPartName').value);
     formData.append('manufacturer', document.getElementById('editPartManufacturer').value);
     formData.append('package', document.getElementById('editPartPackage').value);
@@ -593,18 +595,18 @@ async function saveEditPart() {
     formData.append('lc_number', document.getElementById('editPartLcNumber').value || '');
     formData.append('description', document.getElementById('editPartDescription').value || '');
     formData.append('other', serializeEditParamFields());
-    
+
     try {
         const response = await fetch('/api/inventory/update_part', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const err = await response.json();
             throw new Error(err.detail || '更新失败');
         }
-        
+
         alert('更新成功！');
         bootstrap.Modal.getInstance(document.getElementById('editPartModal')).hide();
         applyAdvancedFilter();
