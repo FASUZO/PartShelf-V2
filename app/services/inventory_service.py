@@ -190,7 +190,7 @@ class InventoryService:
             ))
         else:
             logger.info(f"Found existing part ID: {db_part.id}, updating quantity")
-        
+
         # 处理库存
         db_inventory = get_inventory_by_part_id(db, db_part.id)
         if not db_inventory:
@@ -203,11 +203,25 @@ class InventoryService:
         else:
             logger.info(f"Updating inventory for part {db_part.id}: {db_inventory.quantity_available} -> {db_inventory.quantity_available + part.quantity}")
             InventoryService.update_inventory_quantity(
-                db, 
+                db,
                 PartInventoryQuantityUpdate(part_id=db_part.id, quantity=part.quantity),
                 remark=f"添加零件时自动增加库存",
                 record_history=record_history
             )
+
+        # 发送MQTT通知
+        try:
+            import json
+            payload = json.dumps({
+                "part_id": db_part.id,
+                "name": part.name,
+                "manufacturer": part.manufacturer,
+                "package": part.package,
+                "quantity": db_inventory.quantity_available
+            }, ensure_ascii=False)
+            publish_event("inventory.add", payload)
+        except Exception:
+            pass
 
         return part
 
@@ -364,11 +378,25 @@ class InventoryService:
         part_to_delete = get_part_by_id(db, part_id)
         if part_to_delete is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,  
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Part to delete with id = {part_id} does not exist"
-            )    
-        
+            )
+
+        # 保存零件信息用于通知
+        part_name = part_to_delete.name
+
         delete_part(db, part_to_delete)
+
+        # 发送MQTT通知
+        try:
+            import json
+            payload = json.dumps({
+                "part_id": part_id,
+                "name": part_name
+            }, ensure_ascii=False)
+            publish_event("inventory.delete", payload)
+        except Exception:
+            pass
 
     @staticmethod
     def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None):

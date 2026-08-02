@@ -462,7 +462,20 @@ class FileService:
                 
                 # 添加到库存
                 InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
-            
+
+            # 发送MQTT通知
+            try:
+                from app.services.mqtt_service import publish_event
+                import json
+                payload = json.dumps({
+                    "type": "csv",
+                    "rows": row_idx - 1,
+                    "mode": import_mode
+                }, ensure_ascii=False)
+                publish_event("inventory.import", payload)
+            except Exception:
+                pass
+
             return {"message": "CSV文件导入成功"}
             
         except Exception as e:
@@ -662,12 +675,25 @@ class FileService:
                         category_id=category_id,
                         subcategory_id=subcategory_id
                     )
-                    
+
                     # 添加到库存
                     InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
-                
+
+                # 发送MQTT通知
+                try:
+                    from app.services.mqtt_service import publish_event
+                    import json
+                    payload = json.dumps({
+                        "type": "excel",
+                        "rows": row_idx - data_start_row - 1,
+                        "mode": import_mode
+                    }, ensure_ascii=False)
+                    publish_event("inventory.import", payload)
+                except Exception:
+                    pass
+
                 return {"message": "Excel文件导入成功"}
-                
+
             finally:
                 # 删除临时文件
                 os.unlink(tmp_file_path)
