@@ -59,6 +59,13 @@ def migrate_database(db):
     if 'letter' not in sub_cols:
         db.execute(text("ALTER TABLE subcategories ADD COLUMN letter VARCHAR(1)"))
 
+    # categories 表新增 sort_order 列（类别排序）
+    cat_cols = {c[1] for c in db.execute(text("PRAGMA table_info(categories)")).fetchall()}
+    if 'sort_order' not in cat_cols:
+        db.execute(text("ALTER TABLE categories ADD COLUMN sort_order INTEGER DEFAULT 0"))
+        # 初始化为 ID 顺序，保持原有排列
+        db.execute(text("UPDATE categories SET sort_order = id"))
+
     # part_id_sequences 表（如果不存在则创建）
     inspector = inspect(engine)
     if 'part_id_sequences' not in inspector.get_table_names():

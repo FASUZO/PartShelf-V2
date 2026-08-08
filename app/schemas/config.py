@@ -7,6 +7,7 @@ class CategoryOut(BaseModel):
     key: str
     name: str
     location_prefix: Optional[str] = None
+    sort_order: int = 0
 
     class Config:
         from_attributes = True

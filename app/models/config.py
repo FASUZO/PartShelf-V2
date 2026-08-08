@@ -9,6 +9,7 @@ class Category(Base):
     key = Column(String(64), unique=True, nullable=False, index=True)
     name = Column(String(128), nullable=False)
     location_prefix = Column(String(8), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0, index=True)  # 排序权重
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
 

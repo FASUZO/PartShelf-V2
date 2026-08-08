@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models.config import Category, Subcategory, ParamTemplate, LocationPrefix
 from app.schemas.config import (
@@ -18,7 +19,7 @@ from app.schemas.config import (
 
 
 def get_config_bundle(db: Session) -> ConfigBundle:
-    categories = db.query(Category).order_by(Category.id.asc()).all()
+    categories = db.query(Category).order_by(Category.sort_order.asc(), Category.id.asc()).all()
     subcategories = db.query(Subcategory).order_by(Subcategory.id.asc()).all()
     param_templates = db.query(ParamTemplate).order_by(ParamTemplate.id.asc()).all()
     location_prefixes = db.query(LocationPrefix).order_by(LocationPrefix.id.asc()).all()
@@ -31,15 +32,22 @@ def get_config_bundle(db: Session) -> ConfigBundle:
     )
 
 
-# ==================== Category CRUD ====================
-
 def create_category(db: Session, payload: CategoryCreate) -> CategoryOut:
-    row = Category(key=payload.key, name=payload.name, location_prefix=payload.location_prefix)
+    # 新类别排到最后
+    max_order = db.query(func.coalesce(func.max(Category.sort_order), 0)).scalar()
+    row = Category(
+        key=payload.key,
+        name=payload.name,
+        location_prefix=payload.location_prefix,
+        sort_order=max_order + 1,
+    )
     db.add(row)
     db.commit()
     db.refresh(row)
     return CategoryOut.model_validate(row)
 
+
+# ==================== Category CRUD ====================
 
 def update_category(db: Session, category_id: int, payload: CategoryUpdate) -> CategoryOut:
     row = db.query(Category).filter(Category.id == category_id).first()
@@ -65,6 +73,31 @@ def delete_category(db: Session, category_id: int):
     db.query(ParamTemplate).filter(ParamTemplate.category_id == category_id).delete()
     db.delete(row)
     db.commit()
+
+
+def move_category(db: Session, category_id: int, direction: str) -> CategoryOut:
+    """移动类别排序位置：direction 为 up(上移) 或 down(下移)"""
+    row = db.query(Category).filter(Category.id == category_id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    categories = db.query(Category).order_by(Category.sort_order.asc(), Category.id.asc()).all()
+    idx = next((i for i, c in enumerate(categories) if c.id == category_id), None)
+    if idx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    if direction == "up" and idx > 0:
+        target = categories[idx - 1]
+    elif direction == "down" and idx < len(categories) - 1:
+        target = categories[idx + 1]
+    else:
+        return CategoryOut.model_validate(row)
+
+    # 交换排序值
+    row.sort_order, target.sort_order = target.sort_order, row.sort_order
+    db.commit()
+    db.refresh(row)
+    return CategoryOut.model_validate(row)
 
 
 # ==================== Subcategory CRUD ====================

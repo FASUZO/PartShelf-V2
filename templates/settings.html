@@ -350,17 +350,40 @@
         var el = document.getElementById('categoryList');
         document.getElementById('catCount').textContent = bundle.categories.length;
         if (!bundle.categories.length) { el.innerHTML = '<div class="panel-empty">暂无类别</div>'; return; }
-        el.innerHTML = bundle.categories.map(function(c) {
+        el.innerHTML = bundle.categories.map(function(c, i) {
+          var upBtn = i > 0
+            ? '<button class="btn-icon" onclick="event.stopPropagation();moveCategory(' + c.id + ',\'up\')" title="上移"><i class="fas fa-chevron-up"></i></button>'
+            : '';
+          var downBtn = i < bundle.categories.length - 1
+            ? '<button class="btn-icon" onclick="event.stopPropagation();moveCategory(' + c.id + ',\'down\')" title="下移"><i class="fas fa-chevron-down"></i></button>'
+            : '';
           return '<div class="cat-item' + (selectedCatId === c.id ? ' active' : '') + '" onclick="selectCategory(' + c.id + ')">' +
             '<div class="cat-info">' +
             (c.location_prefix ? '<span class="cat-prefix">' + esc(c.location_prefix) + '</span>' : '') +
             '<span class="cat-name">' + esc(c.name) + '</span>' +
             '</div>' +
             '<div class="cat-actions">' +
+            upBtn + downBtn +
             '<button class="btn-icon" onclick="event.stopPropagation();editCategory(' + c.id + ')" title="编辑"><i class="fas fa-pen"></i></button>' +
             '<button class="btn-icon danger" onclick="event.stopPropagation();deleteCategory(' + c.id + ',\'' + esc(c.name) + '\')" title="删除"><i class="fas fa-trash"></i></button>' +
             '</div></div>';
         }).join('');
+      }
+
+      // 移动类别排序
+      async function moveCategory(id, direction) {
+        try {
+          var resp = await fetch('/api/config/categories/' + id + '/move?direction=' + direction, { method: 'POST' });
+          if (!resp.ok) {
+            var err = await resp.json();
+            throw new Error(err.detail || '移动失败');
+          }
+          await loadBundle();
+          renderCategories();
+          if (selectedCatId) renderSubcategories(selectedCatId);
+        } catch (e) {
+          alert('移动失败: ' + e.message);
+        }
       }
 
       function selectCategory(catId) {

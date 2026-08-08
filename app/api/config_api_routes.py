@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ from app.services.config_service import (
     delete_param_template,
     delete_subcategory,
     get_config_bundle,
+    move_category as move_category_service,
     update_category,
     update_param_template,
     update_subcategory,
@@ -57,6 +58,12 @@ def edit_category(category_id: int, payload: CategoryUpdate, db: Session = Depen
 def remove_category(category_id: int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     delete_category(db, category_id)
     return {"message": "Category deleted"}
+
+
+@router.post("/categories/{category_id}/move")
+def move_category(category_id: int, direction: str = Query(..., pattern="^(up|down)$"), db: Session = Depends(get_db), user=Depends(get_current_user_required)):
+    """移动类别排序位置：direction=up(上移) 或 down(下移)"""
+    return move_category_service(db, category_id, direction)
 
 
 # ==================== Subcategory ====================
