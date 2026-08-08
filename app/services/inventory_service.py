@@ -662,6 +662,7 @@ class InventoryService:
     def format_database(db: Session):
         """数据库格式化：清理重复/孤立数据，修复分类混乱
         处理：
+        - 同步类别名称和前缀（与config_seed默认配置一致）
         - 清理重复的类别（同名同key）
         - 清理重复的子类别
         - 清理孤立的子类别（所属类别不存在）
@@ -672,8 +673,11 @@ class InventoryService:
         """
         from sqlalchemy import func
         from app.models.config import Category, Subcategory, LocationPrefix, PartIdSequence
+        from app.services.config_seed import DEFAULT_CATEGORIES
 
         result = {
+            "categories_synced": 0,
+            "subcategories_added": 0,
             "dup_categories_removed": 0,
             "dup_subcategories_removed": 0,
             "orphan_subcategories_removed": 0,
@@ -683,6 +687,39 @@ class InventoryService:
             "letters_reassigned": 0,
             "messages": []
         }
+
+        # 0. 同步类别名称和前缀（key匹配时更新name/location_prefix）
+        for c in DEFAULT_CATEGORIES:
+            cat = db.query(Category).filter(Category.key == c["key"]).first()
+            if cat:
+                changed = False
+                if cat.name != c["name"]:
+                    cat.name = c["name"]
+                    changed = True
+                if cat.location_prefix != c.get("location_prefix"):
+                    cat.location_prefix = c.get("location_prefix")
+                    changed = True
+                if changed:
+                    result["categories_synced"] += 1
+            else:
+                # 缺失的类别直接创建
+                db.add(Category(key=c["key"], name=c["name"], location_prefix=c.get("location_prefix")))
+                result["categories_synced"] += 1
+
+        # 0.5 补全缺失的子类别（与config_seed默认配置一致）
+        from app.services.config_seed import DEFAULT_SUBCATEGORIES
+        key_to_id = {c.key: c.id for c in db.query(Category).all()}
+        existing_subs = set()
+        for s in db.query(Subcategory).all():
+            existing_subs.add((s.category_id, s.name))
+        for cat_key, names in DEFAULT_SUBCATEGORIES.items():
+            cat_id = key_to_id.get(cat_key)
+            if not cat_id:
+                continue
+            for name in names:
+                if (cat_id, name) not in existing_subs:
+                    db.add(Subcategory(category_id=cat_id, name=name))
+                    result["subcategories_added"] += 1
 
         # 1. 清理重复类别（保留ID最小，key相同或name相同）
         dup_cats = db.query(
@@ -808,6 +845,8 @@ class InventoryService:
         db.commit()
 
         total_fixed = sum([
+            result["categories_synced"],
+            result["subcategories_added"],
             result["dup_categories_removed"],
             result["dup_subcategories_removed"],
             result["orphan_subcategories_removed"],
