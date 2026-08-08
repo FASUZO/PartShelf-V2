@@ -216,12 +216,10 @@ function bindImportForm() {
         const fileExtension = file.name.split('.').pop().toLowerCase();
         let apiEndpoint;
         
-        if (fileExtension === 'csv') {
-            apiEndpoint = '/api/inventory/import_order_csv_file';
-        } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        if (fileExtension === 'xlsx' || fileExtension === 'xls') {
             apiEndpoint = '/api/inventory/import_order_excel_file';
         } else {
-            showToast('不支持的文件格式。请选择CSV或Excel文件。', 'danger');
+            showToast('不支持的文件格式。请选择Excel文件。', 'danger');
             return;
         }
         

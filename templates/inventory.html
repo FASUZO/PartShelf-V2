@@ -245,8 +245,8 @@
           <div class="modal-body">
             <form id="importOrderForm">
                 <div class="mb-3">
-                    <label for="orderFile" class="form-label">选择文件 (CSV 或 Excel)</label>
-                    <input class="form-control" type="file" id="orderFile" name="order_file" accept=".csv, .xlsx, .xls" required>
+                    <label for="orderFile" class="form-label">选择文件 (Excel)</label>
+                    <input class="form-control" type="file" id="orderFile" name="order_file" accept=".xlsx, .xls" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">导入模式</label>
@@ -269,8 +269,7 @@
                     </div>
                 </div>
                 <div class="alert alert-info small">
-                    <p class="mb-1"><strong>导入说明：</strong>系统将自动检测表头。建议使用英文表头（Name, Manufacturer, Type, Package, Quantity 等）或直接使用从本系统导出的 CSV/Excel 文件。</p>
-                    <a href="/api/inventory/export_template" class="alert-link me-3"><i class="fas fa-download"></i> 下载通用导入模板 (.csv)</a>
+                    <p class="mb-1"><strong>导入说明：</strong>系统将自动检测表头。建议使用英文表头（Name, Manufacturer, Type, Subtype, Package, Quantity 等）或直接使用从本系统导出的 Excel 文件。</p>
                     <a href="/api/inventory/export_template_excel" class="alert-link"><i class="fas fa-download"></i> 下载通用导入模板 (.xlsx)</a>
                 </div>
                 <!-- 进度条 -->

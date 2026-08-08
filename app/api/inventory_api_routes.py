@@ -7,7 +7,6 @@
 - 库存历史记录
 """
 
-import csv
 import io
 import logging
 from typing import List
@@ -17,6 +16,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from app.schemas.file_template import FileTemplateAdd
 from app.schemas.inventory import PartToInventoryAdd, PartInventoryQuantityUpdate, PartInventoryFilter
+from app.models.config import Category, Subcategory
 from app.services.file_service import FileService
 from app.services.inventory_service import InventoryService
 from app.api.deps import get_current_user_required
@@ -154,24 +154,6 @@ def get_parts_inventory_list(
 
 # ==================== 文件导入导出接口 ====================
 
-@router.post("/import_order_csv_file")
-async def import_order_csv_file(
-    order_file: UploadFile = File(...),
-    import_mode: str = Form("append"),
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user_required)
-):
-    """导入CSV文件"""
-    logger.info(f"开始导入CSV文件: {order_file.filename}, 模式: {import_mode}")
-    try:
-        content = await order_file.read()
-        FileService.import_order_csv_file_direct(content, db, import_mode)
-        logger.info(f"CSV文件导入成功: {order_file.filename}")
-        return {"message": "导入成功"}
-    except Exception as e:
-        logger.error(f"CSV文件导入失败: {order_file.filename}, 错误: {str(e)}")
-        raise
-
 @router.post("/import_order_excel_file")
 async def import_order_excel_file(
     order_file: UploadFile = File(...),
@@ -273,116 +255,103 @@ def _get_inventory_data(db: Session) -> List:
     inventory_result = InventoryService.get_parts_inventory_list(db, page=1, page_size=10000)
     return inventory_result["data"]
 
-@router.get("/export_csv")
-def export_inventory_csv(db: Session = Depends(get_db)):
-    """导出库存数据为CSV格式"""
-    import json as _json
-    inventory_data = _get_inventory_data(db)
-    
-    # 收集所有参数字段
-    all_param_fields = set()
-    for item in inventory_data:
-        if item.other:
-            try:
-                data = _json.loads(item.other)
-                if isinstance(data, dict):
-                    if 'fields' in data and 'values' in data:
-                        # 新格式
-                        all_param_fields.update(data.get('values', {}).keys())
-                    else:
-                        # 旧格式
-                        all_param_fields.update(data.keys())
-            except:
-                pass
-    
-    param_fields = sorted(list(all_param_fields))
-    
-    # 创建CSV内容
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # 写入表头
-    headers = ['编号', 'Name', 'Manufacturer', '类型', '子类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
-    headers.extend(param_fields)
-    writer.writerow(headers)
-    
-    # 写入数据
-    for item in inventory_data:
-        # 类型/子类型分开
-        cat_str = ''
-        sub_str = ''
-        if item.category_name:
-            cat_str = item.category_name
-            sub_str = item.subcategory_name or ''
-        else:
-            cat_str = item.part_type or ''
-        
-        row = [
-            item.part_number or '',
-            item.name,
-            item.manufacturer,
-            cat_str,
-            sub_str,
-            item.package,
-            item.quantity,
-            item.lc_number if item.lc_number else '',
-            item.price_display if item.price_display else (item.price if item.price else ''),
-            item.description if item.description else ''
-        ]
-        
-        # 解析参数
-        params = {}
-        if item.other:
-            try:
-                data = _json.loads(item.other)
-                if isinstance(data, dict):
-                    if 'fields' in data and 'values' in data:
-                        # 新格式
-                        params = data.get('values', {})
-                    else:
-                        # 旧格式
-                        params = data
-            except:
-                pass
-        
-        # 添加参数值
-        for param_name in param_fields:
-            row.append(str(params.get(param_name, '')))
-        
-        writer.writerow(row)
-    
-    csv_content = output.getvalue()
-    output.close()
-    
-    headers = {'Content-Disposition': 'attachment; filename="inventory_export.csv"'}
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers=headers
+
+def _add_type_dropdowns(workbook: Workbook, worksheet, db: Session, type_col: str, subtype_col: str, max_row: int = 200):
+    """为类型/子类型列添加级联下拉选项
+    - type_col: 类型列字母（如 'C'）
+    - subtype_col: 子类型列字母（如 'D'）
+    """
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.workbook.defined_name import DefinedName
+    from openpyxl.utils import get_column_letter
+
+    # 查询所有类别和子类别
+    categories = db.query(Category).order_by(Category.id).all()
+    subcats = db.query(Subcategory).order_by(Subcategory.category_id, Subcategory.id).all()
+
+    # 构建子类别映射：category_id -> [子类别名]
+    subcat_map = {}
+    for s in subcats:
+        subcat_map.setdefault(s.category_id, []).append(s.name)
+
+    if not categories:
+        return
+
+    # 创建隐藏的"下拉选项"工作表
+    if "下拉选项" in workbook.sheetnames:
+        options_ws = workbook["下拉选项"]
+    else:
+        options_ws = workbook.create_sheet("下拉选项")
+    options_ws.sheet_state = "hidden"
+
+    # 第1列：所有类别名称（从第2行开始）
+    for i, cat in enumerate(categories, start=2):
+        options_ws.cell(row=i, column=1, value=cat.name)
+
+    # 每个类别一个子类别列表（列2开始，列头为类别名）
+    for col_idx, cat in enumerate(categories, start=2):
+        options_ws.cell(row=1, column=col_idx, value=cat.name)
+        for row_idx, sub_name in enumerate(subcat_map.get(cat.id, []), start=2):
+            options_ws.cell(row=row_idx, column=col_idx, value=sub_name)
+
+    # 定义命名区域：类型列表
+    last_cat_row = len(categories) + 1
+    workbook.defined_names.add(
+        DefinedName("类型列表", attr_text=f"下拉选项!$A$2:$A${last_cat_row}")
     )
 
-@router.get("/export_template")
-def export_import_template(db: Session = Depends(get_db)):
-    """导出导入模板为CSV格式"""
-    # 创建CSV内容
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # 写入表头
-    writer.writerow(['Name', 'Manufacturer', 'Type', 'Subtype', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
-    
-    # 写入示例行 (可选)
-    writer.writerow(['NE555', 'TI', 'IC', '', 'DIP-8', '10', 'C12345', '0.5', 'Timer IC'])
-    
-    csv_content = output.getvalue()
-    output.close()
-    
-    headers = {'Content-Disposition': 'attachment; filename="inventory_template.csv"'}
-    return StreamingResponse(
-        iter([csv_content]),
-        media_type="text/csv",
-        headers=headers
+    # 每个类别定义一个命名区域：类别名 → 子类别列表
+    for col_idx, cat in enumerate(categories, start=2):
+        sub_count = len(subcat_map.get(cat.id, []))
+        if sub_count == 0:
+            continue
+        col_letter = get_column_letter(col_idx)
+        last_sub_row = sub_count + 1
+        # 命名区域名用类别的ASCII安全形式（避免中文命名兼容性问题）
+        safe_name = f"SUBTYPE_{cat.id}"
+        workbook.defined_names.add(
+            DefinedName(safe_name, attr_text=f"下拉选项!${col_letter}$2:${col_letter}${last_sub_row}")
+        )
+
+    # 类型列数据验证（直接引用类别列表）
+    type_dv = DataValidation(
+        type="list",
+        formula1="=类型列表",
+        allow_blank=True,
+        showDropDown=False
     )
+    worksheet.add_data_validation(type_dv)
+    type_dv.add(f"{type_col}2:{type_col}{max_row}")
+
+    # 子类型列：根据左侧类型列的值动态显示对应子类别
+    # 使用 INDIRECT 引用命名区域，命名区域名需要与类型值匹配
+    # 由于命名区域使用 SUBTYPE_{id} 形式，这里通过辅助公式映射
+    # 在隐藏工作表中添加映射列：类别名 -> 命名区域名
+    map_col = len(categories) + 2  # 映射列
+    options_ws.cell(row=1, column=map_col, value="类型名")
+    options_ws.cell(row=1, column=map_col + 1, value="区域名")
+    for i, cat in enumerate(categories, start=2):
+        options_ws.cell(row=i, column=map_col, value=cat.name)
+        options_ws.cell(row=i, column=map_col + 1, value=f"SUBTYPE_{cat.id}")
+
+    # 映射命名区域
+    map_last_row = len(categories) + 1
+    map_col_letter = get_column_letter(map_col)
+    map_range_letter = get_column_letter(map_col + 1)
+    workbook.defined_names.add(
+        DefinedName("类型到区域映射", attr_text=f"下拉选项!${map_col_letter}$2:${map_range_letter}${map_last_row}")
+    )
+
+    # 子类型列使用 VLOOKUP 找到对应命名区域名，再用 INDIRECT 引用
+    subtype_dv = DataValidation(
+        type="list",
+        formula1=f"=INDIRECT(VLOOKUP({type_col}2,类型到区域映射,2,FALSE))",
+        allow_blank=True,
+        showDropDown=False
+    )
+    worksheet.add_data_validation(subtype_dv)
+    subtype_dv.add(f"{subtype_col}2:{subtype_col}{max_row}")
+
 
 @router.get("/export_template_excel")
 def export_import_template_excel(db: Session = Depends(get_db)):
@@ -397,6 +366,9 @@ def export_import_template_excel(db: Session = Depends(get_db)):
     for col, header in enumerate(headers, 1):
         cell = worksheet.cell(row=1, column=col, value=header)
         cell.font = cell.font.copy(bold=True)
+
+    # 添加类型/子类型级联下拉（Type列=C, Subtype列=D）
+    _add_type_dropdowns(workbook, worksheet, db, "C", "D", max_row=200)
     
     # 写入示例行
     worksheet.cell(row=2, column=1, value='NE555')
@@ -516,7 +488,11 @@ def export_inventory_excel(db: Session = Depends(get_db)):
                 pass
         adjusted_width = min(max_length + 2, 50)
         worksheet.column_dimensions[column_letter].width = adjusted_width
-    
+
+    # 添加类型/子类型级联下拉（类型列=D, 子类型列=E）
+    max_data_rows = len(inventory_data) + 1
+    _add_type_dropdowns(workbook, worksheet, db, "D", "E", max_row=max_data_rows)
+
     # 保存到内存
     excel_output = io.BytesIO()
     workbook.save(excel_output)
