@@ -681,6 +681,7 @@ class InventoryService:
             "dup_categories_removed": 0,
             "dup_subcategories_removed": 0,
             "orphan_subcategories_removed": 0,
+            "subcategories_migrated": 0,
             "parts_reassigned": 0,
             "part_numbers_fixed": 0,
             "orphan_inventory_removed": 0,
@@ -720,6 +721,41 @@ class InventoryService:
                 if (cat_id, name) not in existing_subs:
                     db.add(Subcategory(category_id=cat_id, name=name))
                     result["subcategories_added"] += 1
+
+        # 0.6 清理配置外的残留子类别（版本迭代遗留）
+        # 对已配置的类别，其子分类不在 DEFAULT_SUBCATEGORIES 中的视为残留
+        # 无零件引用的直接删除；有零件引用的迁移到名字匹配的正确类别，否则保留
+        subcat_removed = 0
+        subcat_migrated = 0
+        for cat_key, valid_names in DEFAULT_SUBCATEGORIES.items():
+            cat_id = key_to_id.get(cat_key)
+            if not cat_id:
+                continue
+            valid_names = set(valid_names)
+            subs = db.query(Subcategory).filter(Subcategory.category_id == cat_id).all()
+            for sub in subs:
+                if sub.name in valid_names:
+                    continue
+                # 该子分类不在当前配置中，检查是否有零件引用
+                part_count = db.query(Part).filter(Part.subcategory_id == sub.id).count()
+                if part_count == 0:
+                    db.delete(sub)
+                    subcat_removed += 1
+                    continue
+                # 有零件引用：尝试迁移到其他类别下同名的合法子分类
+                target = db.query(Subcategory).join(Category).filter(
+                    Subcategory.name == sub.name,
+                    Subcategory.id != sub.id,
+                    Category.key.in_(list(DEFAULT_SUBCATEGORIES.keys()))
+                ).first()
+                if target:
+                    db.query(Part).filter(Part.subcategory_id == sub.id).update(
+                        {Part.subcategory_id: target.id}, synchronize_session=False
+                    )
+                    db.delete(sub)
+                    subcat_migrated += 1
+        result["orphan_subcategories_removed"] = subcat_removed + subcat_migrated
+        result["subcategories_migrated"] = subcat_migrated
 
         # 1. 清理重复类别（保留ID最小，key相同或name相同）
         dup_cats = db.query(
@@ -850,6 +886,7 @@ class InventoryService:
             result["dup_categories_removed"],
             result["dup_subcategories_removed"],
             result["orphan_subcategories_removed"],
+            result["subcategories_migrated"],
             result["parts_reassigned"],
             result["part_numbers_fixed"],
             result["orphan_inventory_removed"],
