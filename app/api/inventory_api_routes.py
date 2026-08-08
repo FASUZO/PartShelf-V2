@@ -302,26 +302,27 @@ def export_inventory_csv(db: Session = Depends(get_db)):
     writer = csv.writer(output)
     
     # 写入表头
-    headers = ['编号', 'Name', 'Manufacturer', '类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers = ['编号', 'Name', 'Manufacturer', '类型', '子类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     headers.extend(param_fields)
     writer.writerow(headers)
     
     # 写入数据
     for item in inventory_data:
-        # 类型字段：优先使用 category_name/subcategory_name
-        type_str = ''
+        # 类型/子类型分开
+        cat_str = ''
+        sub_str = ''
         if item.category_name:
-            type_str = item.category_name
-            if item.subcategory_name:
-                type_str += '/' + item.subcategory_name
+            cat_str = item.category_name
+            sub_str = item.subcategory_name or ''
         else:
-            type_str = item.part_type or ''
+            cat_str = item.part_type or ''
         
         row = [
             item.part_number or '',
             item.name,
             item.manufacturer,
-            type_str,
+            cat_str,
+            sub_str,
             item.package,
             item.quantity,
             item.lc_number if item.lc_number else '',
@@ -368,10 +369,10 @@ def export_import_template(db: Session = Depends(get_db)):
     writer = csv.writer(output)
     
     # 写入表头
-    writer.writerow(['Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
+    writer.writerow(['Name', 'Manufacturer', 'Type', 'Subtype', 'Package', 'Quantity', 'LC Number', 'Price', 'Description'])
     
     # 写入示例行 (可选)
-    writer.writerow(['NE555', 'TI', 'IC', 'DIP-8', '10', 'C12345', '0.5', 'Timer IC'])
+    writer.writerow(['NE555', 'TI', 'IC', '', 'DIP-8', '10', 'C12345', '0.5', 'Timer IC'])
     
     csv_content = output.getvalue()
     output.close()
@@ -392,7 +393,7 @@ def export_import_template_excel(db: Session = Depends(get_db)):
     worksheet.title = "导入模板"
     
     # 写入表头
-    headers = ['Name', 'Manufacturer', 'Type', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers = ['Name', 'Manufacturer', 'Type', 'Subtype', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     for col, header in enumerate(headers, 1):
         cell = worksheet.cell(row=1, column=col, value=header)
         cell.font = cell.font.copy(bold=True)
@@ -401,11 +402,12 @@ def export_import_template_excel(db: Session = Depends(get_db)):
     worksheet.cell(row=2, column=1, value='NE555')
     worksheet.cell(row=2, column=2, value='TI')
     worksheet.cell(row=2, column=3, value='IC')
-    worksheet.cell(row=2, column=4, value='DIP-8')
-    worksheet.cell(row=2, column=5, value=10)
-    worksheet.cell(row=2, column=6, value='C12345')
-    worksheet.cell(row=2, column=7, value=0.5)
-    worksheet.cell(row=2, column=8, value='Timer IC')
+    worksheet.cell(row=2, column=4, value='')
+    worksheet.cell(row=2, column=5, value='DIP-8')
+    worksheet.cell(row=2, column=6, value=10)
+    worksheet.cell(row=2, column=7, value='C12345')
+    worksheet.cell(row=2, column=8, value=0.5)
+    worksheet.cell(row=2, column=9, value='Timer IC')
     
     # 调整列宽
     for col in range(1, len(headers) + 1):
@@ -453,7 +455,7 @@ def export_inventory_excel(db: Session = Depends(get_db)):
     worksheet.title = "库存清单"
     
     # 写入表头
-    headers = ['编号', 'Name', 'Manufacturer', '类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
+    headers = ['编号', 'Name', 'Manufacturer', '类型', '子类型', 'Package', 'Quantity', 'LC Number', 'Price', 'Description']
     headers.extend(param_fields)
     
     for col, header in enumerate(headers, 1):
@@ -462,24 +464,25 @@ def export_inventory_excel(db: Session = Depends(get_db)):
     
     # 写入数据
     for row_idx, item in enumerate(inventory_data, 2):
-        # 类型字段：优先使用 category_name/subcategory_name
-        type_str = ''
+        # 类型/子类型分开
+        cat_str = ''
+        sub_str = ''
         if item.category_name:
-            type_str = item.category_name
-            if item.subcategory_name:
-                type_str += '/' + item.subcategory_name
+            cat_str = item.category_name
+            sub_str = item.subcategory_name or ''
         else:
-            type_str = item.part_type or ''
+            cat_str = item.part_type or ''
         
         worksheet.cell(row=row_idx, column=1, value=item.part_number or '')
         worksheet.cell(row=row_idx, column=2, value=item.name)
         worksheet.cell(row=row_idx, column=3, value=item.manufacturer)
-        worksheet.cell(row=row_idx, column=4, value=type_str)
-        worksheet.cell(row=row_idx, column=5, value=item.package)
-        worksheet.cell(row=row_idx, column=6, value=item.quantity)
-        worksheet.cell(row=row_idx, column=7, value=item.lc_number if item.lc_number else '')
-        worksheet.cell(row=row_idx, column=8, value=item.price_display if item.price_display else (item.price if item.price else ''))
-        worksheet.cell(row=row_idx, column=9, value=item.description if item.description else '')
+        worksheet.cell(row=row_idx, column=4, value=cat_str)
+        worksheet.cell(row=row_idx, column=5, value=sub_str)
+        worksheet.cell(row=row_idx, column=6, value=item.package)
+        worksheet.cell(row=row_idx, column=7, value=item.quantity)
+        worksheet.cell(row=row_idx, column=8, value=item.lc_number if item.lc_number else '')
+        worksheet.cell(row=row_idx, column=9, value=item.price_display if item.price_display else (item.price if item.price else ''))
+        worksheet.cell(row=row_idx, column=10, value=item.description if item.description else '')
         
         # 解析参数
         if item.other:

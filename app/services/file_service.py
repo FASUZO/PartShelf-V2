@@ -361,6 +361,7 @@ class FileService:
                 'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量', 'count', 'amount'],
                 'description': ['description', '描述', '说明', 'desc', '商品型号', 'details'],
                 'part_type': ['part_type', '类型', 'type', '商品类型', '零件类型', 'category'],
+                'subcategory': ['subcategory', '子类型', '子类别', 'sub_type', 'subtype'],
                 'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
                 'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number', 'lc_number'],
                 'part_number': ['part_number', '编号', '位号', '零件编号'],
@@ -437,7 +438,12 @@ class FileService:
                 part_type = row_data.get('part_type', '')
                 if not part_type:
                     value, part_type = FileService.extract_info(description)
-                
+
+                # 如果文件中有独立的子类型列，组合为"类型/子类型"格式便于匹配
+                sub_type = row_data.get('subcategory', '')
+                if sub_type and part_type and '/' not in part_type:
+                    part_type = f"{part_type}/{sub_type}"
+
                 # 匹配类别
                 category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
                 if category_id:
@@ -521,6 +527,7 @@ class FileService:
                     'quantity': ['quantity', '数量', 'qty', '库存', '型号发货数量', 'count', 'amount'],
                     'description': ['description', '描述', '说明', 'desc', 'details'],
                     'part_type': ['part_type', '类型', '商品类型', '零件类型', 'type', 'category'],
+                    'subcategory': ['subcategory', '子类型', '子类别', 'sub_type', 'subtype'],
                     'price': ['price', '单价', '单价（人民币含税）', 'unit price', 'cost'],
                     'lc_number': ['lc_number', 'LC编号', '商品编号', 'lc number', 'part number'],
                     'part_number': ['part_number', '编号', '位号', '零件编号'],
@@ -653,7 +660,12 @@ class FileService:
                     part_type = row_data.get('part_type', '')
                     if not part_type:
                         value, part_type = FileService.extract_info(description)
-                    
+
+                    # 如果文件中有独立的子类型列，组合为"类型/子类型"格式便于匹配
+                    sub_type = row_data.get('subcategory', '')
+                    if sub_type and part_type and '/' not in part_type:
+                        part_type = f"{part_type}/{sub_type}"
+
                     # 匹配类别
                     category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
                     if category_id:
