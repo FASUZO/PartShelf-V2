@@ -431,24 +431,27 @@ function exportDetailDetails() {
     const partId = modal.dataset.partId;
     if (!partId) return;
 
-    // 获取零件详情并导出为CSV
+    // 获取零件详情并导出为Excel
     fetch(`/api/inventory/get_part_by_id?part_id=${partId}`)
         .then(response => {
             if (!response.ok) throw new Error('获取失败');
             return response.json();
         })
         .then(data => {
-            // 构建CSV内容
-            let csv = '字段,值\n';
-            csv += `编号,${data.part_number || ''}\n`;
-            csv += `名称,${data.name || ''}\n`;
-            csv += `制造商,${data.manufacturer || ''}\n`;
-            csv += `类型,${data.category_name || ''}${data.subcategory_name ? '/' + data.subcategory_name : ''}\n`;
-            csv += `封装,${data.package || ''}\n`;
-            csv += `数量,${data.quantity || 0}\n`;
-            csv += `LC编号,${data.lc_number || ''}\n`;
-            csv += `单价,${data.price_display || data.price || ''}\n`;
-            csv += `描述,${data.description || ''}\n`;
+            // 构建Excel内容
+            const rows = [
+                ['字段', '值'],
+                ['编号', data.part_number || ''],
+                ['名称', data.name || ''],
+                ['制造商', data.manufacturer || ''],
+                ['类型', data.category_name || ''],
+                ['子类型', data.subcategory_name || ''],
+                ['封装', data.package || ''],
+                ['数量', data.quantity || 0],
+                ['LC编号', data.lc_number || ''],
+                ['单价', data.price_display || data.price || ''],
+                ['描述', data.description || '']
+            ];
 
             // 解析参数
             if (data.other) {
@@ -456,18 +459,17 @@ function exportDetailDetails() {
                     const params = JSON.parse(data.other);
                     if (params.fields && params.values) {
                         params.fields.forEach(field => {
-                            csv += `${field},${params.values[field] || ''}\n`;
+                            rows.push([field, params.values[field] || '']);
                         });
                     }
                 } catch (e) {}
             }
 
-            // 下载CSV
-            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${data.name || 'part'}_详情.csv`;
-            link.click();
+            // 下载Excel
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '零件详情');
+            XLSX.writeFile(wb, `${data.name || 'part'}_详情.xlsx`);
 
             showToast('导出成功', 'success');
         })

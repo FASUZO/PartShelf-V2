@@ -383,8 +383,8 @@
               </a>
             </div>
             <div class="mb-3">
-              <label for="batchStockInFile" class="form-label">上传入库清单 (CSV 或 Excel)</label>
-              <input class="form-control" type="file" id="batchStockInFile" accept=".csv, .xlsx, .xls">
+              <label for="batchStockInFile" class="form-label">上传入库清单 (Excel)</label>
+              <input class="form-control" type="file" id="batchStockInFile" accept=".xlsx, .xls">
               <div class="form-text">文件需包含: Name(型号), Quantity(数量) 列</div>
             </div>
             <div class="mb-3">
@@ -447,8 +447,8 @@
               </a>
             </div>
             <div class="mb-3">
-              <label for="batchStockOutFile" class="form-label">上传出库清单 (CSV 或 Excel)</label>
-              <input class="form-control" type="file" id="batchStockOutFile" accept=".csv, .xlsx, .xls">
+              <label for="batchStockOutFile" class="form-label">上传出库清单 (Excel)</label>
+              <input class="form-control" type="file" id="batchStockOutFile" accept=".xlsx, .xls">
               <div class="form-text">文件需包含: Name(型号), Quantity(数量) 列</div>
             </div>
             <div class="mb-3">
@@ -756,6 +756,7 @@
 
     <!-- QR码扫描库 -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 
     <!-- 模块化JavaScript文件 -->
     <script src="/static/js/inventory/utils.js"></script>

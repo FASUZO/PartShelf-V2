@@ -33,6 +33,7 @@ function previewBatchStockOut() {
         return;
     }
 
+    const ext = file.name.split('.').pop().toLowerCase();
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -42,7 +43,11 @@ function previewBatchStockOut() {
             showToast('文件解析失败: ' + error.message, 'danger');
         }
     };
-    reader.readAsText(file);
+    if (ext === 'xlsx' || ext === 'xls') {
+        reader.readAsArrayBuffer(file);
+    } else {
+        reader.readAsText(file);
+    }
 }
 
 // 匹配批量出库数据
@@ -284,7 +289,7 @@ function confirmBatchStockOut() {
 
 // 下载批量出库模板
 function downloadBatchStockOutTemplate() {
-    downloadBatchTemplate('批量出库模板.csv', 'Name,Quantity\nNE555,10\nLM358,5\nArduino Uno,2');
+    downloadBatchTemplate('批量出库模板', [['Name', 'Quantity'], ['NE555', 10], ['LM358', 5], ['Arduino Uno', 2]]);
 }
 
 // ==================== 批量入库 ====================
@@ -317,6 +322,7 @@ function previewBatchStockIn() {
         return;
     }
 
+    const ext = file.name.split('.').pop().toLowerCase();
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -326,7 +332,11 @@ function previewBatchStockIn() {
             showToast('文件解析失败: ' + error.message, 'danger');
         }
     };
-    reader.readAsText(file);
+    if (ext === 'xlsx' || ext === 'xls') {
+        reader.readAsArrayBuffer(file);
+    } else {
+        reader.readAsText(file);
+    }
 }
 
 // 匹配批量入库数据
@@ -560,19 +570,30 @@ function confirmBatchStockIn() {
 
 // 下载批量入库模板
 function downloadBatchStockInTemplate() {
-    downloadBatchTemplate('批量入库模板.csv', 'Name,Quantity\nNE555,100\nLM358,50\nArduino Uno,20');
+    downloadBatchTemplate('批量入库模板', [['Name', 'Quantity'], ['NE555', 100], ['LM358', 50], ['Arduino Uno', 20]]);
 }
 
 // ==================== 通用函数 ====================
 
-// 解析批量文件（CSV）
+// 解析批量文件（支持Excel）
 function parseBatchFile(content, filename) {
-    const lines = content.trim().split('\n');
+    const ext = filename.split('.').pop().toLowerCase();
     const data = [];
+    let rows = [];
 
-    // 检测分隔符
-    const delimiter = lines[0].includes('\t') ? '\t' : ',';
-    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+    if (ext === 'xlsx' || ext === 'xls') {
+        if (typeof XLSX === 'undefined') {
+            throw new Error('Excel解析库未加载，请刷新页面重试');
+        }
+        const workbook = XLSX.read(content, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    } else {
+        const lines = content.trim().split('\n');
+        rows = lines.map(l => l.split(l.includes('\t') ? '\t' : ','));
+    }
+
+    const headers = (rows[0] || []).map(h => String(h || '').trim().toLowerCase());
     const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('型号') || h === '名称');
     const qtyIndex = headers.findIndex(h => h.includes('quantity') || h.includes('数量') || h === 'qty');
 
@@ -580,11 +601,11 @@ function parseBatchFile(content, filename) {
         throw new Error('文件必须包含 Name/型号 和 Quantity/数量 列');
     }
 
-    for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(delimiter);
-        if (cols.length > Math.max(nameIndex, qtyIndex)) {
-            const name = cols[nameIndex].trim();
-            const quantity = parseInt(cols[qtyIndex].trim());
+    for (let i = 1; i < rows.length; i++) {
+        const cols = rows[i];
+        if (cols && cols.length > Math.max(nameIndex, qtyIndex)) {
+            const name = String(cols[nameIndex] || '').trim();
+            const quantity = parseInt(String(cols[qtyIndex] || '').trim());
             if (name && !isNaN(quantity) && quantity > 0) {
                 data.push({ name, quantity, line: i + 1 });
             }
@@ -594,14 +615,17 @@ function parseBatchFile(content, filename) {
     return data;
 }
 
-// 下载批量模板
-function downloadBatchTemplate(filename, content) {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+// 下载批量模板（Excel格式）
+function downloadBatchTemplate(filename, rows) {
+    if (typeof XLSX === 'undefined') {
+        showToast('Excel解析库未加载，请刷新页面重试', 'danger');
+        return;
+    }
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '批量模板');
+    XLSX.writeFile(wb, filename + '.xlsx');
+}
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
