@@ -659,6 +659,168 @@ class InventoryService:
         return report
 
     @staticmethod
+    def format_database(db: Session):
+        """数据库格式化：清理重复/孤立数据，修复分类混乱
+        处理：
+        - 清理重复的类别（同名同key）
+        - 清理重复的子类别
+        - 清理孤立的子类别（所属类别不存在）
+        - 重新分配子类别字母
+        - 为无类别零件匹配类别
+        - 为无编号零件生成编号
+        - 清理孤立库存记录（零件不存在）
+        """
+        from sqlalchemy import func
+        from app.models.config import Category, Subcategory, LocationPrefix, PartIdSequence
+
+        result = {
+            "dup_categories_removed": 0,
+            "dup_subcategories_removed": 0,
+            "orphan_subcategories_removed": 0,
+            "parts_reassigned": 0,
+            "part_numbers_fixed": 0,
+            "orphan_inventory_removed": 0,
+            "letters_reassigned": 0,
+            "messages": []
+        }
+
+        # 1. 清理重复类别（保留ID最小，key相同或name相同）
+        dup_cats = db.query(
+            Category.key,
+            func.min(Category.id).label('keep_id'),
+            func.count(Category.id).label('cnt')
+        ).group_by(Category.key).having(func.count(Category.id) > 1).all()
+
+        for dup in dup_cats:
+            keep_id = dup.keep_id
+            dup_rows = db.query(Category).filter(
+                Category.key == dup.key,
+                Category.id != keep_id
+            ).all()
+            for row in dup_rows:
+                # 将零件迁移到保留的类别
+                db.query(Part).filter(Part.category_id == row.id).update(
+                    {Part.category_id: keep_id}, synchronize_session=False
+                )
+                # 迁移子类别
+                db.query(Subcategory).filter(Subcategory.category_id == row.id).update(
+                    {Subcategory.category_id: keep_id}, synchronize_session=False
+                )
+                db.delete(row)
+                result["dup_categories_removed"] += 1
+
+        # 2. 清理重复子类别（同类别下同名，保留ID最小）
+        dup_subs = db.query(
+            Subcategory.category_id,
+            Subcategory.name,
+            func.min(Subcategory.id).label('keep_id'),
+            func.count(Subcategory.id).label('cnt')
+        ).group_by(
+            Subcategory.category_id,
+            Subcategory.name
+        ).having(func.count(Subcategory.id) > 1).all()
+
+        for dup in dup_subs:
+            keep_id = dup.keep_id
+            dup_rows = db.query(Subcategory).filter(
+                Subcategory.category_id == dup.category_id,
+                Subcategory.name == dup.name,
+                Subcategory.id != keep_id
+            ).all()
+            for row in dup_rows:
+                # 将零件迁移到保留的子类别
+                db.query(Part).filter(Part.subcategory_id == row.id).update(
+                    {Part.subcategory_id: keep_id}, synchronize_session=False
+                )
+                db.delete(row)
+                result["dup_subcategories_removed"] += 1
+
+        # 3. 清理孤立子类别（所属类别不存在）
+        valid_cat_ids = {c.id for c in db.query(Category).all()}
+        orphan_subs = db.query(Subcategory).filter(
+            Subcategory.category_id.notin_(valid_cat_ids) if valid_cat_ids else True
+        ).all() if valid_cat_ids else []
+        for sub in orphan_subs:
+            db.delete(sub)
+            result["orphan_subcategories_removed"] += 1
+
+        # 4. 为无类别零件匹配类别（根据part_type或type关联）
+        no_cat_parts = db.query(Part).filter(Part.category_id.is_(None)).all()
+        if no_cat_parts:
+            from app.services.file_service import FileService
+            type_names = {t.id: t.part_type for t in db.query(Type).all()}
+            for part in no_cat_parts:
+                type_name = type_names.get(part.type_id) or part.name
+                cat_id, sub_id = FileService.match_category_by_type(db, type_name)
+                if cat_id:
+                    part.category_id = cat_id
+                    part.subcategory_id = sub_id
+                    result["parts_reassigned"] += 1
+
+        # 5. 为无编号零件生成编号
+        no_num_parts = db.query(Part).filter(
+            Part.part_number.is_(None),
+            Part.category_id.isnot(None)
+        ).all()
+        if no_num_parts:
+            from app.services.part_id_service import generate_part_number
+            from app.crud.part import get_part_by_part_number
+            for part in no_num_parts:
+                try:
+                    for _ in range(3):
+                        new_number = generate_part_number(db, part.category_id, part.subcategory_id)
+                        if not get_part_by_part_number(db, new_number):
+                            part.part_number = new_number
+                            result["part_numbers_fixed"] += 1
+                            break
+                except Exception as e:
+                    logger.warning(f"格式化: 编号生成失败 part {part.id}: {e}")
+
+        # 6. 清理孤立库存记录（零件不存在）
+        valid_part_ids = {p.id for p in db.query(Part.id).all()}
+        orphan_inv = db.query(Inventory).filter(
+            Inventory.part_id.notin_(valid_part_ids) if valid_part_ids else True
+        ).all() if valid_part_ids else []
+        for inv in orphan_inv:
+            db.delete(inv)
+            result["orphan_inventory_removed"] += 1
+
+        # 7. 重新分配子类别字母
+        changed_letters = False
+        for cat in db.query(Category).all():
+            subs = db.query(Subcategory).filter(
+                Subcategory.category_id == cat.id
+            ).order_by(Subcategory.id.asc()).all()
+            used_letters = {s.letter for s in subs if s.letter}
+            letter_idx = 0
+            for sub in subs:
+                if not sub.letter:
+                    while True:
+                        letter = chr(ord('A') + letter_idx)
+                        letter_idx += 1
+                        if letter not in used_letters:
+                            break
+                    sub.letter = letter
+                    used_letters.add(letter)
+                    changed_letters = True
+                    result["letters_reassigned"] += 1
+
+        db.commit()
+
+        total_fixed = sum([
+            result["dup_categories_removed"],
+            result["dup_subcategories_removed"],
+            result["orphan_subcategories_removed"],
+            result["parts_reassigned"],
+            result["part_numbers_fixed"],
+            result["orphan_inventory_removed"],
+            result["letters_reassigned"],
+        ])
+        result["success"] = True
+        result["message"] = f"数据库格式化完成，共处理 {total_fixed} 项问题"
+        return result
+
+    @staticmethod
     def get_all_manufacturers(db: Session):
         """获取所有制造商"""
         from app.crud.manufacturer import get_all_manufacturers as crud_get_all_manufacturers

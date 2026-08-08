@@ -235,6 +235,13 @@ def get_database_report(db: Session = Depends(get_db)):
     return InventoryService.get_database_report(db)
 
 
+@router.post("/database_format")
+def format_database(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
+    """格式化数据库：清理重复/孤立数据，修复分类混乱"""
+    from app.services.inventory_service import InventoryService
+    return InventoryService.format_database(db)
+
+
 @router.get("/database_report/export")
 def export_database_report(db: Session = Depends(get_db)):
     """导出数据库详细报告为Excel"""

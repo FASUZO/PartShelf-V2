@@ -194,6 +194,7 @@
           <div class="d-flex gap-1">
             <button class="btn btn-sm btn-outline-light" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt me-1"></i>检查</button>
             <a class="btn btn-sm btn-outline-success" href="/api/config/database_report/export" target="_blank"><i class="fas fa-download me-1"></i>导出</a>
+            <button class="btn btn-sm btn-outline-danger" onclick="formatDatabase()"><i class="fas fa-broom me-1"></i>格式化</button>
           </div>
         </div>
         <div class="card-body" id="dbReportBody">
@@ -767,6 +768,35 @@
           body.innerHTML = html;
         } catch (e) {
           body.innerHTML = '<p class="text-danger mb-0" style="font-size:0.85rem;"><i class="fas fa-times-circle me-1"></i>检查失败: ' + e.message + '</p>';
+        }
+      }
+
+      // 格式化数据库
+      async function formatDatabase() {
+        if (!confirm('确定要格式化数据库吗？\n\n将执行以下操作：\n1. 清理重复的类别和子类别\n2. 清理孤立的子类别和库存记录\n3. 为无类别的零件自动匹配类别\n4. 为无编号的零件生成编号\n5. 重新分配子类别字母\n\n此操作不可撤销，建议先导出报告备份！')) return;
+        var body = document.getElementById('dbReportBody');
+        body.innerHTML = '<p class="text-muted mb-0" style="font-size:0.85rem;"><i class="fas fa-spinner fa-spin me-1"></i>正在格式化数据库...</p>';
+        try {
+          var resp = await fetch('/api/config/database_format', { method: 'POST' });
+          var result = await resp.json();
+          if (result.success) {
+            var html = '<div class="alert alert-success mb-0 py-2" style="font-size:0.85rem;"><i class="fas fa-check-circle me-1"></i>' + escapeHtml(result.message) + '</div>';
+            html += '<div class="mt-2" style="font-size:0.8rem;">';
+            html += '<div class="d-flex justify-content-between mb-1"><span>重复类别清理</span><span>' + result.dup_categories_removed + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>重复子类别清理</span><span>' + result.dup_subcategories_removed + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>孤立子类别清理</span><span>' + result.orphan_subcategories_removed + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>零件类别重新匹配</span><span>' + result.parts_reassigned + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>零件编号修复</span><span>' + result.part_numbers_fixed + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>孤立库存清理</span><span>' + result.orphan_inventory_removed + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>字母重新分配</span><span>' + result.letters_reassigned + '</span></div>';
+            html += '</div>';
+            body.innerHTML = html;
+            setTimeout(runDatabaseCheck, 1500);
+          } else {
+            body.innerHTML = '<div class="alert alert-danger mb-0 py-2" style="font-size:0.85rem;"><i class="fas fa-times-circle me-1"></i>格式化失败</div>';
+          }
+        } catch (e) {
+          body.innerHTML = '<div class="alert alert-danger mb-0 py-2" style="font-size:0.85rem;"><i class="fas fa-times-circle me-1"></i>格式化失败: ' + e.message + '</div>';
         }
       }
 
