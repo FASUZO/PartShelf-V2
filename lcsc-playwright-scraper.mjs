@@ -59,33 +59,6 @@ async function launchBrowser(headless = true) {
 }
 
 /**
- * 添加器件到 BOM 列表
- * @param {string} bomUuid - BOM 清单 UUID
- * @param {string} lcCode - LC 编号，如 "C7429634"
- * @param {object} page - Playwright page 对象
- * @returns {Promise<boolean>} 是否成功
- */
-async function addItemToBom(bomUuid, lcCode, page) {
-  try {
-    // 使用 BOM 添加 API
-    const result = await page.evaluate(async ({ bomUuid, lcCode }) => {
-      const resp = await fetch(`https://bom.szlcsc.com/bom/match/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `bomUuid=${bomUuid}&productCode=${lcCode}&quantity=1&uploadType=input`,
-      });
-      return await resp.json();
-    }, { bomUuid, lcCode });
-    
-    console.log('Add item result:', result);
-    return result && (result.code === 200 || result.ok === true);
-  } catch (e) {
-    console.log('Add item failed:', e.message);
-    return false;
-  }
-}
-
-/**
  * 通过立创 BOM API 查询指定 LC 编号的产品数据
  * @param {string} lcCode - LC 编号，如 "C192666"
  * @param {string} bomUuid - BOM 清单 UUID（可选）
@@ -192,51 +165,77 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
       return null;
     }, { lcCode, bomUuid: defaultBomUuid });
 
-    // 如果没找到，尝试添加到BOM再查询
+    // 如果没找到，通过上传CSV添加到BOM再查询
     if (!result) {
-      console.log(`LC code ${lcCode} not found, trying to add to BOM...`);
-      const added = await addItemToBom(defaultBomUuid, lcCode, page);
+      console.log(`LC code ${lcCode} not found in BOM, uploading CSV to add...`);
       
-      if (added) {
-        // 等待一下让BOM更新
-        await page.waitForTimeout(2000);
+      // 创建临时CSV文件
+      const { writeFileSync, unlinkSync } = await import('fs');
+      const { join } = await import('path');
+      const tmpFile = join(process.cwd(), 'tmp_bom_upload.csv');
+      writeFileSync(tmpFile, `Name,Quantity\n${lcCode},1`);
+      
+      // 上传CSV文件
+      const fileInput = await page.locator('input#file[type=file]');
+      if (await fileInput.count() > 0) {
+        await fileInput.setInputFiles(tmpFile);
         
-        // 重新查询
-        result = await page.evaluate(async ({ lcCode, bomUuid }) => {
-          try {
-            const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
-            });
-            const searchData = await searchResp.json();
-            
-            if (searchData.result && searchData.result.bom && searchData.result.bom.bomItemList) {
-              const found = searchData.result.bom.bomItemList.find(
-                i => i.productCode === lcCode || i.firstProductCode === lcCode
-              );
-              if (found && found.frontProductVO) {
-                const product = found.frontProductVO;
-                return {
-                  lcCode: product.code || lcCode,
-                  productName: product.productName || '',
-                  productModel: product.productModel || '',
-                  brand: product.brand || '',
-                  pack: product.pack || '',
-                  price: product.price || '',
-                  stock: product.stock || 0,
-                  stockStatus: product.stockStatus || 'unknown',
-                  moq: product.moq || 1,
-                  params: product.remarkPrefix?.replace(/<\/br>/g, '; ') || '',
-                };
-              }
-            }
-          } catch (e) {
-            console.log('Retry search failed:', e.message);
+        // 监听页面跳转获取新BOM UUID
+        let newBomUuid = null;
+        page.on('request', request => {
+          const url = request.url();
+          if (url.includes('bom/match/finished/v2') && request.method() === 'POST') {
+            const body = request.postData() || '';
+            const match = body.match(/bsuuid=([A-F0-9]+)/i);
+            if (match) newBomUuid = match[1];
           }
-          return null;
-        }, { lcCode, bomUuid: defaultBomUuid });
+        });
+        
+        // 等待上传处理和页面跳转
+        await page.waitForTimeout(10000);
+        
+        // 如果获取到了新BOM UUID，用它查询
+        if (newBomUuid && newBomUuid !== defaultBomUuid) {
+          console.log(`New BOM created: ${newBomUuid}`);
+          result = await page.evaluate(async ({ lcCode, bomUuid }) => {
+            try {
+              const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+              });
+              const searchData = await searchResp.json();
+              
+              if (searchData.result && searchData.result.bom && searchData.result.bom.bomItemList) {
+                const found = searchData.result.bom.bomItemList.find(
+                  i => i.productCode === lcCode || i.firstProductCode === lcCode
+                );
+                if (found && found.frontProductVO) {
+                  const product = found.frontProductVO;
+                  return {
+                    lcCode: product.code || lcCode,
+                    productName: product.productName || '',
+                    productModel: product.productModel || '',
+                    brand: product.brand || '',
+                    pack: product.pack || '',
+                    price: product.price || '',
+                    stock: product.stock || 0,
+                    stockStatus: product.stockStatus || 'unknown',
+                    moq: product.moq || 1,
+                    params: product.remarkPrefix?.replace(/<\/br>/g, '; ') || '',
+                  };
+                }
+              }
+            } catch (e) {
+              console.log('Query new BOM failed:', e.message);
+            }
+            return null;
+          }, { lcCode, bomUuid: newBomUuid });
+        }
       }
+      
+      // 清理临时文件
+      try { unlinkSync(tmpFile); } catch(e) {}
     }
 
     // 保存更新的 cookie
