@@ -430,9 +430,18 @@
       // 解析params字段（格式：X1：Y1; X2：Y2;）
       function parseParams(params) {
         if (!params) return null;
-        if (typeof params === 'object' && !Array.isArray(params)) return params;
+        if (typeof params === 'object' && !Array.isArray(params)) {
+          // 处理库存的 other 字段格式
+          return normalizeOtherParams(params);
+        }
         if (typeof params === 'string') {
-          try { return JSON.parse(params); } catch (e) {}
+          // 尝试解析JSON
+          try {
+            const parsed = JSON.parse(params);
+            if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+              return normalizeOtherParams(parsed);
+            }
+          } catch (e) {}
           // 解析分号分隔的key：value格式
           const result = {};
           const lines = params.split(';');
@@ -451,6 +460,29 @@
           return Object.keys(result).length > 0 ? result : null;
         }
         return null;
+      }
+
+      // 将库存 other 字段统一解析为 {key: value} 格式
+      function normalizeOtherParams(other) {
+        if (!other || typeof other !== 'object') return null;
+        // 新格式：{fields: [...], values: {...}, units: {...}}
+        if (other.fields && other.values) {
+          const result = {};
+          for (const field of other.fields) {
+            if (other.values[field] !== undefined && other.values[field] !== '') {
+              result[field] = other.values[field];
+            }
+          }
+          return Object.keys(result).length > 0 ? result : null;
+        }
+        // 旧格式：直接是 {key: value} 对象
+        const result = {};
+        for (const [key, val] of Object.entries(other)) {
+          if (val !== undefined && val !== '' && val !== null) {
+            result[key] = String(val);
+          }
+        }
+        return Object.keys(result).length > 0 ? result : null;
       }
 
       // 解析remarkPrefix字段（格式：key：value</br>key：value）
@@ -553,9 +585,24 @@
       // 用LCSC数据更新库存零件
       async function updatePartFromLcsc(partId) {
         if (!currentLcData) return;
-        if (!confirm('确定用LCSC数据更新库存零件的参数？')) return;
+        if (!confirm('确定用LCSC数据更新库存零件的参数？\n\n将合并LCSC参数到库存中，相同参数名会覆盖。')) return;
 
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
+        
+        // 获取当前库存零件的参数
+        let existingOther = {};
+        try {
+          const resp = await fetch(`/api/inventory/get_part_by_id?part_id=${partId}`);
+          const partData = await resp.json();
+          if (partData.other) {
+            existingOther = JSON.parse(partData.other) || {};
+          }
+        } catch (e) {}
+
+        // 合并参数：保留库存已有参数，LCSC参数覆盖同名项
+        const existingValues = normalizeOtherParams(existingOther) || {};
+        const mergedValues = { ...existingValues, ...lcscParams };
+        
         const formData = new FormData();
         formData.append('part_id', partId);
         formData.append('name', currentLcData.productModel || '');
@@ -564,11 +611,11 @@
         formData.append('lc_number', currentLcData.lcCode || '');
         formData.append('description', currentLcData.description || '');
 
-        // 合并参数
-        if (Object.keys(lcscParams).length > 0) {
+        // 合并后的参数
+        if (Object.keys(mergedValues).length > 0) {
           formData.append('other', JSON.stringify({
-            fields: Object.keys(lcscParams),
-            values: lcscParams,
+            fields: Object.keys(mergedValues),
+            values: mergedValues,
             units: {}
           }));
         }
