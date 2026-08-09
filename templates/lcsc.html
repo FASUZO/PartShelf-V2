@@ -483,6 +483,7 @@
       async function updatePartFromLcsc(partId) {
         if (!currentLcData) return;
         if (!confirm('确定用LCSC数据更新库存零件的参数？\n\n将合并LCSC参数到库存中，相同参数名会覆盖。')) return;
+        
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         let existingOther = {};
         try {
@@ -502,12 +503,28 @@
         if (Object.keys(mergedValues).length > 0) {
           formData.append('other', JSON.stringify({ fields: Object.keys(mergedValues), values: mergedValues, units: {} }));
         }
+        
+        // 显示加载状态
+        const btn = event.target;
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 更新中...';
+        
         try {
           const resp = await fetch('/api/inventory/update_part', { method: 'POST', body: formData });
           if (!resp.ok) throw new Error('更新失败');
+          
+          // 关闭对比弹窗
+          const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
+          if (modal) modal.hide();
+          
           showToast('零件参数已更新！', 'success');
-          document.getElementById('compareArea').style.display = 'none';
-        } catch (e) { showToast('更新失败: ' + e.message, 'danger'); }
+        } catch (e) { 
+          showToast('更新失败: ' + e.message, 'danger'); 
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
       }
 
       // 入库
@@ -521,6 +538,7 @@
       async function confirmStockIn() {
         const quantity = parseInt(document.getElementById('stockInQuantity').value);
         if (!quantity || quantity < 1) { showToast('请输入有效数量', 'warning'); return; }
+        
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const formData = new FormData();
         formData.append('name', currentLcData.productModel || '');
@@ -533,12 +551,24 @@
         if (Object.keys(lcscParams).length > 0) {
           formData.append('other', JSON.stringify({ fields: Object.keys(lcscParams), values: lcscParams, units: {} }));
         }
+        
+        // 显示加载状态
+        const btn = document.querySelector('#stockInModal .btn-success');
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 入库中...';
+        
         try {
           const resp = await fetch('/api/inventory/add_part_to_inventory', { method: 'POST', body: formData });
           if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '入库失败'); }
           bootstrap.Modal.getInstance(document.getElementById('stockInModal')).hide();
           showToast('入库成功！', 'success');
-        } catch (e) { showToast('入库失败: ' + e.message, 'danger'); }
+        } catch (e) { 
+          showToast('入库失败: ' + e.message, 'danger'); 
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
       }
 
       function openLcscPage() {
