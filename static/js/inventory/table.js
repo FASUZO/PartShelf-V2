@@ -761,29 +761,96 @@ async function queryLcFromEdit() {
         }
         const data = await resp.json();
 
-        // 用LCSC数据填充编辑表单
-        if (data.productModel) document.getElementById('editPartName').value = data.productModel;
-        if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
-        if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
-        if (data.description) document.getElementById('editPartDescription').value = data.description;
+        // 获取当前编辑表单的零件数据
+        const partData = {
+            id: document.getElementById('editPartId').value,
+            name: document.getElementById('editPartName').value,
+            manufacturer: document.getElementById('editPartManufacturer').value,
+            package: document.getElementById('editPartPackage').value,
+            description: document.getElementById('editPartDescription').value,
+            lc_number: document.getElementById('editPartLcNumber').value
+        };
 
-        // 解析并填充参数
-        const params = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix);
-        if (params) {
-            // 尝试更新参数模板字段
-            const paramFields = document.querySelectorAll('#editParamTemplateFields .param-field');
-            paramFields.forEach(field => {
-                const name = field.dataset.paramName;
-                if (name && params[name] !== undefined) {
-                    field.value = params[name];
-                }
-            });
-        }
+        // 显示对比弹窗
+        showLcscCompareModal(data, partData);
 
-        alert(`已从LCSC获取数据：${data.productModel || lcCode}`);
     } catch (e) {
         alert('查询失败: ' + e.message);
     }
+}
+
+// 显示LCSC对比弹窗
+function showLcscCompareModal(lcscData, partData) {
+    const body = document.getElementById('lcscCompareBody');
+    if (!body) return;
+
+    const lcscParams = parseLcscParams(lcscData.params) || parseLcscRemarkPrefix(lcscData.remarkPrefix) || {};
+    const partParams = parsePartParams(partData.other) || {};
+
+    let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;">';
+    html += '<thead class="table-light"><tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr></thead><tbody>';
+    html += '<tr><td>型号</td><td>' + escapeHtml(lcscData.productModel || '-') + '</td><td>' + escapeHtml(partData.name || '-') + '</td></tr>';
+    html += '<tr><td>品牌</td><td>' + escapeHtml(lcscData.brand || '-') + '</td><td>' + escapeHtml(partData.manufacturer || '-') + '</td></tr>';
+    html += '<tr><td>封装</td><td>' + escapeHtml(lcscData.pack || lcscData.package || '-') + '</td><td>' + escapeHtml(partData.package || '-') + '</td></tr>';
+    html += '<tr><td>LC编号</td><td>' + escapeHtml(lcscData.lcCode || '-') + '</td><td>' + escapeHtml(partData.lc_number || '-') + '</td></tr>';
+    html += '</tbody></table></div>';
+
+    // 参数对比
+    const allKeys = new Set([...Object.keys(lcscParams), ...Object.keys(partParams)]);
+    if (allKeys.size > 0) {
+        html += '<h6 class="mt-3 mb-2 text-muted">参数对比</h6>';
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;"><thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+        for (const key of allKeys) {
+            const lcscVal = lcscParams[key] || '-';
+            const partVal = partParams[key] || '-';
+            const cls = (!partParams[key] && lcscParams[key]) ? ' class="table-warning"' : (lcscVal !== partVal ? ' class="table-danger"' : '');
+            html += '<tr' + cls + '><td>' + escapeHtml(key) + '</td><td>' + escapeHtml(String(lcscVal)) + '</td><td>' + escapeHtml(String(partVal)) + '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+    }
+
+    // 操作按钮
+    html += '<div class="mt-3 d-flex gap-2">';
+    html += '<button class="btn btn-warning flex-fill" onclick="applyLcscToEditForm()"><i class="fas fa-sync me-1"></i> 应用LCSC数据到编辑表单</button>';
+    html += '</div>';
+
+    body.innerHTML = html;
+
+    // 保存LCSC数据供后续使用
+    window._lcscCompareData = lcscData;
+
+    // 显示弹窗
+    new bootstrap.Modal(document.getElementById('lcscCompareModal')).show();
+}
+
+// 将LCSC数据应用到编辑表单
+function applyLcscToEditForm() {
+    const data = window._lcscCompareData;
+    if (!data) return;
+
+    if (data.productModel) document.getElementById('editPartName').value = data.productModel;
+    if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
+    if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
+    if (data.lcCode) document.getElementById('editPartLcNumber').value = data.lcCode;
+    if (data.description) document.getElementById('editPartDescription').value = data.description;
+
+    // 解析并填充参数
+    const params = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix);
+    if (params) {
+        const paramFields = document.querySelectorAll('#editParamTemplateFields .param-field');
+        paramFields.forEach(field => {
+            const name = field.dataset.paramName;
+            if (name && params[name] !== undefined) {
+                field.value = params[name];
+            }
+        });
+    }
+
+    // 关闭弹窗
+    const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
+    if (modal) modal.hide();
+
+    showToast('已应用LCSC数据到编辑表单', 'success');
 }
 
 // 解析LCSC params字段

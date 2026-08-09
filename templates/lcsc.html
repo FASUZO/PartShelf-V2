@@ -38,7 +38,6 @@
       .history-item:last-child { border-bottom: none; }
       .compare-diff { background: #fff3cd; }
       .compare-missing { background: #f8d7da; }
-      .compare-match { background: #d4edda; }
     </style>
   </head>
   <body>
@@ -127,15 +126,6 @@
             <button class="btn btn-outline-primary" onclick="openLcscPage()"><i class="fas fa-external-link-alt me-1"></i> 立创</button>
             <button class="btn btn-outline-secondary" onclick="copyLcCode()"><i class="fas fa-copy me-1"></i> 复制</button>
           </div>
-
-          <!-- 对比结果 -->
-          <div id="compareArea" class="card mb-3" style="display:none;">
-            <div class="card-header py-2 d-flex justify-content-between align-items-center bg-info text-white">
-              <strong><i class="fas fa-exchange-alt me-1"></i> 库存对比</strong>
-              <button class="btn btn-sm btn-light" onclick="document.getElementById('compareArea').style.display='none'"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="card-body" id="compareContent"></div>
-          </div>
         </div>
 
         <!-- 空状态 -->
@@ -212,6 +202,21 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
             <button type="button" class="btn btn-success" onclick="confirmStockIn()">确认入库</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LCSC对比弹窗 -->
+    <div class="modal fade" id="lcscCompareModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
+        <div class="modal-content">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title"><i class="fas fa-exchange-alt me-1"></i> LCSC对比</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body" id="lcscCompareBody">
+            <p class="text-muted">正在加载对比数据...</p>
           </div>
         </div>
       </div>
@@ -435,13 +440,14 @@
       }
 
       function displayCompareResult(part) {
-        document.getElementById('compareArea').style.display = 'block';
-        const content = document.getElementById('compareContent');
+        const body = document.getElementById('lcscCompareBody');
+        if (!body) return;
+
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const partParams = parseParams(part.other) || {};
 
-        let html = '<table class="table table-sm mb-0" style="font-size:0.85rem;">';
-        html += '<thead class="table-light"><tr><th>字段</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+        let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;">';
+        html += '<thead class="table-light"><tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr></thead><tbody>';
         const fields = [
           ['型号', currentLcData.productModel, part.name],
           ['品牌', currentLcData.brand, part.manufacturer],
@@ -449,26 +455,29 @@
           ['LC编号', currentLcData.lcCode, part.lc_number || '-'],
         ];
         for (const [label, lc, inv] of fields) {
-          const cls = lc !== inv ? ' class="compare-diff"' : '';
+          const cls = lc !== inv ? ' class="table-warning"' : '';
           html += `<tr${cls}><td>${label}</td><td>${escapeHtml(lc||'-')}</td><td>${escapeHtml(inv||'-')}</td></tr>`;
         }
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
 
         const allKeys = new Set([...Object.keys(lcscParams), ...Object.keys(partParams)]);
         if (allKeys.size > 0) {
-          html += '<table class="table table-sm mb-0 mt-2" style="font-size:0.85rem;">';
-          html += '<thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+          html += '<h6 class="mt-3 mb-2 text-muted">参数对比</h6>';
+          html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;"><thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
           for (const key of allKeys) {
             const lcVal = lcscParams[key] || '-';
             const invVal = partParams[key] || '-';
-            const cls = (!partParams[key] && lcscParams[key]) ? ' class="compare-missing"' : (lcVal !== invVal ? ' class="compare-diff"' : '');
+            const cls = (!partParams[key] && lcscParams[key]) ? ' class="table-warning"' : (lcVal !== invVal ? ' class="table-danger"' : '');
             html += `<tr${cls}><td>${escapeHtml(key)}</td><td>${escapeHtml(String(lcVal))}</td><td>${escapeHtml(String(invVal))}</td></tr>`;
           }
-          html += '</tbody></table>';
+          html += '</tbody></table></div>';
         }
 
-        html += `<div class="p-2"><button class="btn btn-warning btn-sm w-100" onclick="updatePartFromLcsc(${part.id})"><i class="fas fa-sync me-1"></i> 用LCSC数据更新库存</button></div>`;
-        content.innerHTML = html;
+        html += `<div class="mt-3 d-flex gap-2"><button class="btn btn-warning flex-fill" onclick="updatePartFromLcsc(${part.id})"><i class="fas fa-sync me-1"></i> 用LCSC数据更新库存</button></div>`;
+        body.innerHTML = html;
+
+        // 显示弹窗
+        new bootstrap.Modal(document.getElementById('lcscCompareModal')).show();
       }
 
       async function updatePartFromLcsc(partId) {
