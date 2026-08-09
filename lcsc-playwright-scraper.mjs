@@ -59,7 +59,8 @@ async function launchBrowser(headless = true) {
 }
 
 /**
- * 通过立创商城直接查询指定 LC 编号的产品数据
+ * 通过立创 BOM API 查询指定 LC 编号的产品数据
+ * 使用 https://bom.szlcsc.com/async/bom/match/finished/v2 接口
  * @param {string} lcCode - LC 编号，如 "C192666"
  * @param {string} bomUuid - BOM 清单 UUID（可选）
  * @param {boolean} headless - 是否无头模式
@@ -71,69 +72,92 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
   try {
     const page = await context.newPage();
     
-    // 访问立创商城产品详情页面
-    const productUrl = `https://www.szlcsc.com/product/details_${lcCode}.html`;
-    await page.goto(productUrl, {
+    // 访问 BOM 页面建立会话
+    await page.goto(`https://bom.szlcsc.com/member/bom-list.html`, {
       waitUntil: 'networkidle',
       timeout: 30000,
     });
 
-    // 检查页面是否加载成功
-    const pageContent = await page.content();
-    if (pageContent.includes('404') || pageContent.includes('未找到')) {
-      console.error(`Product ${lcCode} not found`);
+    // 检查是否需要登录
+    const title = await page.title();
+    if (title.includes('登录')) {
+      console.error('需要登录，请先扫码登录并保存 cookie');
+      const cookies = await context.cookies();
+      saveCookies(cookies);
       return null;
     }
 
-    // 从页面提取产品信息
-    const result = await page.evaluate((lcCode) => {
-      // 提取产品信息
-      const productName = document.querySelector('.product-name, .product-title, h1')?.textContent?.trim() || '';
-      const brand = document.querySelector('.brand-name, .product-brand')?.textContent?.trim() || '';
-      const pack = document.querySelector('.package, .product-package')?.textContent?.trim() || '';
+    // 使用 BOM 搜索 API 查询产品
+    const result = await page.evaluate(async (lcCode) => {
+      // 使用 BOM 搜索 API
+      const searchUrl = `https://bom.szlcsc.com/async/bom/match/finished/v2`;
+      const resp = await fetch(searchUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          searchText: lcCode,
+          bomUuid: '',
+          matchType: 'perfect',
+        }),
+      });
       
-      // 提取价格
-      const priceEl = document.querySelector('.price, .product-price, .current-price');
-      const price = priceEl ? priceEl.textContent.replace(/[^0-9.]/g, '') : '';
+      const data = await resp.json();
       
-      // 提取库存
-      const stockEl = document.querySelector('.stock, .product-stock, .stock-count');
-      const stockText = stockEl ? stockEl.textContent : '';
-      const stockMatch = stockText.match(/(\d+)/);
-      const stock = stockMatch ? parseInt(stockMatch[1]) : 0;
+      // 查找匹配的产品
+      if (data.result && data.result.length > 0) {
+        const product = data.result[0];
+        return {
+          lcCode: product.code || lcCode,
+          productName: product.productName || '',
+          productModel: product.productModel || '',
+          brand: product.brand || '',
+          pack: product.pack || '',
+          price: product.price || '',
+          stock: product.stock || 0,
+          stockStatus: product.stockStatus || 'unknown',
+          moq: product.moq || 1,
+          params: product.remarkPrefix?.replace(/<\/br>/g, '; ') || '',
+        };
+      }
+
+      // 如果搜索 API 没有结果，尝试从 BOM 列表查找
+      const listResp = await fetch(`https://bom.szlcsc.com/async/bom/match/list`);
+      const listData = await listResp.json();
       
-      // 提取参数
-      const params = {};
-      const paramRows = document.querySelectorAll('.param-item, .spec-item, tr');
-      paramRows.forEach(row => {
-        const label = row.querySelector('.param-label, .spec-label, td:first-child');
-        const value = row.querySelector('.param-value, .spec-value, td:last-child');
-        if (label && value) {
-          const key = label.textContent.trim();
-          const val = value.textContent.trim();
-          if (key && val && key !== val) {
-            params[key] = val;
+      if (listData.result && listData.result.length > 0) {
+        for (const bom of listData.result) {
+          try {
+            const bomResp = await fetch(`https://bom.szlcsc.com/async/bom/match/page?bomUuid=${bom.uuid}`);
+            const bomData = await bomResp.json();
+            if (bomData.result && bomData.result.bom && bomData.result.bom.bomItemList) {
+              const found = bomData.result.bom.bomItemList.find(
+                i => i.productCode === lcCode || i.firstProductCode === lcCode
+              );
+              if (found && found.frontProductVO) {
+                const product = found.frontProductVO;
+                return {
+                  lcCode: product.code || lcCode,
+                  productName: product.productName || '',
+                  productModel: product.productModel || '',
+                  brand: product.brand || '',
+                  pack: product.pack || '',
+                  price: product.price || '',
+                  stock: product.stock || 0,
+                  stockStatus: product.stockStatus || 'unknown',
+                  moq: product.moq || 1,
+                  params: product.remarkPrefix?.replace(/<\/br>/g, '; ') || '',
+                };
+              }
+            }
+          } catch (e) {
+            continue;
           }
         }
-      });
+      }
 
-      // 构建参数字符串
-      const paramsStr = Object.entries(params)
-        .map(([k, v]) => `${k}：${v}`)
-        .join('; ');
-
-      return {
-        lcCode: lcCode,
-        productName: productName,
-        productModel: productName,
-        brand: brand,
-        pack: pack,
-        price: price,
-        stock: stock,
-        stockStatus: stock > 0 ? 'now' : 'unknown',
-        moq: 1,
-        params: paramsStr,
-      };
+      return null;
     }, lcCode);
 
     // 保存更新的 cookie
