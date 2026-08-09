@@ -138,6 +138,9 @@ temp/
 # Node modules（如果前端使用 npm）
 node_modules/
 
+# LCSC cookies（包含登录凭证）
+lcsc-cookies.json
+
 # ==================== 敏感信息 ====================
 # 密钥文件
 *.pem

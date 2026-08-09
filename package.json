@@ -1,0 +1,14 @@
+{
+  "name": "partshelf-v2",
+  "version": "1.0.0",
+  "description": "PartShelf V2 - 电子元器件库存管理系统",
+  "scripts": {
+    "lcsc:login": "node lcsc-playwright-scraper.mjs login",
+    "lcsc:query": "node lcsc-playwright-scraper.mjs query",
+    "lcsc:list": "node lcsc-playwright-scraper.mjs list",
+    "lcsc:serve": "node lcsc-playwright-scraper.mjs serve"
+  },
+  "dependencies": {
+    "playwright": "^1.62.0"
+  }
+}
