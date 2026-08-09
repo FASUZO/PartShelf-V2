@@ -370,10 +370,17 @@ async function getQrCode() {
       timeout: 30000,
     });
 
-    // 检查是否已登录
-    const title = await page.title();
-    if (!title.includes('登录')) {
-      // 已登录
+    // 检查是否已登录 - 通过页面内容判断
+    const url = page.url();
+    const content = await page.content();
+    const hasQrCode = content.includes('qr') || content.includes('qrcode') || content.includes('二维码');
+    const isLoginUrl = url.includes('login') || url.includes('passport');
+    
+    // 如果页面有二维码或跳转到了登录页，说明未登录
+    if (hasQrCode || isLoginUrl) {
+      // 未登录，继续获取二维码
+    } else {
+      // 可能已登录，保存cookie
       const cookies = await context.cookies();
       saveCookies(cookies);
       await browser.close();
@@ -439,7 +446,9 @@ async function checkLoginStatus() {
                         title.includes('登录') || 
                         title.includes('Login') ||
                         content.includes('扫码登录') ||
-                        content.includes('请登录');
+                        content.includes('请登录') ||
+                        content.includes('qrcode') ||
+                        content.includes('二维码');
     
     const isLoggedIn = !isLoginPage;
 
