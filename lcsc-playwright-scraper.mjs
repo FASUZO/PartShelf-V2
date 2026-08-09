@@ -88,12 +88,16 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
 
     // 先尝试直接搜索产品
     const result = await page.evaluate(async (lcCode) => {
-      // 方法1: 使用产品搜索 API
+      // 方法1: 使用产品搜索 API（正确的格式）
       try {
-        const searchResp = await fetch(`https://bom.szlcsc.com/async/bom/match/finished/v2`, {
+        const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ searchText: lcCode }),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            searchText: lcCode,
+            bomUuid: '',
+            bomItemIdStr: ''
+          }).toString(),
         });
         const searchData = await searchResp.json();
         
