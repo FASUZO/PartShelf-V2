@@ -47,3 +47,64 @@ async def list_parts(bom_uuid: str = Query(None)):
 async def get_cookie_status():
     """检查 cookie 状态"""
     return check_cookies()
+
+
+@router.post("/cookies/refresh")
+async def refresh_cookies():
+    """刷新 Cookie"""
+    try:
+        import subprocess
+        import os
+        scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
+        result = subprocess.run(
+            ["node", scraper, "refresh"],
+            capture_output=True, text=True, timeout=60,
+            cwd=os.path.dirname(scraper), encoding='utf-8', errors='replace'
+        )
+        if result.returncode == 0:
+            return {"success": True, "message": "Cookie刷新成功"}
+        return {"success": False, "message": result.stderr or "刷新失败"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/cookies/qrcode")
+async def get_qr_code():
+    """获取登录二维码"""
+    try:
+        import subprocess
+        import os
+        scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
+        result = subprocess.run(
+            ["node", scraper, "qrcode"],
+            capture_output=True, text=True, timeout=30,
+            cwd=os.path.dirname(scraper), encoding='utf-8', errors='replace'
+        )
+        if result.returncode == 0:
+            import json
+            data = json.loads(result.stdout[result.stdout.find('{'):])
+            return data
+        return {"success": False, "message": result.stderr or "获取二维码失败"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@router.get("/cookies/status")
+async def get_login_status():
+    """检查登录状态"""
+    try:
+        import subprocess
+        import os
+        scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
+        result = subprocess.run(
+            ["node", scraper, "status"],
+            capture_output=True, text=True, timeout=10,
+            cwd=os.path.dirname(scraper), encoding='utf-8', errors='replace'
+        )
+        if result.returncode == 0:
+            import json
+            data = json.loads(result.stdout[result.stdout.find('{'):])
+            return data
+        return {"logged_in": False}
+    except Exception as e:
+        return {"logged_in": False}
