@@ -677,6 +677,7 @@ class InventoryService:
 
         result = {
             "categories_synced": 0,
+            "obsolete_categories_removed": 0,
             "subcategories_added": 0,
             "dup_categories_removed": 0,
             "dup_subcategories_removed": 0,
@@ -706,6 +707,38 @@ class InventoryService:
                 # 缺失的类别直接创建
                 db.add(Category(key=c["key"], name=c["name"], location_prefix=c.get("location_prefix")))
                 result["categories_synced"] += 1
+
+        # 0.2 删除配置中不存在的旧类别（版本迭代遗留）
+        # 无零件引用的直接删除；有零件引用的迁移到匹配的新类别，否则保留并提示
+        configured_keys = {c["key"] for c in DEFAULT_CATEGORIES}
+        obsolete_cats = db.query(Category).filter(~Category.key.in_(configured_keys)).all()
+        for oc in obsolete_cats:
+            part_count = db.query(Part).filter(Part.category_id == oc.id).count()
+            if part_count == 0:
+                # 无零件引用，删除该类别及其子类别
+                db.query(Subcategory).filter(Subcategory.category_id == oc.id).delete(synchronize_session=False)
+                db.delete(oc)
+                result["obsolete_categories_removed"] += 1
+            else:
+                # 有零件引用：尝试根据类型名称迁移到新类别
+                from app.services.file_service import FileService
+                type_names = {t.id: t.part_type for t in db.query(Type).all()}
+                migrated_parts = 0
+                for part in db.query(Part).filter(Part.category_id == oc.id).all():
+                    type_name = type_names.get(part.type_id) or part.name
+                    new_cat_id, new_sub_id = FileService.match_category_by_type(db, type_name)
+                    if new_cat_id:
+                        part.category_id = new_cat_id
+                        part.subcategory_id = new_sub_id
+                        migrated_parts += 1
+                if migrated_parts == part_count:
+                    db.query(Subcategory).filter(Subcategory.category_id == oc.id).delete(synchronize_session=False)
+                    db.delete(oc)
+                    result["obsolete_categories_removed"] += 1
+                else:
+                    result["messages"].append(
+                        f"旧类别 '{oc.name}' 有 {part_count - migrated_parts} 个零件无法自动迁移，已保留"
+                    )
 
         # 0.5 补全缺失的子类别（与config_seed默认配置一致）
         from app.services.config_seed import DEFAULT_SUBCATEGORIES
@@ -882,6 +915,7 @@ class InventoryService:
 
         total_fixed = sum([
             result["categories_synced"],
+            result["obsolete_categories_removed"],
             result["subcategories_added"],
             result["dup_categories_removed"],
             result["dup_subcategories_removed"],

@@ -806,6 +806,7 @@
             var html = '<div class="alert alert-success mb-0 py-2" style="font-size:0.85rem;"><i class="fas fa-check-circle me-1"></i>' + escapeHtml(result.message) + '</div>';
             html += '<div class="mt-2" style="font-size:0.8rem;">';
             html += '<div class="d-flex justify-content-between mb-1"><span>类别名称同步</span><span>' + result.categories_synced + '</span></div>';
+            html += '<div class="d-flex justify-content-between mb-1"><span>旧类别清理</span><span>' + result.obsolete_categories_removed + '</span></div>';
             html += '<div class="d-flex justify-content-between mb-1"><span>缺失子类别补全</span><span>' + result.subcategories_added + '</span></div>';
             html += '<div class="d-flex justify-content-between mb-1"><span>重复类别清理</span><span>' + result.dup_categories_removed + '</span></div>';
             html += '<div class="d-flex justify-content-between mb-1"><span>重复子类别清理</span><span>' + result.dup_subcategories_removed + '</span></div>';
@@ -816,6 +817,11 @@
             html += '<div class="d-flex justify-content-between mb-1"><span>孤立库存清理</span><span>' + result.orphan_inventory_removed + '</span></div>';
             html += '<div class="d-flex justify-content-between mb-1"><span>字母重新分配</span><span>' + result.letters_reassigned + '</span></div>';
             html += '</div>';
+            if (result.messages && result.messages.length > 0) {
+              html += '<div class="mt-2"><small class="text-warning">';
+              result.messages.forEach(function(m) { html += '· ' + escapeHtml(m) + '<br>'; });
+              html += '</small></div>';
+            }
             body.innerHTML = html;
             setTimeout(runDatabaseCheck, 1500);
           } else {
