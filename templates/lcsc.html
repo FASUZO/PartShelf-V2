@@ -83,6 +83,18 @@
                   <div class="info-value" id="paramLcCode">-</div>
                 </div>
                 <div class="info-item">
+                  <div class="info-label">型号</div>
+                  <div class="info-value" id="paramModel2">-</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">品牌</div>
+                  <div class="info-value" id="paramBrand2">-</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">封装</div>
+                  <div class="info-value" id="paramPackage2">-</div>
+                </div>
+                <div class="info-item">
                   <div class="info-label">单价</div>
                   <div class="info-value" id="paramPrice">-</div>
                 </div>
@@ -96,8 +108,8 @@
                 </div>
               </div>
               <!-- 描述 -->
-              <div class="mt-2" id="descArea" style="display:none;">
-                <small class="text-muted" id="paramDesc"></small>
+              <div class="mt-2" id="descArea">
+                <small class="text-muted" id="paramDesc">-</small>
               </div>
             </div>
           </div>
@@ -330,6 +342,11 @@
         document.getElementById('paramPrice').textContent = data.price ? `¥${data.price}` : '-';
         document.getElementById('paramQuantity').textContent = data.stock ?? '-';
         document.getElementById('paramMoq').textContent = data.moq ?? '-';
+        
+        // 更新详细信息区域
+        document.getElementById('paramModel2').textContent = data.productModel || data.productName || '-';
+        document.getElementById('paramBrand2').textContent = data.brand || '-';
+        document.getElementById('paramPackage2').textContent = data.pack || data.package || '-';
 
         const stockEl = document.getElementById('paramStock');
         if (data.stockStatus === 'now') {
@@ -340,12 +357,7 @@
           stockEl.innerHTML = '<span class="stock-badge stock-none">未知</span>';
         }
 
-        if (data.description) {
-          document.getElementById('descArea').style.display = 'block';
-          document.getElementById('paramDesc').textContent = data.description;
-        } else {
-          document.getElementById('descArea').style.display = 'none';
-        }
+        document.getElementById('paramDesc').textContent = data.description || '-';
 
         const params = parseParams(data.params) || parseRemarkPrefix(data.remarkPrefix);
         if (params && Object.keys(params).length > 0) {
