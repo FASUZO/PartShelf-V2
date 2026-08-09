@@ -87,17 +87,14 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
     }
 
     // 先尝试直接搜索产品
-    const result = await page.evaluate(async (lcCode) => {
-      // 方法1: 使用产品搜索 API（正确的格式）
+    const defaultBomUuid = 'B4CDDD24823706B049EA2218BB7552E6';
+    const result = await page.evaluate(async ({ lcCode, bomUuid }) => {
+      // 方法1: 使用 BOM finished/v2 API（正确的格式）
       try {
         const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            searchText: lcCode,
-            bomUuid: '',
-            bomItemIdStr: ''
-          }).toString(),
+          body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
         });
         const searchData = await searchResp.json();
         
@@ -165,7 +162,7 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
       }
 
       return null;
-    }, lcCode);
+    }, { lcCode, bomUuid: defaultBomUuid });
 
     // 保存更新的 cookie
     const cookies = await context.cookies();
