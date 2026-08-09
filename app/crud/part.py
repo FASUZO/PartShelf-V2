@@ -78,7 +78,7 @@ def get_parts_containing_key(db: Session, search_key: str):
         joinedload(Part.package),
         joinedload(Part.inventory)
     ).filter(
-        (Part.name.ilike(search_pattern)) | (Part.part_number.ilike(search_pattern))
+        (Part.name.ilike(search_pattern)) | (Part.part_number.ilike(search_pattern)) | (Part.lc_number.ilike(search_pattern))
     ).all()
 
 def delete_part(db: Session, part_to_delete: Part):
