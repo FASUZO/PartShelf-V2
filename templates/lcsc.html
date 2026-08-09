@@ -413,8 +413,8 @@
           document.getElementById('descArea').style.display = 'none';
         }
 
-        // 详细参数 - 解析remarkPrefix或params
-        const params = parseRemarkPrefix(data.remarkPrefix) || parseParams(data.params);
+        // 详细参数 - 优先使用params，其次remarkPrefix
+        const params = parseParams(data.params) || parseRemarkPrefix(data.remarkPrefix);
         if (params && Object.keys(params).length > 0) {
           document.getElementById('paramsArea').style.display = 'block';
           let html = '';
@@ -427,12 +427,28 @@
         }
       }
 
-      // 解析params字段
+      // 解析params字段（格式：X1：Y1; X2：Y2;）
       function parseParams(params) {
         if (!params) return null;
         if (typeof params === 'object' && !Array.isArray(params)) return params;
         if (typeof params === 'string') {
-          try { return JSON.parse(params); } catch (e) { return null; }
+          try { return JSON.parse(params); } catch (e) {}
+          // 解析分号分隔的key：value格式
+          const result = {};
+          const lines = params.split(';');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
+            if (match) {
+              const key = match[1].trim();
+              const val = match[2].trim();
+              if (key && val && val !== '-') {
+                result[key] = val;
+              }
+            }
+          }
+          return Object.keys(result).length > 0 ? result : null;
         }
         return null;
       }
@@ -490,7 +506,7 @@
         const content = document.getElementById('compareContent');
         area.style.display = 'block';
 
-        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
+        const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const partParams = parseParams(part.other) || {};
 
         let html = `
@@ -539,7 +555,7 @@
         if (!currentLcData) return;
         if (!confirm('确定用LCSC数据更新库存零件的参数？')) return;
 
-        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
+        const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const formData = new FormData();
         formData.append('part_id', partId);
         formData.append('name', currentLcData.productModel || '');
@@ -582,7 +598,7 @@
         const quantity = parseInt(document.getElementById('stockInQuantity').value);
         if (!quantity || quantity < 1) { showToast('请输入有效数量', 'warning'); return; }
 
-        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
+        const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const formData = new FormData();
         formData.append('name', currentLcData.productModel || '');
         formData.append('manufacturer', currentLcData.brand || '');
