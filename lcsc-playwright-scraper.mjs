@@ -61,18 +61,18 @@ async function launchBrowser(headless = true) {
 /**
  * 通过 BOM API 查询指定 LC 编号的数据
  * @param {string} lcCode - LC 编号，如 "C192666"
- * @param {string} bomUuid - BOM 清单 UUID
+ * @param {string} bomUuid - BOM 清单 UUID（可选，不指定则搜索所有BOM）
  * @param {boolean} headless - 是否无头模式
  * @returns {Promise<object|null>} 产品数据或 null
  */
-async function queryByLcCode(lcCode, bomUuid = 'B4CDDD24823706B049EA2218BB7552E6', headless = true) {
+async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
   const { browser, context } = await launchBrowser(headless);
   
   try {
     const page = await context.newPage();
     
-    // 先访问 BOM 页面以建立会话
-    await page.goto(`https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${bomUuid}`, {
+    // 先访问 BOM 列表页面以建立会话
+    await page.goto(`https://bom.szlcsc.com/member/bom-list.html`, {
       waitUntil: 'networkidle',
       timeout: 30000,
     });
@@ -81,22 +81,51 @@ async function queryByLcCode(lcCode, bomUuid = 'B4CDDD24823706B049EA2218BB7552E6
     const title = await page.title();
     if (title.includes('登录')) {
       console.error('需要登录，请先扫码登录并保存 cookie');
-      // 保存当前 cookie（可能包含部分会话）
       const cookies = await context.cookies();
       saveCookies(cookies);
       return null;
     }
 
-    // 调用 BOM API 查询数据
+    // 如果指定了 bomUuid，搜索特定 BOM；否则搜索所有 BOM
     const result = await page.evaluate(async ({ bomUuid, lcCode }) => {
-      const resp = await fetch(`https://bom.szlcsc.com/async/bom/match/page?bomUuid=${bomUuid}`);
-      const data = await resp.json();
-      
-      if (!data.result || !data.result.bom || !data.result.bom.bomItemList) {
-        return { error: 'Invalid BOM data' };
+      let bomItemList = [];
+
+      if (bomUuid) {
+        // 搜索特定 BOM
+        const resp = await fetch(`https://bom.szlcsc.com/async/bom/match/page?bomUuid=${bomUuid}`);
+        const data = await resp.json();
+        if (data.result && data.result.bom && data.result.bom.bomItemList) {
+          bomItemList = data.result.bom.bomItemList;
+        }
+      } else {
+        // 搜索所有 BOM 列表
+        const listResp = await fetch(`https://bom.szlcsc.com/async/bom/match/list`);
+        const listData = await listResp.json();
+        
+        if (listData.result && listData.result.length > 0) {
+          // 遍历所有 BOM 查找 LC 编号
+          for (const bom of listData.result) {
+            try {
+              const resp = await fetch(`https://bom.szlcsc.com/async/bom/match/page?bomUuid=${bom.uuid}`);
+              const data = await resp.json();
+              if (data.result && data.result.bom && data.result.bom.bomItemList) {
+                const found = data.result.bom.bomItemList.find(
+                  i => i.productCode === lcCode || i.firstProductCode === lcCode
+                );
+                if (found) {
+                  bomItemList = [found];
+                  break;
+                }
+              }
+            } catch (e) {
+              continue;
+            }
+          }
+        }
       }
 
-      const item = data.result.bom.bomItemList.find(
+      // 查找匹配的 item
+      const item = bomItemList.find(
         i => i.productCode === lcCode || i.firstProductCode === lcCode
       );
 
