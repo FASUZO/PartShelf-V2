@@ -392,7 +392,7 @@
         document.getElementById('paramLcCode').textContent = data.lcCode || '-';
         document.getElementById('paramModel').textContent = data.productModel || '-';
         document.getElementById('paramBrand').textContent = data.brand || '-';
-        document.getElementById('paramPackage').textContent = data.package || '-';
+        document.getElementById('paramPackage').textContent = data.pack || data.package || '-';
         document.getElementById('paramPrice').textContent = data.price ? `¥${data.price}` : '-';
         document.getElementById('paramQuantity').textContent = data.stock ?? '-';
         document.getElementById('paramMoq').textContent = data.moq ?? '-';
@@ -518,7 +518,7 @@
               <tbody>
                 <tr><td>型号</td><td>${escapeHtml(currentLcData.productModel)}</td><td>${escapeHtml(part.name)}</td></tr>
                 <tr><td>品牌</td><td>${escapeHtml(currentLcData.brand)}</td><td>${escapeHtml(part.manufacturer)}</td></tr>
-                <tr><td>封装</td><td>${escapeHtml(currentLcData.package)}</td><td>${escapeHtml(part.package)}</td></tr>
+                <tr><td>封装</td><td>${escapeHtml((currentLcData.pack || currentLcData.package))}</td><td>${escapeHtml(part.package)}</td></tr>
                 <tr><td>LC编号</td><td>${escapeHtml(currentLcData.lcCode)}</td><td>${escapeHtml(part.lc_number || '-')}</td></tr>
                 <tr><td>描述</td><td>${escapeHtml(currentLcData.description || '-')}</td><td>${escapeHtml(part.description || '-')}</td></tr>
               </tbody>
@@ -560,7 +560,7 @@
         formData.append('part_id', partId);
         formData.append('name', currentLcData.productModel || '');
         formData.append('manufacturer', currentLcData.brand || '');
-        formData.append('package', currentLcData.package || '');
+        formData.append('package', (currentLcData.pack || currentLcData.package) || '');
         formData.append('lc_number', currentLcData.lcCode || '');
         formData.append('description', currentLcData.description || '');
 
@@ -602,7 +602,7 @@
         const formData = new FormData();
         formData.append('name', currentLcData.productModel || '');
         formData.append('manufacturer', currentLcData.brand || '');
-        formData.append('package', currentLcData.package || '');
+        formData.append('package', (currentLcData.pack || currentLcData.package) || '');
         formData.append('quantity', quantity);
         formData.append('lc_number', currentLcData.lcCode || '');
         formData.append('description', currentLcData.description || '');
