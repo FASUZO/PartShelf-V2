@@ -59,6 +59,33 @@ async function launchBrowser(headless = true) {
 }
 
 /**
+ * 添加器件到 BOM 列表
+ * @param {string} bomUuid - BOM 清单 UUID
+ * @param {string} lcCode - LC 编号，如 "C7429634"
+ * @param {object} page - Playwright page 对象
+ * @returns {Promise<boolean>} 是否成功
+ */
+async function addItemToBom(bomUuid, lcCode, page) {
+  try {
+    // 使用 BOM 添加 API
+    const result = await page.evaluate(async ({ bomUuid, lcCode }) => {
+      const resp = await fetch(`https://bom.szlcsc.com/bom/match/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `bomUuid=${bomUuid}&productCode=${lcCode}&quantity=1&uploadType=input`,
+      });
+      return await resp.json();
+    }, { bomUuid, lcCode });
+    
+    console.log('Add item result:', result);
+    return result && (result.code === 200 || result.ok === true);
+  } catch (e) {
+    console.log('Add item failed:', e.message);
+    return false;
+  }
+}
+
+/**
  * 通过立创 BOM API 查询指定 LC 编号的产品数据
  * @param {string} lcCode - LC 编号，如 "C192666"
  * @param {string} bomUuid - BOM 清单 UUID（可选）
@@ -89,7 +116,7 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
     }
 
     // 先尝试直接搜索产品
-    const result = await page.evaluate(async ({ lcCode, bomUuid }) => {
+    let result = await page.evaluate(async ({ lcCode, bomUuid }) => {
       // 方法1: 使用 BOM finished/v2 API（正确的格式）
       try {
         const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
@@ -164,6 +191,53 @@ async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
 
       return null;
     }, { lcCode, bomUuid: defaultBomUuid });
+
+    // 如果没找到，尝试添加到BOM再查询
+    if (!result) {
+      console.log(`LC code ${lcCode} not found, trying to add to BOM...`);
+      const added = await addItemToBom(defaultBomUuid, lcCode, page);
+      
+      if (added) {
+        // 等待一下让BOM更新
+        await page.waitForTimeout(2000);
+        
+        // 重新查询
+        result = await page.evaluate(async ({ lcCode, bomUuid }) => {
+          try {
+            const searchResp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+            });
+            const searchData = await searchResp.json();
+            
+            if (searchData.result && searchData.result.bom && searchData.result.bom.bomItemList) {
+              const found = searchData.result.bom.bomItemList.find(
+                i => i.productCode === lcCode || i.firstProductCode === lcCode
+              );
+              if (found && found.frontProductVO) {
+                const product = found.frontProductVO;
+                return {
+                  lcCode: product.code || lcCode,
+                  productName: product.productName || '',
+                  productModel: product.productModel || '',
+                  brand: product.brand || '',
+                  pack: product.pack || '',
+                  price: product.price || '',
+                  stock: product.stock || 0,
+                  stockStatus: product.stockStatus || 'unknown',
+                  moq: product.moq || 1,
+                  params: product.remarkPrefix?.replace(/<\/br>/g, '; ') || '',
+                };
+              }
+            }
+          } catch (e) {
+            console.log('Retry search failed:', e.message);
+          }
+          return null;
+        }, { lcCode, bomUuid: defaultBomUuid });
+      }
+    }
 
     // 保存更新的 cookie
     const cookies = await context.cookies();
