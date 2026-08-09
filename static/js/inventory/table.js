@@ -736,6 +736,95 @@ async function saveEditPart() {
     }
 }
 
+// 从编辑弹窗查询LC编号
+async function queryLcFromEdit() {
+    const lcNumber = document.getElementById('editPartLcNumber').value.trim();
+    if (!lcNumber) {
+        alert('请先输入LC编号');
+        document.getElementById('editPartLcNumber').focus();
+        return;
+    }
+
+    // 格式化LC编号
+    let lcCode = lcNumber.toUpperCase();
+    if (/^\d+$/.test(lcCode)) lcCode = 'C' + lcCode;
+    if (!/^C\d+$/.test(lcCode)) {
+        alert('LC编号格式错误，应为C+数字');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/lcsc/query/${lcCode}`);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || '查询失败');
+        }
+        const data = await resp.json();
+
+        // 用LCSC数据填充编辑表单
+        if (data.productModel) document.getElementById('editPartName').value = data.productModel;
+        if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
+        if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
+        if (data.description) document.getElementById('editPartDescription').value = data.description;
+
+        // 解析并填充参数
+        const params = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix);
+        if (params) {
+            // 尝试更新参数模板字段
+            const paramFields = document.querySelectorAll('#editParamTemplateFields .param-field');
+            paramFields.forEach(field => {
+                const name = field.dataset.paramName;
+                if (name && params[name] !== undefined) {
+                    field.value = params[name];
+                }
+            });
+        }
+
+        alert(`已从LCSC获取数据：${data.productModel || lcCode}`);
+    } catch (e) {
+        alert('查询失败: ' + e.message);
+    }
+}
+
+// 解析LCSC params字段
+function parseLcscParams(params) {
+    if (!params) return null;
+    if (typeof params === 'string') {
+        const result = {};
+        const lines = params.split(';');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
+            if (match) {
+                const key = match[1].trim();
+                const val = match[2].trim();
+                if (key && val && val !== '-') result[key] = val;
+            }
+        }
+        return Object.keys(result).length > 0 ? result : null;
+    }
+    return null;
+}
+
+// 解析LCSC remarkPrefix字段
+function parseLcscRemarkPrefix(rp) {
+    if (!rp || typeof rp !== 'string') return null;
+    const params = {};
+    const lines = rp.split(/<\/br>|\n/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
+        if (match) {
+            const key = match[1].trim();
+            const val = match[2].trim();
+            if (key && val && val !== '-') params[key] = val;
+        }
+    }
+    return Object.keys(params).length > 0 ? params : null;
+}
+
 // 解析器件参数
 function parsePartParams(otherJson) {
     if (!otherJson) return null;
@@ -878,6 +967,7 @@ window.exportDetailDetails = exportDetailDetails;
 window.deleteDetailPart = deleteDetailPart;
 window.parsePartParams = parsePartParams;
 window.populateParamsTable = populateParamsTable;
+window.queryLcFromEdit = queryLcFromEdit;
 window.populateEditCategorySelect = populateEditCategorySelect;
 window.populateEditSubcategorySelect = populateEditSubcategorySelect;
 window.loadEditParamTemplate = loadEditParamTemplate;

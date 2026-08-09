@@ -214,7 +214,12 @@
                   </div>
                   <div class="col-md-6">
                     <label for="editPartLcNumber" class="form-label">LC编号</label>
-                    <input type="text" class="form-control" id="editPartLcNumber" name="lc_number">
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="editPartLcNumber" name="lc_number">
+                      <button class="btn btn-outline-primary" type="button" onclick="queryLcFromEdit()" title="查询LC编号">
+                        <i class="fas fa-search"></i> LC查询
+                      </button>
+                    </div>
                   </div>
                   <div class="col-12">
                     <label for="editPartDescription" class="form-label">描述</label>

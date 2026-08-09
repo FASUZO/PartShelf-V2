@@ -11,164 +11,137 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
       body { background: #f0f2f5; }
-      .search-box { max-width: 600px; margin: 2rem auto; }
-      .result-card { max-width: 900px; margin: 0 auto; }
-      .param-item { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-      .param-item:last-child { border-bottom: none; }
-      .param-label { color: #666; font-size: 0.9rem; min-width: 120px; }
-      .param-value { font-weight: 500; text-align: right; word-break: break-all; }
-      .stock-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; }
+      .lcsc-layout { display: grid; grid-template-columns: 1fr 350px; gap: 1rem; margin-top: 70px; }
+      @media (max-width: 992px) { .lcsc-layout { grid-template-columns: 1fr; } }
+      .search-strip { background: #fff; border-bottom: 1px solid #d0d7de; padding: 1rem 0; position: sticky; top: 56px; z-index: 100; }
+      .search-strip .container { display: flex; align-items: center; gap: 1rem; }
+      .search-strip input { flex: 1; }
+      .cookie-badge { white-space: nowrap; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+      @media (max-width: 576px) { .info-grid { grid-template-columns: 1fr; } }
+      .info-item { background: #f8f9fa; border-radius: 6px; padding: 0.6rem 0.8rem; }
+      .info-label { font-size: 0.75rem; color: #666; margin-bottom: 0.2rem; }
+      .info-value { font-weight: 600; font-size: 0.9rem; }
+      .param-card { max-height: 400px; overflow-y: auto; }
+      .param-row { display: flex; padding: 0.4rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; }
+      .param-row:last-child { border-bottom: none; }
+      .param-key { color: #666; min-width: 100px; flex-shrink: 0; }
+      .param-val { font-weight: 500; word-break: break-all; }
+      .stock-badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
       .stock-now { background: #d4edda; color: #155724; }
       .stock-future { background: #fff3cd; color: #856404; }
       .stock-none { background: #f8d7da; color: #721c24; }
-      .cookie-status { position: fixed; top: 70px; right: 20px; z-index: 1000; }
-      .compare-table { font-size: 0.85rem; }
-      .compare-table td { padding: 0.4rem 0.6rem; vertical-align: top; }
-      .compare-table .diff { background: #fff3cd; }
-      .compare-table .missing { background: #f8d7da; }
-      .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-      @media (max-width: 768px) { .param-grid { grid-template-columns: 1fr; } }
+      .action-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .action-bar .btn { flex: 1; min-width: 120px; }
+      .history-item { padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+      .history-item:hover { background: #f6f8fa; }
+      .history-item:last-child { border-bottom: none; }
+      .compare-diff { background: #fff3cd; }
+      .compare-missing { background: #f8d7da; }
+      .compare-match { background: #d4edda; }
     </style>
   </head>
   <body>
     {% set active_page = "lcsc" %}
     {% include "_navbar.html" %}
 
-    <div class="container" style="margin-top:70px;">
-      <!-- Cookie状态 -->
-      <div class="cookie-status">
-        <div id="cookieStatusBadge" class="badge bg-secondary" style="cursor:pointer;" onclick="showCookieModal()">
-          <i class="fas fa-cookie-bite me-1"></i> Cookie检查中...
+    <!-- 搜索条 -->
+    <div class="search-strip">
+      <div class="container">
+        <div class="input-group" style="max-width:500px;">
+          <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+          <input type="text" class="form-control" id="lcCodeInput" placeholder="输入LC编号，如 C192666" autofocus>
+          <button class="btn btn-primary" type="button" id="searchBtn" onclick="searchLcCode()">
+            <i class="fas fa-search"></i> 查询
+          </button>
+        </div>
+        <div id="cookieStatusBadge" class="badge bg-secondary cookie-badge" style="cursor:pointer;" onclick="showCookieModal()">
+          <i class="fas fa-cookie-bite me-1"></i> 检查中...
         </div>
       </div>
+    </div>
 
-      <!-- 搜索区域 -->
-      <div class="search-box">
-        <div class="card">
-          <div class="card-body">
-            <h5 class="card-title mb-3"><i class="fas fa-search-plus me-2"></i>LC编号查询</h5>
-            <div class="input-group">
-              <span class="input-group-text"><i class="fas fa-barcode"></i></span>
-              <input type="text" class="form-control form-control-lg" id="lcCodeInput"
-                     placeholder="输入LC编号，如 C192666" autofocus>
-              <button class="btn btn-primary btn-lg" type="button" id="searchBtn" onclick="searchLcCode()">
-                <i class="fas fa-search me-1"></i> 查询
-              </button>
-            </div>
-            <div class="form-text mt-2">输入立创商城的LC编号（以C开头，后跟数字）</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 查询结果 -->
-      <div id="resultArea" style="display:none;">
-        <div class="result-card">
-          <div class="card">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-              <h5 class="mb-0"><i class="fas fa-microchip me-2"></i>零件信息</h5>
-              <span class="badge bg-light text-primary" id="resultLcCode"></span>
-            </div>
+    <div class="container lcsc-layout">
+      <!-- 左侧：查询结果 -->
+      <div>
+        <div id="resultArea" style="display:none;">
+          <!-- 基本信息卡片 -->
+          <div class="card mb-3">
             <div class="card-body">
-              <div class="row">
-                <!-- 基本信息 -->
-                <div class="col-md-6">
-                  <h6 class="text-muted mb-3">基本信息</h6>
-                  <div class="param-item">
-                    <span class="param-label">LC编号</span>
-                    <span class="param-value" id="paramLcCode">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">型号</span>
-                    <span class="param-value" id="paramModel">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">品牌</span>
-                    <span class="param-value" id="paramBrand">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">封装</span>
-                    <span class="param-value" id="paramPackage">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">库存状态</span>
-                    <span class="param-value" id="paramStock">-</span>
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h5 class="mb-1" id="paramModel">-</h5>
+                  <div class="text-muted small">
+                    <span id="paramBrand">-</span> · <span id="paramPackage">-</span> · <span id="resultLcCode">-</span>
                   </div>
                 </div>
-
-                <!-- 价格和参数 -->
-                <div class="col-md-6">
-                  <h6 class="text-muted mb-3">价格信息</h6>
-                  <div class="param-item">
-                    <span class="param-label">单价</span>
-                    <span class="param-value" id="paramPrice">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">库存数量</span>
-                    <span class="param-value" id="paramQuantity">-</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">最小起订量</span>
-                    <span class="param-value" id="paramMoq">-</span>
-                  </div>
+                <span id="paramStock">-</span>
+              </div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <div class="info-label">LC编号</div>
+                  <div class="info-value" id="paramLcCode">-</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">单价</div>
+                  <div class="info-value" id="paramPrice">-</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">库存</div>
+                  <div class="info-value" id="paramQuantity">-</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">最小起订</div>
+                  <div class="info-value" id="paramMoq">-</div>
                 </div>
               </div>
-
               <!-- 描述 -->
-              <div class="mt-3" id="descArea" style="display:none;">
-                <h6 class="text-muted mb-2">描述</h6>
-                <p class="text-muted small" id="paramDesc"></p>
-              </div>
-
-              <!-- 参数详情 -->
-              <div class="mt-3" id="paramsArea" style="display:none;">
-                <h6 class="text-muted mb-2">详细参数</h6>
-                <div class="param-grid" id="paramDetails"></div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="mt-4 d-flex gap-2 flex-wrap">
-                <button class="btn btn-success flex-fill" onclick="stockInFromLcsc()">
-                  <i class="fas fa-arrow-down me-1"></i> 入库
-                </button>
-                <button class="btn btn-outline-info" onclick="compareWithInventory()">
-                  <i class="fas fa-exchange-alt me-1"></i> 对比库存
-                </button>
-                <button class="btn btn-outline-primary" onclick="openLcscPage()">
-                  <i class="fas fa-external-link-alt me-1"></i> 立创页面
-                </button>
-                <button class="btn btn-outline-secondary" onclick="copyLcCode()">
-                  <i class="fas fa-copy me-1"></i> 复制编号
-                </button>
+              <div class="mt-2" id="descArea" style="display:none;">
+                <small class="text-muted" id="paramDesc"></small>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 对比结果 -->
-      <div id="compareArea" style="display:none;">
-        <div class="result-card mt-3">
-          <div class="card">
-            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-              <h5 class="mb-0"><i class="fas fa-exchange-alt me-2"></i>库存对比</h5>
-              <button class="btn btn-sm btn-light" onclick="document.getElementById('compareArea').style.display='none'">
-                <i class="fas fa-times"></i>
-              </button>
+          <!-- 详细参数 -->
+          <div class="card mb-3" id="paramsArea" style="display:none;">
+            <div class="card-header py-2"><strong><i class="fas fa-list me-1"></i> 详细参数</strong></div>
+            <div class="card-body param-card" id="paramDetails"></div>
+          </div>
+
+          <!-- 操作栏 -->
+          <div class="action-bar mb-3">
+            <button class="btn btn-success" onclick="stockInFromLcsc()"><i class="fas fa-arrow-down me-1"></i> 入库</button>
+            <button class="btn btn-info" onclick="compareWithInventory()"><i class="fas fa-exchange-alt me-1"></i> 对比库存</button>
+            <button class="btn btn-outline-primary" onclick="openLcscPage()"><i class="fas fa-external-link-alt me-1"></i> 立创</button>
+            <button class="btn btn-outline-secondary" onclick="copyLcCode()"><i class="fas fa-copy me-1"></i> 复制</button>
+          </div>
+
+          <!-- 对比结果 -->
+          <div id="compareArea" class="card mb-3" style="display:none;">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center bg-info text-white">
+              <strong><i class="fas fa-exchange-alt me-1"></i> 库存对比</strong>
+              <button class="btn btn-sm btn-light" onclick="document.getElementById('compareArea').style.display='none'"><i class="fas fa-times"></i></button>
             </div>
-            <div class="card-body" id="compareContent"></div>
+            <div class="card-body p-0" id="compareContent"></div>
           </div>
         </div>
+
+        <!-- 空状态 -->
+        <div id="emptyState" class="text-center text-muted py-5">
+          <i class="fas fa-search fa-3x mb-3" style="opacity:0.3;"></i>
+          <p>输入LC编号开始查询立创商城零件信息</p>
+        </div>
       </div>
 
-      <!-- 查询历史 -->
-      <div class="mt-4" style="max-width:900px; margin:0 auto;">
+      <!-- 右侧：查询历史 -->
+      <div>
         <div class="card">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-history me-2"></i>查询历史</span>
+          <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <strong><i class="fas fa-history me-1"></i> 查询历史</strong>
             <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">清空</button>
           </div>
-          <div class="card-body" id="historyList">
-            <p class="text-muted text-center mb-0">暂无查询记录</p>
+          <div class="card-body p-0" id="historyList" style="max-height:600px; overflow-y:auto;">
+            <p class="text-muted text-center py-3 mb-0">暂无查询记录</p>
           </div>
         </div>
       </div>
@@ -189,17 +162,11 @@
               Cookie用于查询立创商城数据。过期后需要重新获取。
             </div>
             <div class="d-grid gap-2">
-              <button class="btn btn-primary" onclick="refreshCookie()">
-                <i class="fas fa-sync-alt me-1"></i> 刷新Cookie
-              </button>
-              <button class="btn btn-outline-secondary" onclick="showQrLogin()">
-                <i class="fas fa-qrcode me-1"></i> 二维码登录获取
-              </button>
+              <button class="btn btn-primary" onclick="refreshCookie()"><i class="fas fa-sync-alt me-1"></i> 刷新Cookie</button>
+              <button class="btn btn-outline-secondary" onclick="showQrLogin()"><i class="fas fa-qrcode me-1"></i> 二维码登录获取</button>
             </div>
             <div id="qrArea" class="mt-3 text-center" style="display:none;">
-              <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
+              <div class="spinner-border text-primary" role="status"></div>
               <p class="mt-2 text-muted">正在获取登录二维码...</p>
               <div id="qrImage"></div>
             </div>
@@ -238,28 +205,10 @@
       </div>
     </div>
 
-    <!-- 对比入库模态框 -->
-    <div class="modal fade" id="compareStockInModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header bg-info text-white">
-            <h5 class="modal-title"><i class="fas fa-exchange-alt me-1"></i> 更新库存零件参数</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body" id="compareStockInBody"></div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-            <button type="button" class="btn btn-success" onclick="saveComparedPart()">保存更新</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <script>
       let currentLcData = null;
       let queryHistory = JSON.parse(localStorage.getItem('lcscHistory') || '[]');
 
-      // 页面加载
       checkCookieStatus();
       renderHistory();
 
@@ -267,32 +216,29 @@
         if (e.key === 'Enter') searchLcCode();
       });
 
-      // Cookie状态检查
       async function checkCookieStatus() {
         const badge = document.getElementById('cookieStatusBadge');
         try {
           const resp = await fetch('/api/lcsc/cookies');
           const data = await resp.json();
           if (data.status === 'ok') {
-            badge.className = 'badge bg-success';
+            badge.className = 'badge bg-success cookie-badge';
             badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> Cookie正常';
           } else {
-            badge.className = 'badge bg-warning text-dark';
+            badge.className = 'badge bg-warning text-dark cookie-badge';
             badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Cookie异常';
           }
         } catch (e) {
-          badge.className = 'badge bg-danger';
-          badge.innerHTML = '<i class="fas fa-times-circle me-1"></i> Cookie检查失败';
+          badge.className = 'badge bg-danger cookie-badge';
+          badge.innerHTML = '<i class="fas fa-times-circle me-1"></i> 检查失败';
         }
       }
 
-      // Cookie管理模态框
       function showCookieModal() {
         checkCookieStatus();
         new bootstrap.Modal(document.getElementById('cookieModal')).show();
       }
 
-      // 刷新Cookie
       async function refreshCookie() {
         const info = document.getElementById('cookieInfo');
         info.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-1"></i> 正在刷新Cookie...</div>';
@@ -310,22 +256,16 @@
         }
       }
 
-      // 二维码登录
       async function showQrLogin() {
         const qrArea = document.getElementById('qrArea');
         const qrImage = document.getElementById('qrImage');
         qrArea.style.display = 'block';
         qrImage.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">正在获取登录二维码...</p>';
-
         try {
           const resp = await fetch('/api/lcsc/cookies/qrcode', { method: 'POST' });
           const data = await resp.json();
           if (data.success && data.qrcode_url) {
-            qrImage.innerHTML = `
-              <img src="${data.qrcode_url}" alt="登录二维码" style="max-width:250px; border:1px solid #ddd; padding:10px; border-radius:8px;">
-              <p class="mt-2 small text-muted">请使用立创商城APP扫描二维码登录</p>
-            `;
-            // 轮询检查登录状态
+            qrImage.innerHTML = `<img src="${data.qrcode_url}" alt="登录二维码" style="max-width:250px; border:1px solid #ddd; padding:10px; border-radius:8px;"><p class="mt-2 small text-muted">请使用立创商城APP扫描二维码登录</p>`;
             pollLoginStatus();
           } else {
             qrImage.innerHTML = `<p class="text-danger">${data.message || '获取二维码失败'}</p>`;
@@ -335,7 +275,6 @@
         }
       }
 
-      // 轮询登录状态
       async function pollLoginStatus() {
         for (let i = 0; i < 60; i++) {
           await new Promise(r => setTimeout(r, 2000));
@@ -352,45 +291,40 @@
         document.getElementById('qrImage').innerHTML = '<div class="alert alert-warning"><i class="fas fa-clock me-1"></i> 二维码已过期，请重新获取</div>';
       }
 
-      // 查询LC编号
       async function searchLcCode() {
         const input = document.getElementById('lcCodeInput');
         let lcCode = input.value.trim().toUpperCase();
-
         if (!lcCode) { showToast('请输入LC编号', 'warning'); input.focus(); return; }
-
         if (/^\d+$/.test(lcCode)) { lcCode = 'C' + lcCode; input.value = lcCode; }
         if (!/^C\d+$/.test(lcCode)) { showToast('LC编号格式错误，应为C+数字', 'danger'); return; }
 
         const btn = document.getElementById('searchBtn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 查询中...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
           const resp = await fetch(`/api/lcsc/query/${lcCode}`);
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.detail || '查询失败');
-          }
+          if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '查询失败'); }
           const data = await resp.json();
           currentLcData = data;
           displayResult(data);
           addToHistory(lcCode, data);
+          document.getElementById('emptyState').style.display = 'none';
         } catch (e) {
           showToast('查询失败: ' + e.message, 'danger');
           document.getElementById('resultArea').style.display = 'none';
+          document.getElementById('emptyState').style.display = 'block';
         } finally {
           btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-search me-1"></i> 查询';
+          btn.innerHTML = '<i class="fas fa-search"></i>';
         }
       }
 
-      // 显示查询结果
       function displayResult(data) {
         document.getElementById('resultArea').style.display = 'block';
         document.getElementById('resultLcCode').textContent = data.lcCode || '-';
         document.getElementById('paramLcCode').textContent = data.lcCode || '-';
-        document.getElementById('paramModel').textContent = data.productModel || '-';
+        document.getElementById('paramModel').textContent = data.productModel || data.productName || '-';
         document.getElementById('paramBrand').textContent = data.brand || '-';
         document.getElementById('paramPackage').textContent = data.pack || data.package || '-';
         document.getElementById('paramPrice').textContent = data.price ? `¥${data.price}` : '-';
@@ -413,13 +347,12 @@
           document.getElementById('descArea').style.display = 'none';
         }
 
-        // 详细参数 - 优先使用params，其次remarkPrefix
         const params = parseParams(data.params) || parseRemarkPrefix(data.remarkPrefix);
         if (params && Object.keys(params).length > 0) {
           document.getElementById('paramsArea').style.display = 'block';
           let html = '';
           for (const [key, val] of Object.entries(params)) {
-            html += `<div class="param-item"><span class="param-label">${escapeHtml(key)}</span><span class="param-value">${escapeHtml(String(val))}</span></div>`;
+            html += `<div class="param-row"><span class="param-key">${escapeHtml(key)}</span><span class="param-val">${escapeHtml(String(val))}</span></div>`;
           }
           document.getElementById('paramDetails').innerHTML = html;
         } else {
@@ -427,81 +360,45 @@
         }
       }
 
-      // 解析params字段（格式：X1：Y1; X2：Y2;）
       function parseParams(params) {
         if (!params) return null;
-        if (typeof params === 'object' && !Array.isArray(params)) {
-          // 处理库存的 other 字段格式
-          return normalizeOtherParams(params);
-        }
+        if (typeof params === 'object' && !Array.isArray(params)) return normalizeOtherParams(params);
         if (typeof params === 'string') {
-          // 尝试解析JSON
-          try {
-            const parsed = JSON.parse(params);
-            if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-              return normalizeOtherParams(parsed);
-            }
-          } catch (e) {}
-          // 解析分号分隔的key：value格式
+          try { const p = JSON.parse(params); if (typeof p === 'object' && !Array.isArray(p)) return normalizeOtherParams(p); } catch (e) {}
           const result = {};
           const lines = params.split(';');
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
             const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
-            if (match) {
-              const key = match[1].trim();
-              const val = match[2].trim();
-              if (key && val && val !== '-') {
-                result[key] = val;
-              }
-            }
+            if (match) { const k = match[1].trim(), v = match[2].trim(); if (k && v && v !== '-') result[k] = v; }
           }
           return Object.keys(result).length > 0 ? result : null;
         }
         return null;
       }
 
-      // 将库存 other 字段统一解析为 {key: value} 格式
       function normalizeOtherParams(other) {
         if (!other || typeof other !== 'object') return null;
-        // 新格式：{fields: [...], values: {...}, units: {...}}
         if (other.fields && other.values) {
-          const result = {};
-          for (const field of other.fields) {
-            if (other.values[field] !== undefined && other.values[field] !== '') {
-              result[field] = other.values[field];
-            }
-          }
-          return Object.keys(result).length > 0 ? result : null;
+          const r = {};
+          for (const f of other.fields) { if (other.values[f] !== undefined && other.values[f] !== '') r[f] = other.values[f]; }
+          return Object.keys(r).length > 0 ? r : null;
         }
-        // 旧格式：直接是 {key: value} 对象
-        const result = {};
-        for (const [key, val] of Object.entries(other)) {
-          if (val !== undefined && val !== '' && val !== null) {
-            result[key] = String(val);
-          }
-        }
-        return Object.keys(result).length > 0 ? result : null;
+        const r = {};
+        for (const [k, v] of Object.entries(other)) { if (v !== undefined && v !== '' && v !== null) r[k] = String(v); }
+        return Object.keys(r).length > 0 ? r : null;
       }
 
-      // 解析remarkPrefix字段（格式：key：value</br>key：value）
-      function parseRemarkPrefix(remarkPrefix) {
-        if (!remarkPrefix || typeof remarkPrefix !== 'string') return null;
+      function parseRemarkPrefix(rp) {
+        if (!rp || typeof rp !== 'string') return null;
         const params = {};
-        const lines = remarkPrefix.split(/<\/br>|\n/);
+        const lines = rp.split(/<\/br>|\n/);
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          // 支持中文冒号和英文冒号
           const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
-          if (match) {
-            const key = match[1].trim();
-            const val = match[2].trim();
-            if (key && val && val !== '-') {
-              params[key] = val;
-            }
-          }
+          if (match) { const k = match[1].trim(), v = match[2].trim(); if (k && v && v !== '-') params[k] = v; }
         }
         return Object.keys(params).length > 0 ? params : null;
       }
@@ -511,98 +408,67 @@
         if (!currentLcData) return;
         const lcCode = currentLcData.lcCode;
         if (!lcCode) { showToast('无LC编号可对比', 'warning'); return; }
-
         try {
-          const resp = await fetch(`/api/inventory/advanced_search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const resp = await fetch('/api/inventory/advanced_search', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ search_key: lcCode, page: 1, page_size: 10 })
           });
           const data = await resp.json();
           const parts = data.data || [];
-
-          if (parts.length === 0) {
-            showToast('库存中未找到匹配零件', 'info');
-            return;
-          }
-
+          if (parts.length === 0) { showToast('库存中未找到匹配零件', 'info'); return; }
           displayCompareResult(parts[0]);
-        } catch (e) {
-          showToast('查询库存失败: ' + e.message, 'danger');
-        }
+        } catch (e) { showToast('查询库存失败: ' + e.message, 'danger'); }
       }
 
-      // 显示对比结果
       function displayCompareResult(part) {
-        const area = document.getElementById('compareArea');
+        document.getElementById('compareArea').style.display = 'block';
         const content = document.getElementById('compareContent');
-        area.style.display = 'block';
-
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const partParams = parseParams(part.other) || {};
 
-        let html = `
-          <div class="table-responsive">
-            <table class="table table-bordered compare-table mb-0">
-              <thead class="table-light">
-                <tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>型号</td><td>${escapeHtml(currentLcData.productModel)}</td><td>${escapeHtml(part.name)}</td></tr>
-                <tr><td>品牌</td><td>${escapeHtml(currentLcData.brand)}</td><td>${escapeHtml(part.manufacturer)}</td></tr>
-                <tr><td>封装</td><td>${escapeHtml((currentLcData.pack || currentLcData.package))}</td><td>${escapeHtml(part.package)}</td></tr>
-                <tr><td>LC编号</td><td>${escapeHtml(currentLcData.lcCode)}</td><td>${escapeHtml(part.lc_number || '-')}</td></tr>
-                <tr><td>描述</td><td>${escapeHtml(currentLcData.description || '-')}</td><td>${escapeHtml(part.description || '-')}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        `;
+        let html = '<table class="table table-sm mb-0" style="font-size:0.85rem;">';
+        html += '<thead class="table-light"><tr><th>字段</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+        const fields = [
+          ['型号', currentLcData.productModel, part.name],
+          ['品牌', currentLcData.brand, part.manufacturer],
+          ['封装', currentLcData.pack || currentLcData.package, part.package],
+          ['LC编号', currentLcData.lcCode, part.lc_number || '-'],
+        ];
+        for (const [label, lc, inv] of fields) {
+          const cls = lc !== inv ? ' class="compare-diff"' : '';
+          html += `<tr${cls}><td>${label}</td><td>${escapeHtml(lc||'-')}</td><td>${escapeHtml(inv||'-')}</td></tr>`;
+        }
+        html += '</tbody></table>';
 
-        // 参数对比
         const allKeys = new Set([...Object.keys(lcscParams), ...Object.keys(partParams)]);
         if (allKeys.size > 0) {
-          html += '<h6 class="mt-3 mb-2 text-muted">参数对比</h6>';
-          html += '<div class="table-responsive"><table class="table table-bordered compare-table mb-0"><thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+          html += '<table class="table table-sm mb-0 mt-2" style="font-size:0.85rem;">';
+          html += '<thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
           for (const key of allKeys) {
-            const lcscVal = lcscParams[key] || '-';
-            const partVal = partParams[key] || '-';
-            const cls = (!partParams[key] && lcscParams[key]) ? ' class="missing"' : (lcscVal !== partVal ? ' class="diff"' : '');
-            html += `<tr${cls}><td>${escapeHtml(key)}</td><td>${escapeHtml(String(lcscVal))}</td><td>${escapeHtml(String(partVal))}</td></tr>`;
+            const lcVal = lcscParams[key] || '-';
+            const invVal = partParams[key] || '-';
+            const cls = (!partParams[key] && lcscParams[key]) ? ' class="compare-missing"' : (lcVal !== invVal ? ' class="compare-diff"' : '');
+            html += `<tr${cls}><td>${escapeHtml(key)}</td><td>${escapeHtml(String(lcVal))}</td><td>${escapeHtml(String(invVal))}</td></tr>`;
           }
-          html += '</tbody></table></div>';
+          html += '</tbody></table>';
         }
 
-        // 更新按钮
-        html += `<div class="mt-3 d-flex gap-2">
-          <button class="btn btn-warning flex-fill" onclick="updatePartFromLcsc(${part.id})">
-            <i class="fas fa-sync me-1"></i> 用LCSC数据更新库存零件
-          </button>
-        </div>`;
-
+        html += `<div class="p-2"><button class="btn btn-warning btn-sm w-100" onclick="updatePartFromLcsc(${part.id})"><i class="fas fa-sync me-1"></i> 用LCSC数据更新库存</button></div>`;
         content.innerHTML = html;
       }
 
-      // 用LCSC数据更新库存零件
       async function updatePartFromLcsc(partId) {
         if (!currentLcData) return;
         if (!confirm('确定用LCSC数据更新库存零件的参数？\n\n将合并LCSC参数到库存中，相同参数名会覆盖。')) return;
-
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
-        
-        // 获取当前库存零件的参数
         let existingOther = {};
         try {
           const resp = await fetch(`/api/inventory/get_part_by_id?part_id=${partId}`);
           const partData = await resp.json();
-          if (partData.other) {
-            existingOther = JSON.parse(partData.other) || {};
-          }
+          if (partData.other) existingOther = JSON.parse(partData.other) || {};
         } catch (e) {}
-
-        // 合并参数：保留库存已有参数，LCSC参数覆盖同名项
         const existingValues = normalizeOtherParams(existingOther) || {};
         const mergedValues = { ...existingValues, ...lcscParams };
-        
         const formData = new FormData();
         formData.append('part_id', partId);
         formData.append('name', currentLcData.productModel || '');
@@ -610,27 +476,15 @@
         formData.append('package', (currentLcData.pack || currentLcData.package) || '');
         formData.append('lc_number', currentLcData.lcCode || '');
         formData.append('description', currentLcData.description || '');
-
-        // 合并后的参数
         if (Object.keys(mergedValues).length > 0) {
-          formData.append('other', JSON.stringify({
-            fields: Object.keys(mergedValues),
-            values: mergedValues,
-            units: {}
-          }));
+          formData.append('other', JSON.stringify({ fields: Object.keys(mergedValues), values: mergedValues, units: {} }));
         }
-
         try {
-          const resp = await fetch('/api/inventory/update_part', {
-            method: 'POST',
-            body: formData
-          });
+          const resp = await fetch('/api/inventory/update_part', { method: 'POST', body: formData });
           if (!resp.ok) throw new Error('更新失败');
           showToast('零件参数已更新！', 'success');
           document.getElementById('compareArea').style.display = 'none';
-        } catch (e) {
-          showToast('更新失败: ' + e.message, 'danger');
-        }
+        } catch (e) { showToast('更新失败: ' + e.message, 'danger'); }
       }
 
       // 入库
@@ -644,7 +498,6 @@
       async function confirmStockIn() {
         const quantity = parseInt(document.getElementById('stockInQuantity').value);
         if (!quantity || quantity < 1) { showToast('请输入有效数量', 'warning'); return; }
-
         const lcscParams = parseParams(currentLcData.params) || parseRemarkPrefix(currentLcData.remarkPrefix) || {};
         const formData = new FormData();
         formData.append('name', currentLcData.productModel || '');
@@ -655,13 +508,8 @@
         formData.append('description', currentLcData.description || '');
         formData.append('part_type', '');
         if (Object.keys(lcscParams).length > 0) {
-          formData.append('other', JSON.stringify({
-            fields: Object.keys(lcscParams),
-            values: lcscParams,
-            units: {}
-          }));
+          formData.append('other', JSON.stringify({ fields: Object.keys(lcscParams), values: lcscParams, units: {} }));
         }
-
         try {
           const resp = await fetch('/api/inventory/add_part_to_inventory', { method: 'POST', body: formData });
           if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '入库失败'); }
@@ -683,8 +531,8 @@
 
       function addToHistory(lcCode, data) {
         queryHistory = queryHistory.filter(h => h.code !== lcCode);
-        queryHistory.unshift({ code: lcCode, model: data.productModel, time: Date.now() });
-        if (queryHistory.length > 20) queryHistory.pop();
+        queryHistory.unshift({ code: lcCode, model: data.productModel || data.productName, brand: data.brand, time: Date.now() });
+        if (queryHistory.length > 30) queryHistory.pop();
         localStorage.setItem('lcscHistory', JSON.stringify(queryHistory));
         renderHistory();
       }
@@ -692,16 +540,16 @@
       function renderHistory() {
         const el = document.getElementById('historyList');
         if (queryHistory.length === 0) {
-          el.innerHTML = '<p class="text-muted text-center mb-0">暂无查询记录</p>';
+          el.innerHTML = '<p class="text-muted text-center py-3 mb-0">暂无查询记录</p>';
           return;
         }
         el.innerHTML = queryHistory.map(h => `
-          <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="cursor:pointer;" onclick="quickSearch('${h.code}')">
+          <div class="history-item" onclick="quickSearch('${h.code}')">
             <div>
-              <strong>${escapeHtml(h.code)}</strong>
-              <span class="text-muted ms-2">${escapeHtml(h.model || '-')}</span>
+              <div><strong>${escapeHtml(h.code)}</strong></div>
+              <small class="text-muted">${escapeHtml(h.model || '-')} · ${escapeHtml(h.brand || '-')}</small>
             </div>
-            <small class="text-muted">${new Date(h.time).toLocaleString()}</small>
+            <small class="text-muted">${new Date(h.time).toLocaleTimeString()}</small>
           </div>
         `).join('');
       }
@@ -709,20 +557,14 @@
       function quickSearch(code) { document.getElementById('lcCodeInput').value = code; searchLcCode(); }
       function clearHistory() { queryHistory = []; localStorage.removeItem('lcscHistory'); renderHistory(); }
 
-      function escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-      }
-
+      function escapeHtml(str) { if (!str) return ''; const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
       function showToast(msg, type) {
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
-        toast.style.zIndex = '9999';
-        toast.textContent = msg;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        const t = document.createElement('div');
+        t.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+        t.style.zIndex = '9999';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
       }
     </script>
   </body>
