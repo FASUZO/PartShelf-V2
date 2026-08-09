@@ -1035,6 +1035,7 @@ window.deleteDetailPart = deleteDetailPart;
 window.parsePartParams = parsePartParams;
 window.populateParamsTable = populateParamsTable;
 window.queryLcFromEdit = queryLcFromEdit;
+window.applyLcscToEditForm = applyLcscToEditForm;
 window.populateEditCategorySelect = populateEditCategorySelect;
 window.populateEditSubcategorySelect = populateEditSubcategorySelect;
 window.loadEditParamTemplate = loadEditParamTemplate;
