@@ -510,6 +510,17 @@ if (process.argv[1] && process.argv[1].endsWith('lcsc-playwright-scraper.mjs')) 
         .catch(e => console.error('Error:', e.message));
       break;
 
+    case 'cookies':
+      (async () => {
+        const cookies = loadCookies();
+        if (cookies && cookies.length > 0) {
+          console.log(JSON.stringify({ status: 'ok', message: `已加载 ${cookies.length} 个Cookie` }));
+        } else {
+          console.log(JSON.stringify({ status: 'error', message: '未找到Cookie，请先登录' }));
+        }
+      })();
+      break;
+
     case 'qrcode':
       getQrCode()
         .then(result => console.log(JSON.stringify(result)))
