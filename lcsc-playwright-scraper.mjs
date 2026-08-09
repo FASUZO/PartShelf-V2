@@ -429,8 +429,19 @@ async function checkLoginStatus() {
       timeout: 30000,
     });
 
+    // 检查页面是否包含登录相关的元素或URL
+    const url = page.url();
     const title = await page.title();
-    const isLoggedIn = !title.includes('登录');
+    const content = await page.content();
+    
+    // 判断是否已登录：页面不包含登录相关内容
+    const isLoginPage = url.includes('login') || 
+                        title.includes('登录') || 
+                        title.includes('Login') ||
+                        content.includes('扫码登录') ||
+                        content.includes('请登录');
+    
+    const isLoggedIn = !isLoginPage;
 
     // 保存更新的 cookie
     const newCookies = await context.cookies();
