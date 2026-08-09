@@ -413,8 +413,8 @@
           document.getElementById('descArea').style.display = 'none';
         }
 
-        // 详细参数 - 修复：正确解析params
-        const params = parseParams(data.params);
+        // 详细参数 - 解析remarkPrefix或params
+        const params = parseRemarkPrefix(data.remarkPrefix) || parseParams(data.params);
         if (params && Object.keys(params).length > 0) {
           document.getElementById('paramsArea').style.display = 'block';
           let html = '';
@@ -435,6 +435,27 @@
           try { return JSON.parse(params); } catch (e) { return null; }
         }
         return null;
+      }
+
+      // 解析remarkPrefix字段（格式：key：value</br>key：value）
+      function parseRemarkPrefix(remarkPrefix) {
+        if (!remarkPrefix || typeof remarkPrefix !== 'string') return null;
+        const params = {};
+        const lines = remarkPrefix.split(/<\/br>|\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          // 支持中文冒号和英文冒号
+          const match = trimmed.match(/^(.+?)[：:]\s*(.+)$/);
+          if (match) {
+            const key = match[1].trim();
+            const val = match[2].trim();
+            if (key && val && val !== '-') {
+              params[key] = val;
+            }
+          }
+        }
+        return Object.keys(params).length > 0 ? params : null;
       }
 
       // 对比库存
@@ -469,7 +490,7 @@
         const content = document.getElementById('compareContent');
         area.style.display = 'block';
 
-        const lcscParams = parseParams(currentLcData.params) || {};
+        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
         const partParams = parseParams(part.other) || {};
 
         let html = `
@@ -518,7 +539,7 @@
         if (!currentLcData) return;
         if (!confirm('确定用LCSC数据更新库存零件的参数？')) return;
 
-        const lcscParams = parseParams(currentLcData.params) || {};
+        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
         const formData = new FormData();
         formData.append('part_id', partId);
         formData.append('name', currentLcData.productModel || '');
@@ -561,7 +582,7 @@
         const quantity = parseInt(document.getElementById('stockInQuantity').value);
         if (!quantity || quantity < 1) { showToast('请输入有效数量', 'warning'); return; }
 
-        const lcscParams = parseParams(currentLcData.params) || {};
+        const lcscParams = parseRemarkPrefix(currentLcData.remarkPrefix) || parseParams(currentLcData.params) || {};
         const formData = new FormData();
         formData.append('name', currentLcData.productModel || '');
         formData.append('manufacturer', currentLcData.brand || '');
