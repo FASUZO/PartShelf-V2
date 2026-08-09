@@ -67,19 +67,21 @@ async function launchBrowser(headless = true) {
  */
 async function queryByLcCode(lcCode, bomUuid = null, headless = true) {
   const { browser, context } = await launchBrowser(headless);
+  const defaultBomUuid = bomUuid || 'B4CDDD24823706B049EA2218BB7552E6';
   
   try {
     const page = await context.newPage();
     
     // 访问 BOM 页面建立会话
-    await page.goto(`https://bom.szlcsc.com/member/bom-list.html`, {
+    await page.goto(`https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${defaultBomUuid}`, {
       waitUntil: 'networkidle',
       timeout: 30000,
     });
 
     // 检查是否需要登录
     const title = await page.title();
-    if (title.includes('登录')) {
+    const content = await page.content();
+    if (title.includes('登录') || content.includes('扫码登录') || content.includes('qrcode')) {
       console.error('需要登录，请先扫码登录并保存 cookie');
       const cookies = await context.cookies();
       saveCookies(cookies);
