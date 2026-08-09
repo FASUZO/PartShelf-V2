@@ -823,34 +823,81 @@ function showLcscCompareModal(lcscData, partData) {
     new bootstrap.Modal(document.getElementById('lcscCompareModal')).show();
 }
 
-// 将LCSC数据应用到编辑表单
-function applyLcscToEditForm() {
+// 将库存 other 字段统一解析为 {key: value} 格式
+function normalizeOtherParams(other) {
+    if (!other || typeof other !== 'object') return null;
+    if (other.fields && other.values) {
+        const result = {};
+        for (const f of other.fields) {
+            if (other.values[f] !== undefined && other.values[f] !== '') {
+                result[f] = other.values[f];
+            }
+        }
+        return Object.keys(result).length > 0 ? result : null;
+    }
+    const result = {};
+    for (const [k, v] of Object.entries(other)) {
+        if (v !== undefined && v !== '' && v !== null) result[k] = String(v);
+    }
+    return Object.keys(result).length > 0 ? result : null;
+}
+
+// 将LCSC数据直接保存到库存零件
+async function applyLcscToEditForm() {
     const data = window._lcscCompareData;
     if (!data) return;
 
-    if (data.productModel) document.getElementById('editPartName').value = data.productModel;
-    if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
-    if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
-    if (data.lcCode) document.getElementById('editPartLcNumber').value = data.lcCode;
-    if (data.description) document.getElementById('editPartDescription').value = data.description;
+    const partId = document.getElementById('editPartId').value;
+    if (!partId) { showToast('未找到零件ID', 'danger'); return; }
 
-    // 解析并填充参数
-    const params = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix);
-    if (params) {
-        const paramFields = document.querySelectorAll('#editParamTemplateFields .param-field');
-        paramFields.forEach(field => {
-            const name = field.dataset.paramName;
-            if (name && params[name] !== undefined) {
-                field.value = params[name];
-            }
-        });
+    const lcscParams = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix) || {};
+
+    // 获取现有参数并合并
+    let existingOther = {};
+    try {
+        const resp = await fetch(`/api/inventory/get_part_by_id?part_id=${partId}`);
+        const partData = await resp.json();
+        if (partData.other) existingOther = JSON.parse(partData.other) || {};
+    } catch (e) {}
+
+    const existingValues = normalizeOtherParams(existingOther) || {};
+    const mergedValues = { ...existingValues, ...lcscParams };
+
+    const formData = new FormData();
+    formData.append('part_id', partId);
+    if (data.productModel) formData.append('name', data.productModel);
+    if (data.brand) formData.append('manufacturer', data.brand);
+    if (data.pack || data.package) formData.append('package', data.pack || data.package);
+    if (data.lcCode) formData.append('lc_number', data.lcCode);
+    if (data.description) formData.append('description', data.description);
+    if (Object.keys(mergedValues).length > 0) {
+        formData.append('other', JSON.stringify({ fields: Object.keys(mergedValues), values: mergedValues, units: {} }));
     }
 
-    // 关闭弹窗
-    const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
-    if (modal) modal.hide();
+    // 显示加载状态
+    const btn = document.querySelector('#lcscCompareBody .btn-warning');
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 保存中...'; }
 
-    showToast('已应用LCSC数据到编辑表单', 'success');
+    try {
+        const resp = await fetch('/api/inventory/update_part', { method: 'POST', body: formData });
+        if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '保存失败'); }
+
+        // 关闭对比弹窗
+        const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
+        if (modal) modal.hide();
+
+        // 关闭编辑弹窗
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editPartModal'));
+        if (editModal) editModal.hide();
+
+        showToast('LCSC数据已保存到库存零件！', 'success');
+        applyAdvancedFilter(); // 刷新列表
+    } catch (e) {
+        showToast('保存失败: ' + e.message, 'danger');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
 }
 
 // 解析LCSC params字段
