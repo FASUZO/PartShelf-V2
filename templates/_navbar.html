@@ -15,6 +15,9 @@
         </li>
         {% if user %}
         <li class="nav-item">
+          <a class="nav-link{% if active_page == 'lcsc' %} active{% endif %}" href="/lcsc"><i class="fas fa-search-plus"></i> LC查询</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link{% if active_page == 'settings' %} active{% endif %}" href="/settings"><i class="fas fa-sliders-h"></i> 配置管理</a>
         </li>
         {% endif %}

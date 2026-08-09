@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LC查询 - PartShelf</title>
+    <link href="/static/css/bootstrap.css" rel="stylesheet">
+    <link href="/static/css/custom.css" rel="stylesheet">
+    <script src="/static/js/bootstrap.bundle.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+      body { background: #f0f2f5; }
+      .search-box { max-width: 600px; margin: 2rem auto; }
+      .result-card { max-width: 800px; margin: 0 auto; }
+      .param-item { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+      .param-item:last-child { border-bottom: none; }
+      .param-label { color: #666; font-size: 0.9rem; }
+      .param-value { font-weight: 500; }
+      .stock-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; }
+      .stock-now { background: #d4edda; color: #155724; }
+      .stock-future { background: #fff3cd; color: #856404; }
+      .stock-none { background: #f8d7da; color: #721c24; }
+    </style>
+  </head>
+  <body>
+    {% set active_page = "lcsc" %}
+    {% include "_navbar.html" %}
+
+    <div class="container" style="margin-top:70px;">
+      <!-- 搜索区域 -->
+      <div class="search-box">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title mb-3"><i class="fas fa-search-plus me-2"></i>LC编号查询</h5>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+              <input type="text" class="form-control form-control-lg" id="lcCodeInput" 
+                     placeholder="输入LC编号，如 C192666" autofocus>
+              <button class="btn btn-primary btn-lg" type="button" id="searchBtn" onclick="searchLcCode()">
+                <i class="fas fa-search me-1"></i> 查询
+              </button>
+            </div>
+            <div class="form-text mt-2">输入立创商城的LC编号（以C开头，后跟数字）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cookie状态提示 -->
+      <div id="cookieStatus" class="text-center mb-3" style="display:none;">
+        <div class="alert alert-warning d-inline-block">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          <span id="cookieStatusMsg">检查Cookie状态中...</span>
+        </div>
+      </div>
+
+      <!-- 查询结果 -->
+      <div id="resultArea" style="display:none;">
+        <div class="result-card">
+          <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="fas fa-microchip me-2"></i>零件信息</h5>
+              <span class="badge bg-light text-primary" id="resultLcCode"></span>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <!-- 基本信息 -->
+                <div class="col-md-6">
+                  <h6 class="text-muted mb-3">基本信息</h6>
+                  <div class="param-item">
+                    <span class="param-label">LC编号</span>
+                    <span class="param-value" id="paramLcCode">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">型号</span>
+                    <span class="param-value" id="paramModel">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">品牌</span>
+                    <span class="param-value" id="paramBrand">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">封装</span>
+                    <span class="param-value" id="paramPackage">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">库存状态</span>
+                    <span class="param-value" id="paramStock">-</span>
+                  </div>
+                </div>
+
+                <!-- 价格和参数 -->
+                <div class="col-md-6">
+                  <h6 class="text-muted mb-3">价格信息</h6>
+                  <div class="param-item">
+                    <span class="param-label">单价</span>
+                    <span class="param-value" id="paramPrice">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">库存数量</span>
+                    <span class="param-value" id="paramQuantity">-</span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">最小起订量</span>
+                    <span class="param-value" id="paramMoq">-</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 描述 -->
+              <div class="mt-3" id="descArea" style="display:none;">
+                <h6 class="text-muted mb-2">描述</h6>
+                <p class="text-muted small" id="paramDesc"></p>
+              </div>
+
+              <!-- 参数详情 -->
+              <div class="mt-3" id="paramsArea" style="display:none;">
+                <h6 class="text-muted mb-2">详细参数</h6>
+                <div id="paramDetails"></div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="mt-4 d-flex gap-2">
+                <button class="btn btn-success flex-fill" id="stockInBtn" onclick="stockInFromLcsc()">
+                  <i class="fas fa-arrow-down me-1"></i> 入库
+                </button>
+                <button class="btn btn-outline-primary" onclick="openLcscPage()">
+                  <i class="fas fa-external-link-alt me-1"></i> 查看立创页面
+                </button>
+                <button class="btn btn-outline-secondary" onclick="copyLcCode()">
+                  <i class="fas fa-copy me-1"></i> 复制编号
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 查询历史 -->
+      <div class="mt-4" style="max-width:800px; margin:0 auto;">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-history me-2"></i>查询历史</span>
+            <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()">清空</button>
+          </div>
+          <div class="card-body" id="historyList">
+            <p class="text-muted text-center mb-0">暂无查询记录</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 入库确认模态框 -->
+    <div class="modal fade" id="stockInModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title"><i class="fas fa-arrow-down me-1"></i> 确认入库</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">零件信息</label>
+              <div class="form-control-plaintext fw-bold" id="stockInPartInfo">-</div>
+            </div>
+            <div class="mb-3">
+              <label for="stockInQuantity" class="form-label">入库数量 *</label>
+              <input type="number" class="form-control" id="stockInQuantity" min="1" value="1" required>
+            </div>
+            <div class="mb-3">
+              <label for="stockInRemark" class="form-label">备注</label>
+              <input type="text" class="form-control" id="stockInRemark" value="LC查询入库">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-success" onclick="confirmStockIn()">确认入库</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentLcData = null;
+      let queryHistory = JSON.parse(localStorage.getItem('lcscHistory') || '[]');
+
+      // 页面加载时检查Cookie状态
+      checkCookieStatus();
+      renderHistory();
+
+      // 回车搜索
+      document.getElementById('lcCodeInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') searchLcCode();
+      });
+
+      // 检查Cookie状态
+      async function checkCookieStatus() {
+        try {
+          const resp = await fetch('/api/lcsc/cookies');
+          const data = await resp.json();
+          if (data.status !== 'ok') {
+            document.getElementById('cookieStatus').style.display = 'block';
+            document.getElementById('cookieStatusMsg').textContent = 'LCSC Cookie未配置，请先配置cookie';
+          }
+        } catch (e) {
+          document.getElementById('cookieStatus').style.display = 'block';
+          document.getElementById('cookieStatusMsg').textContent = '无法检查Cookie状态';
+        }
+      }
+
+      // 查询LC编号
+      async function searchLcCode() {
+        const input = document.getElementById('lcCodeInput');
+        let lcCode = input.value.trim().toUpperCase();
+        
+        if (!lcCode) {
+          showToast('请输入LC编号', 'warning');
+          input.focus();
+          return;
+        }
+
+        // 自动补C前缀
+        if (/^\d+$/.test(lcCode)) {
+          lcCode = 'C' + lcCode;
+          input.value = lcCode;
+        }
+
+        // 验证格式
+        if (!/^C\d+$/.test(lcCode)) {
+          showToast('LC编号格式错误，应为C+数字', 'danger');
+          return;
+        }
+
+        const btn = document.getElementById('searchBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 查询中...';
+
+        try {
+          const resp = await fetch(`/api/lcsc/query/${lcCode}`);
+          
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || '查询失败');
+          }
+
+          const data = await resp.json();
+          currentLcData = data;
+          displayResult(data);
+          addToHistory(lcCode, data);
+        } catch (e) {
+          showToast('查询失败: ' + e.message, 'danger');
+          document.getElementById('resultArea').style.display = 'none';
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-search me-1"></i> 查询';
+        }
+      }
+
+      // 显示查询结果
+      function displayResult(data) {
+        document.getElementById('resultArea').style.display = 'block';
+        document.getElementById('resultLcCode').textContent = data.lcCode || '-';
+        document.getElementById('paramLcCode').textContent = data.lcCode || '-';
+        document.getElementById('paramModel').textContent = data.productModel || '-';
+        document.getElementById('paramBrand').textContent = data.brand || '-';
+        document.getElementById('paramPackage').textContent = data.package || '-';
+        document.getElementById('paramPrice').textContent = data.price ? `¥${data.price}` : '-';
+        document.getElementById('paramQuantity').textContent = data.stock ?? '-';
+        document.getElementById('paramMoq').textContent = data.moq ?? '-';
+
+        // 库存状态
+        const stockEl = document.getElementById('paramStock');
+        if (data.stockStatus === 'now') {
+          stockEl.innerHTML = '<span class="stock-badge stock-now">现货</span>';
+        } else if (data.stockStatus === 'future') {
+          stockEl.innerHTML = '<span class="stock-badge stock-future">期货</span>';
+        } else {
+          stockEl.innerHTML = '<span class="stock-badge stock-none">未知</span>';
+        }
+
+        // 描述
+        if (data.description) {
+          document.getElementById('descArea').style.display = 'block';
+          document.getElementById('paramDesc').textContent = data.description;
+        } else {
+          document.getElementById('descArea').style.display = 'none';
+        }
+
+        // 详细参数
+        if (data.params && Object.keys(data.params).length > 0) {
+          document.getElementById('paramsArea').style.display = 'block';
+          let html = '';
+          for (const [key, val] of Object.entries(data.params)) {
+            html += `<div class="param-item"><span class="param-label">${escapeHtml(key)}</span><span class="param-value">${escapeHtml(val)}</span></div>`;
+          }
+          document.getElementById('paramDetails').innerHTML = html;
+        } else {
+          document.getElementById('paramsArea').style.display = 'none';
+        }
+      }
+
+      // 入库
+      function stockInFromLcsc() {
+        if (!currentLcData) return;
+        document.getElementById('stockInPartInfo').textContent = `${currentLcData.productModel || '-'} (${currentLcData.brand || '-'})`;
+        document.getElementById('stockInQuantity').value = 1;
+        new bootstrap.Modal(document.getElementById('stockInModal')).show();
+      }
+
+      // 确认入库
+      async function confirmStockIn() {
+        const quantity = parseInt(document.getElementById('stockInQuantity').value);
+        const remark = document.getElementById('stockInRemark').value;
+
+        if (!quantity || quantity < 1) {
+          showToast('请输入有效数量', 'warning');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('name', currentLcData.productModel || '');
+        formData.append('manufacturer', currentLcData.brand || '');
+        formData.append('package', currentLcData.package || '');
+        formData.append('quantity', quantity);
+        formData.append('lc_number', currentLcData.lcCode || '');
+        formData.append('description', currentLcData.description || '');
+        formData.append('part_type', '');
+
+        try {
+          const resp = await fetch('/api/inventory/add_part_to_inventory', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || '入库失败');
+          }
+
+          bootstrap.Modal.getInstance(document.getElementById('stockInModal')).hide();
+          showToast('入库成功！', 'success');
+        } catch (e) {
+          showToast('入库失败: ' + e.message, 'danger');
+        }
+      }
+
+      // 打开立创页面
+      function openLcscPage() {
+        if (currentLcData?.lcCode) {
+          window.open(`https://www.szlcsc.com/product/details_${currentLcData.lcCode}.html`, '_blank');
+        }
+      }
+
+      // 复制编号
+      function copyLcCode() {
+        if (currentLcData?.lcCode) {
+          navigator.clipboard.writeText(currentLcData.lcCode);
+          showToast('已复制: ' + currentLcData.lcCode, 'success');
+        }
+      }
+
+      // 查询历史
+      function addToHistory(lcCode, data) {
+        queryHistory = queryHistory.filter(h => h.code !== lcCode);
+        queryHistory.unshift({ code: lcCode, model: data.productModel, time: Date.now() });
+        if (queryHistory.length > 20) queryHistory.pop();
+        localStorage.setItem('lcscHistory', JSON.stringify(queryHistory));
+        renderHistory();
+      }
+
+      function renderHistory() {
+        const el = document.getElementById('historyList');
+        if (queryHistory.length === 0) {
+          el.innerHTML = '<p class="text-muted text-center mb-0">暂无查询记录</p>';
+          return;
+        }
+        el.innerHTML = queryHistory.map(h => `
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="cursor:pointer;" onclick="quickSearch('${h.code}')">
+            <div>
+              <strong>${escapeHtml(h.code)}</strong>
+              <span class="text-muted ms-2">${escapeHtml(h.model || '-')}</span>
+            </div>
+            <small class="text-muted">${new Date(h.time).toLocaleString()}</small>
+          </div>
+        `).join('');
+      }
+
+      function quickSearch(code) {
+        document.getElementById('lcCodeInput').value = code;
+        searchLcCode();
+      }
+
+      function clearHistory() {
+        queryHistory = [];
+        localStorage.removeItem('lcscHistory');
+        renderHistory();
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      function showToast(msg, type) {
+        // 简单的toast实现
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+        toast.style.zIndex = '9999';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+      }
+    </script>
+  </body>
+</html>

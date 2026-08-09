@@ -87,3 +87,10 @@ def get_project_details_template(request: Request, project_id: int, db: Session 
 def get_settings_template(request: Request, db: Session = Depends(get_db)):
     context = get_template_context(request, db)
     return templates.TemplateResponse(request=request, name="settings.html", context=context)
+
+
+@router.get("/lcsc", response_class=HTMLResponse)
+def get_lcsc_page(request: Request, db: Session = Depends(get_db)):
+    """LC查询页面"""
+    context = get_template_context(request, db)
+    return templates.TemplateResponse(request=request, name="lcsc.html", context=context)
