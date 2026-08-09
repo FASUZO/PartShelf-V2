@@ -276,9 +276,11 @@
         try {
           const resp = await fetch('/api/lcsc/cookies/qrcode', { method: 'POST' });
           const data = await resp.json();
-          if (data.success && data.qrcode_url) {
-            qrImage.innerHTML = `<img src="${data.qrcode_url}" alt="登录二维码" style="max-width:250px; border:1px solid #ddd; padding:10px; border-radius:8px;"><p class="mt-2 small text-muted">请使用立创商城APP扫描二维码登录</p>`;
+          if (data.success && data.qrcode_base64) {
+            qrImage.innerHTML = `<img src="data:image/png;base64,${data.qrcode_base64}" alt="登录二维码" style="max-width:250px; border:1px solid #ddd; padding:10px; border-radius:8px;"><p class="mt-2 small text-muted">请使用立创商城APP扫描二维码登录</p>`;
             pollLoginStatus();
+          } else if (data.logged_in) {
+            qrImage.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> 已登录，无需扫码</div>';
           } else {
             qrImage.innerHTML = `<p class="text-danger">${data.message || '获取二维码失败'}</p>`;
           }
