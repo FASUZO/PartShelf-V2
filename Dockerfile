@@ -1,9 +1,9 @@
 FROM python:3.11-slim
 
-# 安装 Node.js 18.x (Playwright 依赖)
+# 安装 Node.js 20.x (Playwright 要求 >= 20)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
