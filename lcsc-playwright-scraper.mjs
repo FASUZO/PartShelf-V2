@@ -791,14 +791,13 @@ async function checkQrLoginStatus() {
   }
 
   try {
+    // 先检查 URL（不依赖 page.content，避免页面导航中的错误）
     const url = _qrPage.url();
-    const content = await _qrPage.content();
-    const isLoginPage = url.includes('login') || url.includes('passport') ||
-                        content.includes('扫码登录') || content.includes('二维码');
+    console.log('[qr] Checking login status, URL:', url);
 
-    if (!isLoginPage) {
-      // 登录成功！保存 cookies
-      console.log('[qr] Login detected! Saving cookies...');
+    // 如果 URL 已经不是登录页，说明登录成功
+    if (!url.includes('login') && !url.includes('passport')) {
+      console.log('[qr] Login detected via URL! Saving cookies...');
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
 
@@ -807,34 +806,45 @@ async function checkQrLoginStatus() {
       _browser = _qrBrowser;
       _context = _qrContext;
       _page = _qrPage;
-
-      // 清空 QR 引用
       _qrBrowser = null; _qrContext = null; _qrPage = null;
 
-      // 直接导航到 BOM 页面（不重新初始化）
+      // 导航到 BOM 页面
       console.log('[qr] Navigating to BOM page...');
       try {
         await _page.goto(
           `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`,
           { waitUntil: 'networkidle', timeout: 60000 },
         );
-        const title = await _page.title();
-        const bomContent = await _page.content();
         const bomUrl = _page.url();
-
+        console.log('[qr] BOM page URL:', bomUrl);
         if (!bomUrl.includes('login') && !bomUrl.includes('passport')) {
           _bomReady = true;
           _initPromise = Promise.resolve(true);
           console.log('[qr] BOM page loaded successfully!');
-          return { logged_in: true, message: '登录成功' };
-        } else {
-          console.warn('[qr] Still on login page after redirect');
         }
       } catch (navErr) {
         console.error('[qr] Navigation error:', navErr.message);
       }
 
       return { logged_in: true, message: '登录成功' };
+    }
+
+    // URL 仍是登录页，尝试检查页面内容（可能正在跳转）
+    try {
+      // 等待一下让页面稳定
+      await _qrPage.waitForTimeout(2000);
+      const content = await _qrPage.content();
+      // 只检查明确的登录标志，不检查"二维码"（可能在其他地方出现）
+      const hasLoginPrompt = content.includes('扫码登录') || content.includes('请登录');
+      if (!hasLoginPrompt && !_qrPage.url().includes('login')) {
+        console.log('[qr] Login detected via content check!');
+        const cookies = await _qrContext.cookies();
+        saveCookies(cookies);
+        return { logged_in: true, message: '登录成功' };
+      }
+    } catch (contentErr) {
+      // content() 可能在页面跳转时失败，忽略
+      console.log('[qr] Content check skipped:', contentErr.message);
     }
 
     return { logged_in: false, message: '等待扫码' };
