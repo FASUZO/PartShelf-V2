@@ -668,6 +668,13 @@ async function startServer(port = 3001) {
           break;
         }
 
+        case '/qrcode': {
+          const qrResult = await getQrCode();
+          res.writeHead(200);
+          res.end(JSON.stringify(qrResult));
+          break;
+        }
+
         case '/shutdown':
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'Shutting down' }));

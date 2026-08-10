@@ -72,23 +72,13 @@ async def refresh_cookies():
 
 @router.post("/cookies/qrcode")
 async def get_qr_code():
-    """获取登录二维码"""
+    """获取登录二维码（通过 HTTP 服务器）"""
     try:
-        import subprocess
-        import os
-        scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
-        result = subprocess.run(
-            ["node", scraper, "qrcode"],
-            capture_output=True, text=True, timeout=30,
-            cwd=os.path.dirname(scraper), encoding='utf-8', errors='replace'
-        )
-        if result.returncode == 0:
-            import json
-            data = json.loads(result.stdout[result.stdout.find('{'):])
-            return data
-        return {"success": False, "message": result.stderr or "获取二维码失败"}
-    except FileNotFoundError:
-        return {"success": False, "message": "Node.js未安装，LCSC功能不可用"}
+        from app.services.lcsc_service import _http_get
+        result = _http_get("/qrcode", timeout=60.0)
+        if result:
+            return result
+        return {"success": False, "message": "LCSC服务不可用"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
