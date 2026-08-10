@@ -251,30 +251,35 @@
 
       // 如果会话未就绪，每5秒检查一次直到就绪（带防重入锁）
       let _cookiePolling = false;
+      let _lcReady = false;
       const _cookiePoll = setInterval(async () => {
-        if (_cookiePolling) return;
+        if (_cookiePolling || _lcReady) return;
         _cookiePolling = true;
         try {
           const resp = await fetch('/api/lcsc/cookies');
           const data = await resp.json();
           if (data.sessionReady) {
+            _lcReady = true;
             clearInterval(_cookiePoll);
-            // 更新徽章
             const badge = document.getElementById('cookieStatusBadge');
             if (badge) {
               badge.className = 'badge bg-success cookie-badge';
               badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> LC已连接 (' + (data.count || 0) + ')';
             }
+            showToast('LC查询服务已就绪', 'success');
           } else {
             const badge = document.getElementById('cookieStatusBadge');
             if (badge) {
               badge.className = 'badge bg-secondary cookie-badge';
-              badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> 等待连接...';
+              badge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> LC服务加载中...';
             }
           }
         } catch (_) {}
         _cookiePolling = false;
       }, 5000);
+
+      // 首次加载时显示提示
+      showToast('LC查询服务加载中，请稍候...', 'info');
 
       document.getElementById('lcCodeInput').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') searchLcCode();
