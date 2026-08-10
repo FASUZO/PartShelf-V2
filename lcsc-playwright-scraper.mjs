@@ -5,7 +5,7 @@
  */
 
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { createServer } from 'http';
 
@@ -34,7 +34,7 @@ function loadCookies() {
     return null;
   }
   try {
-    const stat = require('fs').statSync(COOKIES_FILE);
+    const stat = statSync(COOKIES_FILE);
     if (stat.isDirectory()) {
       console.error('[cookies] Path is a directory, not a file:', COOKIES_FILE);
       return null;
