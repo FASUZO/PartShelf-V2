@@ -51,7 +51,7 @@ function saveCookies(cookies) {
 async function launchBrowser(headless = true) {
   const browser = await chromium.launch({
     headless,
-    channel: 'msedge', // 使用本机 Edge
+
   });
 
   const context = await browser.newContext();
@@ -81,7 +81,7 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
   _initPromise = (async () => {
     try {
       console.log('[persistent] Launching browser...');
-      _browser = await chromium.launch({ headless: true, channel: 'msedge' });
+      _browser = await chromium.launch({ headless: true });
       _context = await _browser.newContext();
 
       const cookies = loadCookies();
@@ -511,7 +511,7 @@ async function queryAllItems(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6', headl
 async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6') {
   const browser = await chromium.launch({
     headless: false, // 必须有头模式才能扫码
-    channel: 'msedge',
+
   });
 
   const context = await browser.newContext();
@@ -665,7 +665,7 @@ async function startServer(port = 3001) {
 async function getQrCode() {
   const browser = await chromium.launch({
     headless: true,
-    channel: 'msedge',
+
   });
 
   const context = await browser.newContext();
@@ -733,7 +733,7 @@ async function checkLoginStatus() {
     return { logged_in: false, message: '无Cookie' };
   }
 
-  const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+  const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
 
   try {
