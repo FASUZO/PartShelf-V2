@@ -868,6 +868,7 @@ async function getQrCode() {
 
 /**
  * 检查 QR 扫码登录状态
+ * 主动尝试访问 BOM 页面来验证登录，不依赖页面自动跳转
  * @returns {Promise<object>} 登录状态
  */
 async function checkQrLoginStatus() {
@@ -876,15 +877,23 @@ async function checkQrLoginStatus() {
   }
 
   try {
+    // 主动访问 BOM 页面来验证登录状态
+    const bomUrl = `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`;
+    console.log('[qr] Checking login by navigating to BOM page...');
+
+    await _qrPage.goto(bomUrl, { waitUntil: 'networkidle', timeout: 30000 });
     const url = _qrPage.url();
-    console.log('[qr] Checking login status, URL:', url);
+    const title = await _qrPage.title();
+    console.log('[qr] Result URL:', url, 'Title:', title);
 
-    // 检查是否离开登录页（登录成功标志）
-    const isLoginPage = url.includes('login') || url.includes('passport');
+    // 判断是否成功加载 BOM 页面
+    const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
+                       !url.includes('404') && !title.includes('登录') &&
+                       !title.includes('没有找到');
 
-    if (!isLoginPage) {
+    if (isLoggedIn) {
       // 登录成功！保存 cookies
-      console.log('[qr] Login detected! Saving cookies...');
+      console.log('[qr] Login confirmed! Saving cookies...');
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
 
@@ -894,30 +903,9 @@ async function checkQrLoginStatus() {
       _page = _qrPage;
       _qrBrowser = null; _qrContext = null; _qrPage = null;
 
-      // 强制导航到 BOM 页面（不依赖重定向）
-      const bomUrl = `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`;
-      console.log('[qr] Navigating to BOM page:', bomUrl);
-      try {
-        await _page.goto(bomUrl, { waitUntil: 'networkidle', timeout: 60000 });
-        const finalUrl = _page.url();
-        console.log('[qr] Final URL:', finalUrl);
-
-        // 检查是否成功加载 BOM 页面（不是登录页也不是 404）
-        if (!finalUrl.includes('login') && !finalUrl.includes('passport') && !finalUrl.includes('404')) {
-          _bomReady = true;
-          _initPromise = Promise.resolve(true);
-          console.log('[qr] BOM page loaded successfully!');
-          return { logged_in: true, message: '登录成功' };
-        } else {
-          console.warn('[qr] BOM page load failed, URL:', finalUrl);
-          // 重置状态，允许重试
-          _bomReady = false;
-          _initPromise = null;
-        }
-      } catch (navErr) {
-        console.error('[qr] Navigation error:', navErr.message);
-      }
-
+      _bomReady = true;
+      _initPromise = Promise.resolve(true);
+      console.log('[qr] Session ready!');
       return { logged_in: true, message: '登录成功' };
     }
 
