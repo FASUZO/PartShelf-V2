@@ -120,13 +120,14 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
       const content = await _page.content();
       const url = _page.url();
 
-      // 检查是否被重定向到登录页面
+      // 检查是否被重定向到登录页面或 404 页面
       const isLoginPage = url.includes('login') || url.includes('passport') ||
                           title.includes('登录') || title.includes('Login') ||
                           content.includes('扫码登录') || content.includes('请登录');
+      const is404Page = url.includes('404') || title.includes('没有找到') || title.includes('Not Found');
 
-      if (isLoginPage) {
-        console.warn('[persistent] Login page detected, URL:', url, 'Title:', title);
+      if (isLoginPage || is404Page) {
+        console.warn('[persistent] Login/404 page detected, URL:', url, 'Title:', title);
         console.warn('[persistent] Cookies may be expired or invalid for this IP');
         _initPromise = null;
         return false;
@@ -818,60 +819,49 @@ async function checkQrLoginStatus() {
   }
 
   try {
-    // 先检查 URL（不依赖 page.content，避免页面导航中的错误）
     const url = _qrPage.url();
     console.log('[qr] Checking login status, URL:', url);
 
-    // 如果 URL 已经不是登录页，说明登录成功
-    if (!url.includes('login') && !url.includes('passport')) {
-      console.log('[qr] Login detected via URL! Saving cookies...');
+    // 检查是否离开登录页（登录成功标志）
+    const isLoginPage = url.includes('login') || url.includes('passport');
+
+    if (!isLoginPage) {
+      // 登录成功！保存 cookies
+      console.log('[qr] Login detected! Saving cookies...');
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
 
       // 把 QR 浏览器会话转为持久化会话
-      console.log('[qr] Transferring QR session to persistent session...');
       _browser = _qrBrowser;
       _context = _qrContext;
       _page = _qrPage;
       _qrBrowser = null; _qrContext = null; _qrPage = null;
 
-      // 导航到 BOM 页面
-      console.log('[qr] Navigating to BOM page...');
+      // 强制导航到 BOM 页面（不依赖重定向）
+      const bomUrl = `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`;
+      console.log('[qr] Navigating to BOM page:', bomUrl);
       try {
-        await _page.goto(
-          `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`,
-          { waitUntil: 'networkidle', timeout: 60000 },
-        );
-        const bomUrl = _page.url();
-        console.log('[qr] BOM page URL:', bomUrl);
-        if (!bomUrl.includes('login') && !bomUrl.includes('passport')) {
+        await _page.goto(bomUrl, { waitUntil: 'networkidle', timeout: 60000 });
+        const finalUrl = _page.url();
+        console.log('[qr] Final URL:', finalUrl);
+
+        // 检查是否成功加载 BOM 页面（不是登录页也不是 404）
+        if (!finalUrl.includes('login') && !finalUrl.includes('passport') && !finalUrl.includes('404')) {
           _bomReady = true;
           _initPromise = Promise.resolve(true);
           console.log('[qr] BOM page loaded successfully!');
+          return { logged_in: true, message: '登录成功' };
+        } else {
+          console.warn('[qr] BOM page load failed, URL:', finalUrl);
+          // 重置状态，允许重试
+          _bomReady = false;
+          _initPromise = null;
         }
       } catch (navErr) {
         console.error('[qr] Navigation error:', navErr.message);
       }
 
       return { logged_in: true, message: '登录成功' };
-    }
-
-    // URL 仍是登录页，尝试检查页面内容（可能正在跳转）
-    try {
-      // 等待一下让页面稳定
-      await _qrPage.waitForTimeout(2000);
-      const content = await _qrPage.content();
-      // 只检查明确的登录标志，不检查"二维码"（可能在其他地方出现）
-      const hasLoginPrompt = content.includes('扫码登录') || content.includes('请登录');
-      if (!hasLoginPrompt && !_qrPage.url().includes('login')) {
-        console.log('[qr] Login detected via content check!');
-        const cookies = await _qrContext.cookies();
-        saveCookies(cookies);
-        return { logged_in: true, message: '登录成功' };
-      }
-    } catch (contentErr) {
-      // content() 可能在页面跳转时失败，忽略
-      console.log('[qr] Content check skipped:', contentErr.message);
     }
 
     return { logged_in: false, message: '等待扫码' };
