@@ -20,6 +20,11 @@ let _page = null;
 let _bomReady = false;
 let _initPromise = null;
 
+// QR 登录会话（保持浏览器打开等待扫码）
+let _qrBrowser = null;
+let _qrContext = null;
+let _qrPage = null;
+
 /**
  * 加载保存的 cookie
  */
@@ -656,6 +661,13 @@ async function startServer(port = 3001) {
           break;
         }
 
+        case '/cookies/check_qr_login': {
+          const qrStatus = await checkQrLoginStatus();
+          res.writeHead(200);
+          res.end(JSON.stringify(qrStatus));
+          break;
+        }
+
         case '/shutdown':
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'Shutting down' }));
@@ -694,67 +706,96 @@ async function startServer(port = 3001) {
 }
 
 /**
- * 获取登录二维码
+ * 获取登录二维码（保持浏览器会话等待扫码）
  * @returns {Promise<object>} 包含二维码图片 base64 或 URL
  */
 async function getQrCode() {
-  const browser = await chromium.launch({
-    headless: true,
+  // 关闭之前的 QR 会话
+  if (_qrBrowser) {
+    try { await _qrBrowser.close(); } catch (_) {}
+    _qrBrowser = null; _qrContext = null; _qrPage = null;
+  }
 
-  });
-
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  _qrBrowser = await chromium.launch({ headless: true });
+  _qrContext = await _qrBrowser.newContext();
+  _qrPage = await _qrContext.newPage();
 
   try {
-    // 访问登录页面
-    await page.goto('https://bom.szlcsc.com/member/bom-list.html', {
+    await _qrPage.goto('https://bom.szlcsc.com/member/bom-list.html', {
       waitUntil: 'networkidle',
       timeout: 30000,
     });
 
-    // 检查是否已登录 - 通过页面内容判断
-    const url = page.url();
-    const content = await page.content();
+    const url = _qrPage.url();
+    const content = await _qrPage.content();
     const hasQrCode = content.includes('qr') || content.includes('qrcode') || content.includes('二维码');
     const isLoginUrl = url.includes('login') || url.includes('passport');
-    
-    // 如果页面有二维码或跳转到了登录页，说明未登录
-    if (hasQrCode || isLoginUrl) {
-      // 未登录，继续获取二维码
-    } else {
-      // 可能已登录，保存cookie
-      const cookies = await context.cookies();
+
+    if (!hasQrCode && !isLoginUrl) {
+      const cookies = await _qrContext.cookies();
       saveCookies(cookies);
-      await browser.close();
+      await _qrBrowser.close();
+      _qrBrowser = null; _qrContext = null; _qrPage = null;
       return { success: true, message: '已登录', logged_in: true };
     }
 
-    // 等待二维码加载
-    await page.waitForTimeout(5000);
+    await _qrPage.waitForTimeout(5000);
 
-    // 截图二维码区域 - 使用正确的选择器
     let qrImageBase64 = null;
     try {
-      const qrElement = await page.locator('img.qr').first();
+      const qrElement = await _qrPage.locator('img.qr').first();
       const buffer = await qrElement.screenshot();
       qrImageBase64 = buffer.toString('base64');
     } catch (e) {
-      // 如果找不到二维码元素，截取整个页面
       console.log('QR element not found, capturing page');
-      const buffer = await page.screenshot();
+      const buffer = await _qrPage.screenshot();
       qrImageBase64 = buffer.toString('base64');
     }
 
-    await browser.close();
+    // 不关闭浏览器，保持会话等待扫码
+    console.log('[qr] QR code captured, waiting for scan...');
     return {
       success: true,
       qrcode_base64: qrImageBase64,
       message: '请扫描二维码登录'
     };
   } catch (e) {
-    await browser.close();
+    if (_qrBrowser) { try { await _qrBrowser.close(); } catch (_) {} }
+    _qrBrowser = null; _qrContext = null; _qrPage = null;
     return { success: false, message: e.message };
+  }
+}
+
+/**
+ * 检查 QR 扫码登录状态
+ * @returns {Promise<object>} 登录状态
+ */
+async function checkQrLoginStatus() {
+  if (!_qrPage || !_qrContext) {
+    return { logged_in: false, message: '无QR会话' };
+  }
+
+  try {
+    // 检查页面是否已跳转（登录成功后会跳转）
+    const url = _qrPage.url();
+    const content = await _qrPage.content();
+    const isLoginPage = url.includes('login') || url.includes('passport') ||
+                        content.includes('扫码登录') || content.includes('二维码');
+
+    if (!isLoginPage) {
+      // 登录成功，保存 cookies
+      console.log('[qr] Login detected! Saving cookies...');
+      const cookies = await _qrContext.cookies();
+      saveCookies(cookies);
+      await _qrBrowser.close();
+      _qrBrowser = null; _qrContext = null; _qrPage = null;
+      return { logged_in: true, message: '登录成功' };
+    }
+
+    return { logged_in: false, message: '等待扫码' };
+  } catch (e) {
+    console.error('[qr] Check status error:', e.message);
+    return { logged_in: false, message: e.message };
   }
 }
 

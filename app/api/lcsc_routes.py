@@ -95,8 +95,15 @@ async def get_qr_code():
 
 @router.get("/cookies/status")
 async def get_login_status():
-    """检查登录状态"""
+    """检查登录状态（优先检查 QR 扫码状态）"""
     try:
+        # 先检查 QR 扫码登录状态
+        from app.services.lcsc_service import _http_get
+        qr_result = _http_get("/cookies/check_qr_login", timeout=5.0)
+        if qr_result and qr_result.get("logged_in"):
+            return qr_result
+
+        # 降级到 subprocess 方式
         import subprocess
         import os
         scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
