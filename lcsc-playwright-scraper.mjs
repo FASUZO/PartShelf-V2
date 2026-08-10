@@ -93,17 +93,23 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 
   _initPromise = (async () => {
     try {
-      console.log('[persistent] Launching browser...');
-      _browser = await chromium.launch({ headless: true });
-      _context = await _browser.newContext();
+      // 如果已有浏览器会话（从 QR 登录转来），直接使用
+      if (_browser && _context && _page && !_page.isClosed()) {
+        console.log('[persistent] Using existing browser session...');
+      } else {
+        console.log('[persistent] Launching browser...');
+        _browser = await chromium.launch({ headless: true });
+        _context = await _browser.newContext();
 
-      const cookies = loadCookies();
-      if (cookies && cookies.length > 0) {
-        await _context.addCookies(cookies);
-        console.log('[persistent] Loaded', cookies.length, 'cookies');
+        const cookies = loadCookies();
+        if (cookies && cookies.length > 0) {
+          await _context.addCookies(cookies);
+          console.log('[persistent] Loaded', cookies.length, 'cookies');
+        }
+
+        _page = await _context.newPage();
       }
 
-      _page = await _context.newPage();
       console.log('[persistent] Loading BOM page...');
       await _page.goto(
         `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${bomUuid}`,
@@ -783,19 +789,28 @@ async function checkQrLoginStatus() {
   }
 
   try {
-    // 检查页面是否已跳转（登录成功后会跳转）
     const url = _qrPage.url();
     const content = await _qrPage.content();
     const isLoginPage = url.includes('login') || url.includes('passport') ||
                         content.includes('扫码登录') || content.includes('二维码');
 
     if (!isLoginPage) {
-      // 登录成功，保存 cookies
+      // 登录成功！保存 cookies
       console.log('[qr] Login detected! Saving cookies...');
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
-      await _qrBrowser.close();
+
+      // 把 QR 浏览器会话转为持久化会话（不要关闭）
+      console.log('[qr] Transferring QR session to persistent session...');
+      _browser = _qrBrowser;
+      _context = _qrContext;
+      _page = _qrPage;
+      _bomReady = false;
+      _initPromise = null;
+
+      // 清空 QR 引用（已转给持久化会话）
       _qrBrowser = null; _qrContext = null; _qrPage = null;
+
       return { logged_in: true, message: '登录成功' };
     }
 
