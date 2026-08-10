@@ -170,6 +170,8 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 async function ensureSession(bomUuid = DEFAULT_BOM_UUID) {
   if (_bomReady && _page && !_page.isClosed()) return true;
   console.log('[persistent] Session not ready, reinitializing...');
+  console.log('[persistent] State: bomReady=%s, page=%s, pageClosed=%s',
+    _bomReady, !!_page, _page ? _page.isClosed() : 'N/A');
   _bomReady = false;
   _initPromise = null;
   if (_browser) {
@@ -800,16 +802,37 @@ async function checkQrLoginStatus() {
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
 
-      // 把 QR 浏览器会话转为持久化会话（不要关闭）
+      // 把 QR 浏览器会话转为持久化会话
       console.log('[qr] Transferring QR session to persistent session...');
       _browser = _qrBrowser;
       _context = _qrContext;
       _page = _qrPage;
-      _bomReady = false;
-      _initPromise = null;
 
-      // 清空 QR 引用（已转给持久化会话）
+      // 清空 QR 引用
       _qrBrowser = null; _qrContext = null; _qrPage = null;
+
+      // 直接导航到 BOM 页面（不重新初始化）
+      console.log('[qr] Navigating to BOM page...');
+      try {
+        await _page.goto(
+          `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${DEFAULT_BOM_UUID}`,
+          { waitUntil: 'networkidle', timeout: 60000 },
+        );
+        const title = await _page.title();
+        const bomContent = await _page.content();
+        const bomUrl = _page.url();
+
+        if (!bomUrl.includes('login') && !bomUrl.includes('passport')) {
+          _bomReady = true;
+          _initPromise = Promise.resolve(true);
+          console.log('[qr] BOM page loaded successfully!');
+          return { logged_in: true, message: '登录成功' };
+        } else {
+          console.warn('[qr] Still on login page after redirect');
+        }
+      } catch (navErr) {
+        console.error('[qr] Navigation error:', navErr.message);
+      }
 
       return { logged_in: true, message: '登录成功' };
     }
