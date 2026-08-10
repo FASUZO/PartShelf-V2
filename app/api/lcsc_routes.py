@@ -24,9 +24,9 @@ async def query_part(lc_code: str, bom_uuid: str = Query(None)):
         raise HTTPException(status_code=400, detail="Invalid LC code format")
     
     result = query_lcsc_part(lc_code, bom_uuid)
-    
+
     if result is None:
-        raise HTTPException(status_code=404, detail=f"Part {lc_code} not found or query failed")
+        raise HTTPException(status_code=404, detail=f"LCSC查询失败: {lc_code} 未找到或LCSC服务不可用(需安装Node.js)")
     
     return result
 
@@ -64,6 +64,8 @@ async def refresh_cookies():
         if result.returncode == 0:
             return {"success": True, "message": "Cookie刷新成功"}
         return {"success": False, "message": result.stderr or "刷新失败"}
+    except FileNotFoundError:
+        return {"success": False, "message": "Node.js未安装，LCSC功能不可用"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -85,6 +87,8 @@ async def get_qr_code():
             data = json.loads(result.stdout[result.stdout.find('{'):])
             return data
         return {"success": False, "message": result.stderr or "获取二维码失败"}
+    except FileNotFoundError:
+        return {"success": False, "message": "Node.js未安装，LCSC功能不可用"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
@@ -106,5 +110,7 @@ async def get_login_status():
             data = json.loads(result.stdout[result.stdout.find('{'):])
             return data
         return {"logged_in": False}
+    except FileNotFoundError:
+        return {"logged_in": False, "message": "Node.js未安装"}
     except Exception as e:
         return {"logged_in": False}

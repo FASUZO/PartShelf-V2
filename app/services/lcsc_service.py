@@ -78,6 +78,16 @@ def start_scraper_server() -> bool:
         logger.info("LCSC scraper server already running")
         return True
 
+    # 检查 node 是否可用
+    try:
+        subprocess.run(["node", "--version"], capture_output=True, timeout=5)
+    except FileNotFoundError:
+        logger.warning("Node.js not found, LCSC query feature disabled. Install Node.js to enable.")
+        return False
+    except Exception as e:
+        logger.warning("Node.js check failed: %s, LCSC query feature disabled", e)
+        return False
+
     try:
         logger.info("Starting LCSC scraper server on port %d...", SCRAPER_PORT)
         _scraper_process = subprocess.Popen(
@@ -96,10 +106,10 @@ def start_scraper_server() -> bool:
                 logger.info("LCSC scraper server started (PID: %d)", _scraper_process.pid)
                 return True
 
-        logger.error("LCSC scraper server failed to start within 30s")
+        logger.warning("LCSC scraper server failed to start within 30s")
         return False
     except Exception as e:
-        logger.error("Failed to start LCSC scraper server: %s", e)
+        logger.warning("Failed to start LCSC scraper server: %s", e)
         return False
 
 
@@ -189,6 +199,9 @@ def _query_lcsc_part_subprocess(lc_code: str, bom_uuid: str = None) -> Optional[
         if "error" in data:
             return None
         return data
+    except FileNotFoundError:
+        logger.warning("Node.js not installed, LCSC query unavailable")
+        return None
     except Exception as e:
         logger.error("LCSC subprocess query exception: %s", e)
         return None
