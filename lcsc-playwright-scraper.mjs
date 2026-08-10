@@ -99,14 +99,38 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 
       const title = await _page.title();
       const content = await _page.content();
-      if (title.includes('登录') || content.includes('扫码登录') || content.includes('qrcode')) {
-        console.error('[persistent] Login required');
+      const url = _page.url();
+
+      // 检查是否被重定向到登录页面
+      const isLoginPage = url.includes('login') || url.includes('passport') ||
+                          title.includes('登录') || title.includes('Login') ||
+                          content.includes('扫码登录') || content.includes('请登录');
+
+      if (isLoginPage) {
+        console.warn('[persistent] Login page detected, URL:', url, 'Title:', title);
+        console.warn('[persistent] Cookies may be expired or invalid for this IP');
         _initPromise = null;
         return false;
       }
 
+      // 检查页面是否有二维码（未登录状态）
+      const hasQrCode = content.includes('qrcode') || content.includes('二维码');
+      if (hasQrCode && !content.includes('bomItemList')) {
+        console.warn('[persistent] QR code detected, session may be invalid');
+        _initPromise = null;
+        return false;
+      }
+
+      // 检查页面是否有实际内容（BOM 列表或搜索框）
+      const hasBomContent = content.includes('bomItemList') || content.includes('bom-sheet') ||
+                            content.includes('BOM清单') || content.includes('配单');
+      if (!hasBomContent && !isLoginPage) {
+        console.warn('[persistent] Page loaded but no BOM content found, URL:', url);
+        // 不直接失败，可能是页面还在加载
+      }
+
       _bomReady = true;
-      console.log('[persistent] BOM page ready');
+      console.log('[persistent] BOM page ready, URL:', url);
 
       const newCookies = await _context.cookies();
       saveCookies(newCookies);
@@ -126,6 +150,7 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
  */
 async function ensureSession(bomUuid = DEFAULT_BOM_UUID) {
   if (_bomReady && _page && !_page.isClosed()) return true;
+  console.log('[persistent] Session not ready, reinitializing...');
   _bomReady = false;
   _initPromise = null;
   if (_browser) {
