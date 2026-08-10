@@ -49,6 +49,19 @@ async def get_cookie_status():
     return check_cookies()
 
 
+@router.get("/debug/screenshot")
+async def get_debug_screenshot():
+    """获取浏览器截图（调试用）"""
+    try:
+        from app.services.lcsc_service import _http_get
+        result = _http_get("/screenshot", timeout=15.0)
+        if result:
+            return result
+        return {"success": False, "error": "LCSC服务不可用"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @router.post("/cookies/refresh")
 async def refresh_cookies():
     """刷新 Cookie"""

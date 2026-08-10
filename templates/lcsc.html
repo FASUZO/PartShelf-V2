@@ -57,6 +57,27 @@
         <div id="cookieStatusBadge" class="badge bg-secondary cookie-badge" style="cursor:pointer;" onclick="showCookieModal()">
           <i class="fas fa-cookie-bite me-1"></i> 检查中...
         </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="debugScreenshot()" title="调试截图">
+          <i class="fas fa-camera"></i> 调试
+        </button>
+      </div>
+    </div>
+
+    <!-- 调试截图模态框 -->
+    <div class="modal fade" id="debugScreenshotModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title"><i class="fas fa-camera me-1"></i> 浏览器调试截图</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body text-center">
+            <div id="debugScreenshotContent">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 text-muted">正在截图...</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -628,6 +649,29 @@
         t.textContent = msg;
         document.body.appendChild(t);
         setTimeout(() => t.remove(), 3000);
+      }
+
+      // 调试截图
+      async function debugScreenshot() {
+        new bootstrap.Modal(document.getElementById('debugScreenshotModal')).show();
+        const content = document.getElementById('debugScreenshotContent');
+        content.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">正在截图...</p>';
+
+        try {
+          const resp = await fetch('/api/lcsc/debug/screenshot');
+          const data = await resp.json();
+          if (data.success) {
+            content.innerHTML = `
+              <p class="text-muted mb-2">URL: ${escapeHtml(data.url || '-')}</p>
+              <p class="text-muted mb-2">Title: ${escapeHtml(data.title || '-')}</p>
+              <img src="data:image/png;base64,${data.screenshot}" class="img-fluid border rounded" style="max-height:500px;">
+            `;
+          } else {
+            content.innerHTML = `<p class="text-danger">${escapeHtml(data.error || '截图失败')}</p>`;
+          }
+        } catch (e) {
+          content.innerHTML = `<p class="text-danger">${escapeHtml(e.message)}</p>`;
+        }
       }
     </script>
   </body>

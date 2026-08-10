@@ -683,6 +683,33 @@ async function startServer(port = 3001) {
           break;
         }
 
+        case '/screenshot': {
+          // 截图当前浏览器状态（用于调试）
+          const targetPage = _qrPage || _page;
+          if (!targetPage) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'No active browser session' }));
+            break;
+          }
+          try {
+            const buffer = await targetPage.screenshot({ fullPage: false });
+            const base64 = buffer.toString('base64');
+            const url = targetPage.url();
+            const title = await targetPage.title();
+            res.writeHead(200);
+            res.end(JSON.stringify({
+              success: true,
+              url: url,
+              title: title,
+              screenshot: base64,
+            }));
+          } catch (e) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: e.message }));
+          }
+          break;
+        }
+
         case '/shutdown':
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'Shutting down' }));
