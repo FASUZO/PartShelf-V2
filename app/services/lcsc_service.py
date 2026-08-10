@@ -231,8 +231,13 @@ def check_cookies() -> Dict[str, Any]:
     """检查 cookie 状态"""
     data = _http_get("/cookies", timeout=5.0)
     if data is not None:
-        return {"status": "ok", "message": data}
-    return {"status": "error", "message": "Scraper server not running"}
+        return {
+            "status": "ok",
+            "exists": data.get("exists", False),
+            "count": data.get("count", 0),
+            "sessionReady": data.get("sessionReady", False),
+        }
+    return {"status": "error", "exists": False, "count": 0, "sessionReady": False, "message": "Scraper server not running"}
 
 
 def clear_lcsc_cache() -> Dict[str, Any]:

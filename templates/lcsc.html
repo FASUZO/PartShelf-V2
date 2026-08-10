@@ -269,10 +269,9 @@
           const resp = await fetch('/api/lcsc/cookies');
           const data = await resp.json();
 
-          // 如果会话已就绪，直接显示有效
           if (data.sessionReady) {
             badge.className = 'badge bg-success cookie-badge';
-            badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> 已连接 (' + data.count + ')';
+            badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> LC已连接 (' + (data.count || 0) + ')';
             return;
           }
 
@@ -282,17 +281,8 @@
             return;
           }
 
-          // 有 Cookie 但会话未就绪，验证有效性
-          badge.className = 'badge bg-info cookie-badge';
-          badge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 验证中...';
-          const valResp = await fetch('/api/lcsc/cookies/validate');
-          const valData = await valResp.json();
-          if (valData.valid) {
-            badge.className = 'badge bg-success cookie-badge';
-            badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> Cookie有效';
-          } else {
-            badge.className = 'badge bg-warning text-dark cookie-badge';
-            badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Cookie已过期';
+          badge.className = 'badge bg-warning text-dark cookie-badge';
+          badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Cookie已过期';
           }
         } catch (e) {
           badge.className = 'badge bg-danger cookie-badge';

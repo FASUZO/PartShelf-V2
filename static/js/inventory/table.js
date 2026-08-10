@@ -985,9 +985,13 @@ async function applyLcscToEditForm() {
         const resp = await fetch('/api/inventory/update_part', { method: 'POST', body: formData });
         if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '保存失败'); }
 
-        // 关闭对比弹窗
+        // 关闭对比弹窗并移除遮罩
         const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
         if (modal) modal.hide();
+        // 强制移除残留的 modal backdrop
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
 
         // 重新加载编辑表单的参数字段（不关闭编辑弹窗）
         try {
