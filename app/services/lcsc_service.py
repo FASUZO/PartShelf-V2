@@ -247,3 +247,72 @@ def clear_lcsc_cache() -> Dict[str, Any]:
     _cache = {}
     _save_cache()
     return {"message": f"Cleared {count} cached entries", "cleared": count}
+
+
+# 预加载状态
+_preload_status = {
+    "running": False,
+    "total": 0,
+    "done": 0,
+    "cached": 0,
+    "queried": 0,
+    "failed": 0,
+    "current": "",
+}
+
+
+def get_preload_status() -> Dict[str, Any]:
+    """获取预加载状态"""
+    return dict(_preload_status)
+
+
+def preload_inventory_lc_codes():
+    """预加载所有库存 LC 编号到缓存（后台线程运行）"""
+    global _preload_status
+
+    if _preload_status["running"]:
+        return
+
+    _preload_status["running"] = True
+    _preload_status["done"] = 0
+    _preload_status["cached"] = 0
+    _preload_status["queried"] = 0
+    _preload_status["failed"] = 0
+
+    try:
+        from db.database import SessionLocal
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            rows = db.execute(text(
+                "SELECT DISTINCT lc_number FROM parts "
+                "WHERE lc_number IS NOT NULL AND lc_number != '' AND lc_number LIKE 'C%'"
+            )).fetchall()
+            lc_codes = [r[0] for r in rows]
+        finally:
+            db.close()
+
+        _preload_status["total"] = len(lc_codes)
+        logger.info("Preloading %d LC codes...", len(lc_codes))
+
+        for lc_code in lc_codes:
+            if lc_code in _cache:
+                _preload_status["cached"] += 1
+            else:
+                _preload_status["current"] = lc_code
+                result = query_lcsc_part(lc_code)
+                if result:
+                    _preload_status["queried"] += 1
+                else:
+                    _preload_status["failed"] += 1
+            _preload_status["done"] += 1
+
+        logger.info("Preload complete: %d total, %d cached, %d queried, %d failed",
+                     _preload_status["total"], _preload_status["cached"],
+                     _preload_status["queried"], _preload_status["failed"])
+    except Exception as e:
+        logger.error("Preload failed: %s", e)
+    finally:
+        _preload_status["running"] = False
+        _preload_status["current"] = ""

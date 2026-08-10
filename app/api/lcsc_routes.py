@@ -150,3 +150,22 @@ async def get_login_status():
         return {"logged_in": False, "message": "Node.js未安装"}
     except Exception as e:
         return {"logged_in": False}
+
+
+@router.get("/preload/status")
+async def get_preload_status():
+    """获取 LC 预加载状态"""
+    from app.services.lcsc_service import get_preload_status
+    return get_preload_status()
+
+
+@router.post("/preload/start")
+async def start_preload():
+    """启动 LC 预加载"""
+    import threading
+    from app.services.lcsc_service import preload_inventory_lc_codes, get_preload_status
+    status = get_preload_status()
+    if status["running"]:
+        return {"message": "预加载已在运行中", "status": status}
+    threading.Thread(target=preload_inventory_lc_codes, daemon=True).start()
+    return {"message": "预加载已启动"}

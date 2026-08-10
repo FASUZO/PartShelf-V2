@@ -267,6 +267,8 @@
               badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> LC已连接 (' + (data.count || 0) + ')';
             }
             showToast('LC查询服务已就绪', 'success');
+            // 启动库存 LC 预加载
+            startPreload();
           } else {
             const badge = document.getElementById('cookieStatusBadge');
             if (badge) {
@@ -727,6 +729,38 @@
         } catch (e) {
           content.innerHTML = `<p class="text-danger">${escapeHtml(e.message)}</p>`;
         }
+      }
+
+      // ==================== LC 预加载 ====================
+      let _preloadInterval = null;
+
+      async function startPreload() {
+        try {
+          const resp = await fetch('/api/lcsc/preload/start', { method: 'POST' });
+          const data = await resp.json();
+          if (data.message === '预加载已在运行中') return;
+          showToast('开始预加载库存LC数据...', 'info');
+          pollPreloadStatus();
+        } catch (_) {}
+      }
+
+      async function pollPreloadStatus() {
+        if (_preloadInterval) return;
+        _preloadInterval = setInterval(async () => {
+          try {
+            const resp = await fetch('/api/lcsc/preload/status');
+            const data = await resp.json();
+            if (data.running) {
+              showToast(`LC预加载: ${data.done}/${data.total} (缓存${data.cached}, 查询${data.queried}, 失败${data.failed})`, 'info');
+            } else {
+              clearInterval(_preloadInterval);
+              _preloadInterval = null;
+              if (data.total > 0) {
+                showToast(`LC预加载完成: ${data.total}个, 缓存${data.cached}, 查询${data.queried}, 失败${data.failed}`, 'success');
+              }
+            }
+          } catch (_) {}
+        }, 3000);
       }
     </script>
   </body>
