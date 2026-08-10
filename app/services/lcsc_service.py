@@ -90,37 +90,21 @@ def start_scraper_server() -> bool:
 
     try:
         logger.info("Starting LCSC scraper server on port %d...", SCRAPER_PORT)
+        # 不捕获输出，让 Node.js 日志直接出现在 Docker 日志中
         _scraper_process = subprocess.Popen(
             ["node", SCRAPER_SCRIPT, "serve", str(SCRAPER_PORT)],
             cwd=os.path.dirname(SCRAPER_SCRIPT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,  # 合并 stderr 到 stdout
-            encoding="utf-8",
-            errors="replace",
         )
 
-        for _ in range(30):
+        for i in range(30):
             time.sleep(1)
-            # 读取 Node.js 输出并记录
-            try:
-                line = _scraper_process.stdout.readline()
-                if line:
-                    logger.info("[LCSC] %s", line.strip())
-            except:
-                pass
-
             health = _http_get("/health", timeout=3.0)
             if health:
-                logger.info("LCSC scraper server started (PID: %d)", _scraper_process.pid)
+                logger.info("LCSC scraper server started (PID: %d), health: %s", _scraper_process.pid, health)
                 return True
-
-        # 读取剩余输出
-        try:
-            remaining = _scraper_process.stdout.read()
-            if remaining:
-                logger.warning("[LCSC] Server output: %s", remaining[:500])
-        except:
-            pass
+            # 每5秒记录一次等待状态
+            if i % 5 == 4:
+                logger.info("Waiting for LCSC scraper server... (%ds)", i + 1)
 
         logger.warning("LCSC scraper server failed to start within 30s")
         return False

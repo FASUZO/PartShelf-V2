@@ -595,6 +595,8 @@ async function startServer(port = 3001) {
           res.end(JSON.stringify({
             status: _bomReady ? 'ready' : 'initializing',
             browserAlive: !!_browser,
+            pageReady: !!_page && !_page.isClosed(),
+            cookiesLoaded: loadCookies()?.length || 0,
           }));
           break;
 
