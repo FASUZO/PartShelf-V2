@@ -94,17 +94,33 @@ def start_scraper_server() -> bool:
             ["node", SCRAPER_SCRIPT, "serve", str(SCRAPER_PORT)],
             cwd=os.path.dirname(SCRAPER_SCRIPT),
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # 合并 stderr 到 stdout
             encoding="utf-8",
             errors="replace",
         )
 
         for _ in range(30):
             time.sleep(1)
+            # 读取 Node.js 输出并记录
+            try:
+                line = _scraper_process.stdout.readline()
+                if line:
+                    logger.info("[LCSC] %s", line.strip())
+            except:
+                pass
+
             health = _http_get("/health", timeout=3.0)
             if health:
                 logger.info("LCSC scraper server started (PID: %d)", _scraper_process.pid)
                 return True
+
+        # 读取剩余输出
+        try:
+            remaining = _scraper_process.stdout.read()
+            if remaining:
+                logger.warning("[LCSC] Server output: %s", remaining[:500])
+        except:
+            pass
 
         logger.warning("LCSC scraper server failed to start within 30s")
         return False
@@ -153,7 +169,14 @@ def query_lcsc_part(lc_code: str, bom_uuid: str = None) -> Optional[Dict[str, An
     data = _http_get("/query", params=params)
     if data is not None:
         if "error" in data:
-            logger.error("LCSC query error: %s", data["error"])
+            logger.error("LCSC query error: %s (lc_code=%s)", data["error"], lc_code)
+            # 检查是否是登录问题，尝试获取更多诊断信息
+            if "login" in data["error"].lower() or "session" in data["error"].lower():
+                try:
+                    health = _http_get("/health", timeout=3.0)
+                    logger.error("LCSC health: %s", health)
+                except:
+                    pass
             return None
         # 缓存结果
         _cache[lc_code] = data
