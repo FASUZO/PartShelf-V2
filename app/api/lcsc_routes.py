@@ -49,6 +49,32 @@ async def get_cookie_status():
     return check_cookies()
 
 
+@router.get("/cookies/validate")
+async def validate_cookies():
+    """验证 Cookie 是否有效"""
+    try:
+        from app.services.lcsc_service import _http_get
+        result = _http_get("/cookies/validate", timeout=30.0)
+        if result:
+            return result
+        return {"valid": False, "message": "LCSC服务不可用"}
+    except Exception as e:
+        return {"valid": False, "message": str(e)}
+
+
+@router.post("/cookies/clear")
+async def clear_cookies():
+    """清除无效的 Cookie"""
+    try:
+        from app.services.lcsc_service import _http_get
+        result = _http_get("/cookies/clear", timeout=10.0)
+        if result:
+            return result
+        return {"success": False, "message": "LCSC服务不可用"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
 @router.get("/debug/screenshot")
 async def get_debug_screenshot():
     """获取浏览器截图（调试用）"""

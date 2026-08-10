@@ -59,6 +59,61 @@ function saveCookies(cookies) {
 }
 
 /**
+ * 验证 Cookie 是否有效（通过访问 BOM 页面检查）
+ * @returns {Promise<{valid: boolean, message: string}>}
+ */
+async function validateCookies() {
+  const cookies = loadCookies();
+  if (!cookies || cookies.length === 0) {
+    return { valid: false, message: '无Cookie文件' };
+  }
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  await context.addCookies(cookies);
+  const page = await context.newPage();
+
+  try {
+    await page.goto('https://bom.szlcsc.com/member/bom-list.html', {
+      waitUntil: 'networkidle',
+      timeout: 30000,
+    });
+
+    const url = page.url();
+    const title = await page.title();
+    console.log('[cookies] Validation - URL:', url, 'Title:', title);
+
+    const isValid = !url.includes('login') && !url.includes('passport') &&
+                    !url.includes('404') && !title.includes('登录');
+
+    await browser.close();
+    return {
+      valid: isValid,
+      message: isValid ? 'Cookie有效' : 'Cookie已过期或无效',
+      url: url,
+      title: title,
+    };
+  } catch (e) {
+    await browser.close();
+    return { valid: false, message: e.message };
+  }
+}
+
+/**
+ * 清除无效的 Cookie 文件
+ */
+function clearCookies() {
+  try {
+    if (existsSync(COOKIES_FILE)) {
+      writeFileSync(COOKIES_FILE, JSON.stringify({ cookies: [] }, null, 2));
+      console.log('[cookies] Cookies cleared');
+    }
+  } catch (e) {
+    console.error('[cookies] Failed to clear:', e.message);
+  }
+}
+
+/**
  * 启动浏览器并加载 cookie
  */
 async function launchBrowser(headless = true) {
@@ -667,6 +722,25 @@ async function startServer(port = 3001) {
           const ck = loadCookies();
           res.writeHead(200);
           res.end(JSON.stringify({ exists: !!ck, count: ck ? ck.length : 0 }));
+          break;
+        }
+
+        case '/cookies/validate': {
+          const validation = await validateCookies();
+          res.writeHead(200);
+          res.end(JSON.stringify(validation));
+          break;
+        }
+
+        case '/cookies/clear': {
+          clearCookies();
+          // 重置会话状态
+          _bomReady = false;
+          _initPromise = null;
+          if (_browser) { try { await _browser.close(); } catch (_) {} }
+          _browser = null; _context = null; _page = null;
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, message: 'Cookies已清除' }));
           break;
         }
 
