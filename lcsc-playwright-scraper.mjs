@@ -704,11 +704,21 @@ async function startServer(port = 3001) {
         case '/cookies': {
           const ck = loadCookies();
           res.writeHead(200);
-          res.end(JSON.stringify({ exists: !!ck, count: ck ? ck.length : 0 }));
+          res.end(JSON.stringify({
+            exists: !!ck,
+            count: ck ? ck.length : 0,
+            sessionReady: _bomReady,
+          }));
           break;
         }
 
         case '/cookies/validate': {
+          // 如果持久化会话已就绪，Cookie 有效
+          if (_bomReady) {
+            res.writeHead(200);
+            res.end(JSON.stringify({ valid: true, message: '会话已就绪' }));
+            break;
+          }
           const validation = await validateCookies();
           res.writeHead(200);
           res.end(JSON.stringify(validation));
@@ -735,6 +745,12 @@ async function startServer(port = 3001) {
         }
 
         case '/qrcode': {
+          // 如果持久化会话已就绪，不需要 QR 登录
+          if (_bomReady) {
+            res.writeHead(200);
+            res.end(JSON.stringify({ success: true, message: '已登录', logged_in: true }));
+            break;
+          }
           const qrResult = await getQrCode();
           res.writeHead(200);
           res.end(JSON.stringify(qrResult));

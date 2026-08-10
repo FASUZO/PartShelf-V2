@@ -256,16 +256,23 @@
       async function checkCookieStatus() {
         const badge = document.getElementById('cookieStatusBadge');
         try {
-          // 先检查文件是否存在
           const resp = await fetch('/api/lcsc/cookies');
           const data = await resp.json();
+
+          // 如果会话已就绪，直接显示有效
+          if (data.sessionReady) {
+            badge.className = 'badge bg-success cookie-badge';
+            badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> 已连接 (' + data.count + ')';
+            return;
+          }
+
           if (!data.exists || data.count === 0) {
             badge.className = 'badge bg-secondary cookie-badge';
             badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> 无Cookie';
             return;
           }
 
-          // 验证 Cookie 是否有效
+          // 有 Cookie 但会话未就绪，验证有效性
           badge.className = 'badge bg-info cookie-badge';
           badge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 验证中...';
           const valResp = await fetch('/api/lcsc/cookies/validate');
