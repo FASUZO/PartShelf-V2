@@ -177,35 +177,18 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 
       // 检查是否被重定向到登录页面或 404 页面
       const isLoginPage = url.includes('login') || url.includes('passport') ||
-                          title.includes('登录') || title.includes('Login') ||
-                          content.includes('扫码登录') || content.includes('请登录');
+                          title.includes('登录') || title.includes('Login');
       const is404Page = url.includes('404') || title.includes('没有找到') || title.includes('Not Found');
 
       if (isLoginPage || is404Page) {
         console.warn('[persistent] Login/404 page detected, URL:', url, 'Title:', title);
-        console.warn('[persistent] Cookies may be expired or invalid for this IP');
         _initPromise = null;
         return false;
       }
 
-      // 检查页面是否有二维码（未登录状态）
-      const hasQrCode = content.includes('qrcode') || content.includes('二维码');
-      if (hasQrCode && !content.includes('bomItemList')) {
-        console.warn('[persistent] QR code detected, session may be invalid');
-        _initPromise = null;
-        return false;
-      }
-
-      // 检查页面是否有实际内容（BOM 列表或搜索框）
-      const hasBomContent = content.includes('bomItemList') || content.includes('bom-sheet') ||
-                            content.includes('BOM清单') || content.includes('配单');
-      if (!hasBomContent && !isLoginPage) {
-        console.warn('[persistent] Page loaded but no BOM content found, URL:', url);
-        // 不直接失败，可能是页面还在加载
-      }
-
+      // URL 不是登录页/404 = 登录成功
       _bomReady = true;
-      console.log('[persistent] BOM page ready, URL:', url);
+      console.log('[persistent] BOM page ready, URL:', url, 'Title:', title);
 
       const newCookies = await _context.cookies();
       saveCookies(newCookies);
