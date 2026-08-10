@@ -249,6 +249,16 @@
       checkCookieStatus();
       renderHistory();
 
+      // 如果会话未就绪，每3秒检查一次直到就绪
+      const _cookiePoll = setInterval(async () => {
+        await checkCookieStatus();
+        try {
+          const resp = await fetch('/api/lcsc/cookies');
+          const data = await resp.json();
+          if (data.sessionReady) clearInterval(_cookiePoll);
+        } catch (_) {}
+      }, 3000);
+
       document.getElementById('lcCodeInput').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') searchLcCode();
       });
