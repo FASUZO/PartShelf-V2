@@ -95,6 +95,19 @@ function getDisplayType(item) {
     return item.part_type || '-';
 }
 
+// ==================== Modal 关闭辅助 ====================
+// 安全关闭 Bootstrap Modal 并清理残留遮罩
+function closeModal(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+    // 强制清理残留遮罩
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+}
+
 // ==================== 通用工具导出 ====================
 // 使函数在全局可用
 window.debounce = debounce;
@@ -103,3 +116,4 @@ window.escapeHtml = escapeHtml;
 window.showToast = showToast;
 window.formatDateTime = formatDateTime;
 window.getDisplayType = getDisplayType;
+window.closeModal = closeModal;

@@ -603,9 +603,7 @@
           if (!resp.ok) throw new Error('更新失败');
           
           // 关闭对比弹窗
-          const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
-          if (modal) modal.hide();
-          
+          closeModal('lcscCompareModal');
           showToast('零件参数已更新！', 'success');
         } catch (e) { 
           showToast('更新失败: ' + e.message, 'danger'); 
@@ -649,7 +647,7 @@
         try {
           const resp = await fetch('/api/inventory/add_part_to_inventory', { method: 'POST', body: formData });
           if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '入库失败'); }
-          bootstrap.Modal.getInstance(document.getElementById('stockInModal')).hide();
+          closeModal('stockInModal');
           showToast('入库成功！', 'success');
         } catch (e) { 
           showToast('入库失败: ' + e.message, 'danger'); 

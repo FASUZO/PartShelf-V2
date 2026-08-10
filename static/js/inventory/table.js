@@ -262,8 +262,7 @@ function confirmDeleteFromEdit() {
     })
     .then(data => {
         // 关闭编辑模态框
-        const editModal = bootstrap.Modal.getInstance(document.getElementById('editPartModal'));
-        if (editModal) editModal.hide();
+        closeModal('editPartModal');
 
         showToast('零件已删除', 'success');
 
@@ -413,8 +412,7 @@ function viewDetailHistory() {
     if (!partId) return;
 
     // 关闭详情模态框
-    const detailModal = bootstrap.Modal.getInstance(modal);
-    if (detailModal) detailModal.hide();
+    closeModal('componentDetailModal');
 
     // 打开历史模态框
     const historyModal = new bootstrap.Modal(document.getElementById('inventoryHistoryModal'));
@@ -512,7 +510,7 @@ async function deleteDetailPart() {
 
         console.info('[库存] 零件删除成功: part_id=%s', partId);
         alert('删除成功！');
-        bootstrap.Modal.getInstance(modal).hide();
+        closeModal('componentDetailModal');
         applyAdvancedFilter();
     } catch (error) {
         console.error('删除零件失败:', error);
@@ -785,7 +783,7 @@ async function saveEditPart() {
         const partName = document.getElementById('editPartName').value;
         console.info('[库存] 零件更新成功: id=%s, name=%s', formData.get('part_id'), partName);
         alert('更新成功！');
-        bootstrap.Modal.getInstance(document.getElementById('editPartModal')).hide();
+        closeModal('editPartModal');
         applyAdvancedFilter();
     } catch (error) {
         console.error('更新器件失败:', error);
@@ -985,13 +983,8 @@ async function applyLcscToEditForm() {
         const resp = await fetch('/api/inventory/update_part', { method: 'POST', body: formData });
         if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.detail || '保存失败'); }
 
-        // 关闭对比弹窗并移除遮罩
-        const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
-        if (modal) modal.hide();
-        // 强制移除残留的 modal backdrop
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.removeProperty('padding-right');
+        // 关闭对比弹窗
+        closeModal('lcscCompareModal');
 
         // 重新加载编辑表单的参数字段（不关闭编辑弹窗）
         try {
