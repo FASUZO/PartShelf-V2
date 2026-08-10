@@ -266,9 +266,7 @@
               badge.className = 'badge bg-success cookie-badge';
               badge.innerHTML = '<i class="fas fa-cookie-bite me-1"></i> LC已连接 (' + (data.count || 0) + ')';
             }
-            showToast('LC查询服务已就绪', 'success');
-            // 延迟10秒后启动库存 LC 预加载，确保服务稳定
-            setTimeout(() => startPreload(), 10000);
+            // 预加载已由后台自动启动，无需在此触发
           } else {
             const badge = document.getElementById('cookieStatusBadge');
             if (badge) {
@@ -279,9 +277,6 @@
         } catch (_) {}
         _cookiePolling = false;
       }, 5000);
-
-      // 首次加载时显示提示
-      showToast('LC查询服务加载中，请稍候...', 'info');
 
       document.getElementById('lcCodeInput').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') searchLcCode();

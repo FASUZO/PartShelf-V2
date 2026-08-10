@@ -89,10 +89,17 @@ app = FastAPI()
 # LCSC scraper 服务生命周期管理
 @app.on_event("startup")
 async def startup_lcsc_scraper():
-    """应用启动时在后台线程启动 LCSC scraper 服务"""
+    """应用启动时在后台线程启动 LCSC scraper 服务并预加载库存"""
     import threading
-    from app.services.lcsc_service import start_scraper_server
-    threading.Thread(target=start_scraper_server, daemon=True).start()
+    import time
+    from app.services.lcsc_service import start_scraper_server, preload_inventory_lc_codes
+
+    def _init():
+        if start_scraper_server():
+            time.sleep(10)  # 等待10秒确保服务稳定
+            preload_inventory_lc_codes()
+
+    threading.Thread(target=_init, daemon=True).start()
 
 
 @app.on_event("shutdown")
