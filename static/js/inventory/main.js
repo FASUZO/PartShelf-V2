@@ -47,8 +47,11 @@ function applyAdvancedFilter() {
     .then(response => response.json())
     .then(data => {
         currentSearchFilter = filterData;
+        const count = data.data ? data.data.length : 0;
+        const total = data.pagination ? data.pagination.total_count : count;
+        console.info('[库存] 加载完成: %d/%d 条, 关键词="%s"', count, total, searchKey || '(全部)');
         updateTable(data);
-        
+
         // 保存筛选状态到URL和localStorage
         if (typeof saveFilterStateToURL === 'function') {
             saveFilterStateToURL();
@@ -58,7 +61,7 @@ function applyAdvancedFilter() {
         }
     })
     .catch(error => {
-        console.error('Search failed:', error);
+        console.error('[库存] 加载失败:', error);
         if (tbody) {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">加载失败，请重试</td></tr>';
         }
@@ -259,30 +262,53 @@ function bindImportForm() {
         .then(response => {
             clearInterval(progressInterval);
             if (response.ok) {
-                if (progressBar) {
-                    progressBar.style.width = '100%';
-                    progressBar.textContent = '100%';
-                    progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-                    progressBar.classList.add('bg-success');
-                }
-                if (progressText) progressText.textContent = '导入完成！';
-                
-                setTimeout(() => {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('addComponentOrderModal'));
-                    modal.hide();
-                    // 重置进度条
-                    if (progressContainer) progressContainer.style.display = 'none';
+                response.json().then(report => {
                     if (progressBar) {
-                        progressBar.style.width = '0%';
-                        progressBar.classList.remove('bg-success');
-                        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+                        progressBar.style.width = '100%';
+                        progressBar.textContent = '100%';
+                        progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                        progressBar.classList.add('bg-success');
                     }
-                    if (submitBtn) submitBtn.disabled = false;
-                    
-                    showToast('文件导入成功', 'success');
+                    if (progressText) progressText.textContent = '导入完成！';
+
+                    const skipped = (report.skipped_empty||0) + (report.skipped_no_name||0) + (report.skipped_no_quantity||0) + (report.skipped_bad_quantity||0);
+                    const errors = report.errors ? report.errors.length : 0;
+                    console.info('[导入] 完成: 文件=%s, 总行=%d, 导入=%d, 跳过=%d, 错误=%d', file.name, report.total_rows, report.imported, skipped, errors);
+
+                    // 保存报告数据供导出使用
+                    window._lastImportReport = report;
+
+                    const verifyPassed = report.verify_passed || 0;
+                    const verifyIssues = report.verify_issues || 0;
+
+                    // 生成报告HTML
+                    let html = '<div class="d-flex justify-content-between align-items-center mb-2"><div><strong>总行数:</strong> ' + report.total_rows + ' &nbsp; <strong>导入:</strong> <span class="text-success">' + report.imported + '</span> &nbsp; <strong>跳过:</strong> ' + skipped + ' &nbsp; <strong>错误:</strong> ' + errors + (verifyIssues > 0 ? ' &nbsp; <strong class="text-warning">验证问题:</strong> <span class="text-warning">' + verifyIssues + '</span>' : '') + '</div><div class="btn-group btn-group-sm"><button class="btn btn-outline-success" onclick="exportImportReport(\'all\')"><i class="fas fa-file-excel me-1"></i> 导出全部报告</button>' + (verifyIssues > 0 ? '<button class="btn btn-outline-warning" onclick="exportImportReport(\'issues\')"><i class="fas fa-file-excel me-1"></i> 导出问题报告</button>' : '') + (errors > 0 ? '<button class="btn btn-outline-danger" onclick="exportImportReport(\'failed\')"><i class="fas fa-file-excel me-1"></i> 导出失败报告</button>' : '') + '</div></div>';
+                    if (report.columns_detected && report.columns_detected.length > 0) {
+                        html += '<div class="mb-2"><small class="text-muted">检测到列: ' + report.columns_detected.join(', ') + '</small></div>';
+                    }
+                    if (report.details && report.details.length > 0) {
+                        html += '<div style="max-height:400px;overflow-y:auto;"><table class="table table-sm table-bordered" style="font-size:0.8rem;"><thead class="table-light"><tr><th>行</th><th>型号</th><th>数量</th><th>类型</th><th>导入状态</th><th>验证</th><th>验证问题</th></tr></thead><tbody>';
+                        report.details.forEach(function(d) {
+                            const cls = d.status === 'error' ? ' class="table-danger"' : (d.verify_status === '有问题' ? ' class="table-warning"' : '');
+                            const statusText = d.status === 'ok' ? '成功' : (d.status === 'error' ? '错误' : '跳过');
+                            const reason = d.status !== 'ok' ? (d.reason || '') : '';
+                            const verifyText = d.verify_status || '-';
+                            const verifyIssue = d.verify_issues || reason || '';
+                            html += '<tr' + cls + '><td>' + d.row + '</td><td>' + (d.name||'-') + '</td><td>' + (d.quantity||'-') + '</td><td>' + (d.category||'-') + '</td><td>' + statusText + '</td><td>' + verifyText + '</td><td>' + verifyIssue + '</td></tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+
+                    // 显示报告（替换进度条区域）
+                    if (progressContainer) {
+                        progressContainer.innerHTML = html;
+                        progressContainer.style.display = 'block';
+                    }
+
+                    showToast('导入完成: ' + report.imported + '条成功' + (errors > 0 ? ', ' + errors + '条错误' : ''), errors > 0 ? 'warning' : 'success');
                     applyAdvancedFilter();
-                    this.reset();
-                }, 1000);
+                    if (submitBtn) submitBtn.disabled = false;
+                });
             } else {
                 // 尝试解析后端返回的详细错误信息
                 response.json().then(data => {
@@ -364,6 +390,9 @@ function bindAddPartForm() {
         })
         .then(response => {
             if (response.ok) {
+                const partName = formData.get('name') || '?';
+                const partPkg = formData.get('package') || '?';
+                console.info('[库存] 零件添加成功: %s (%s)', partName, partPkg);
                 const modal = bootstrap.Modal.getInstance(document.getElementById('addComponentModal'));
                 modal.hide();
                 showToast('零件添加成功', 'success');
@@ -374,7 +403,7 @@ function bindAddPartForm() {
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('[库存] 零件添加失败:', error);
             showToast('发生错误: ' + error.message, 'danger');
         });
     });
@@ -443,6 +472,8 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     // 检查 MQTT 状态（导航栏指示器）
     updateNavMqttStatus();
+
+    console.info('[库存] 页面初始化完成');
     
     // 恢复页面筛选状态
     if (typeof restoreFilterStateFromURL === 'function') {
@@ -474,9 +505,80 @@ function updateNavMqttStatus() {
         .catch(function() {});
 }
 
+// 导出导入报告为Excel(xlsx)
+function exportImportReport(mode) {
+    const report = window._lastImportReport;
+    if (!report || !report.details || report.details.length === 0) {
+        showToast('没有可导出的报告数据', 'warning');
+        return;
+    }
+
+    let rows = report.details;
+    let filename = '导入报告_全部';
+
+    if (mode === 'failed') {
+        rows = rows.filter(function(d) { return d.status !== 'ok'; });
+        filename = '导入报告_失败';
+    } else if (mode === 'issues') {
+        rows = rows.filter(function(d) { return d.verify_status === '有问题' || d.status !== 'ok'; });
+        filename = '导入报告_问题';
+    }
+
+    if (rows.length === 0) {
+        showToast('没有符合条件的记录', 'info');
+        return;
+    }
+
+    // 构建明细数据
+    const data = [['行号', '型号', '数量', '类型', '导入状态', '验证结果', '问题说明', '已关联制造商', '已分配类别', '已分配子类别']];
+    rows.forEach(function(d) {
+        const statusText = d.status === 'ok' ? '成功' : (d.status === 'error' ? '失败' : '跳过');
+        const reason = d.status !== 'ok' ? (d.reason || '') : (d.verify_issues || '');
+        data.push([
+            d.row,
+            d.name || '-',
+            d.quantity || '-',
+            d.category || '-',
+            statusText,
+            d.verify_status || '-',
+            reason,
+            d.manufacturer_verified || '-',
+            d.category_verified || '-',
+            d.subcategory_verified || '-',
+        ]);
+    });
+
+    // 汇总
+    const skipped = (report.skipped_empty||0) + (report.skipped_no_name||0) + (report.skipped_no_quantity||0) + (report.skipped_bad_quantity||0);
+    const errorCount = report.errors ? report.errors.length : 0;
+    data.push([]);
+    data.push(['汇总']);
+    data.push(['总行数', report.total_rows]);
+    data.push(['导入成功', report.imported]);
+    data.push(['跳过', skipped]);
+    data.push(['错误', errorCount]);
+    data.push(['验证通过', report.verify_passed || 0]);
+    data.push(['验证有问题', report.verify_issues || 0]);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+        { wch: 8 },  { wch: 30 }, { wch: 10 }, { wch: 20 },
+        { wch: 10 }, { wch: 10 }, { wch: 40 },
+        { wch: 20 }, { wch: 20 }, { wch: 20 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '导入报告');
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, filename + '_' + dateStr + '.xlsx');
+    showToast('报告已导出: ' + filename + '_' + dateStr + '.xlsx', 'success');
+}
+
 // 导出到全局
 window.currentSearchFilter = currentSearchFilter;
 window.applyAdvancedFilter = applyAdvancedFilter;
 window.clearAdvancedFilter = clearAdvancedFilter;
 window.loadAllParts = loadAllParts;
 window.goToPage = goToPage;
+window.exportImportReport = exportImportReport;

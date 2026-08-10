@@ -140,6 +140,13 @@ node_modules/
 
 # LCSC cookies（包含登录凭证）
 lcsc-cookies.json
+tmp_bom_upload.csv
+
+# LCSC 查询缓存
+db/lcsc_cache.json
+
+# MiMoCode agent extensions
+.mimocode/
 
 # ==================== 敏感信息 ====================
 # 密钥文件

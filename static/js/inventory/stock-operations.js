@@ -25,9 +25,11 @@ function performStockOperation(partId, quantity, type, remark) {
         const modalId = type === 'in' ? 'stockInModal' : 'stockOutModal';
         const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
         if (modal) modal.hide();
-        
+
         // 显示成功消息
         const actionText = type === 'in' ? '入库' : '出库';
+        const changeText = type === 'in' ? '+' + quantity : '-' + quantity;
+        console.info('[库存] %s成功: part_id=%d, 变动=%s, 新库存=%d, 备注="%s"', actionText, partId, changeText, data.new_quantity, remark || '(无)');
         showToast(`${actionText}成功！当前库存: ${data.new_quantity}`, 'success');
         
         // 刷新列表

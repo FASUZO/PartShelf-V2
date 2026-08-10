@@ -85,11 +85,38 @@ with SessionLocal() as _db:
 
 app = FastAPI()
 
+
+# LCSC scraper 服务生命周期管理
+@app.on_event("startup")
+async def startup_lcsc_scraper():
+    """应用启动时在后台线程启动 LCSC scraper 服务"""
+    import threading
+    from app.services.lcsc_service import start_scraper_server
+    threading.Thread(target=start_scraper_server, daemon=True).start()
+
+
+@app.on_event("shutdown")
+async def shutdown_lcsc_scraper():
+    """应用关闭时停止 LCSC scraper 服务"""
+    from app.services.lcsc_service import stop_scraper_server
+    stop_scraper_server()
+
+
 # 使用绝对路径挂载静态文件
 static_dir = os.path.join(app_root, "static")
 logger.info(f"静态文件目录: {static_dir}")
 logger.info(f"静态文件目录存在: {os.path.exists(static_dir)}")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.middleware("http")
+async def no_cache_static_js(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/js/") or request.url.path.startswith("/static/css/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 app.include_router(auth_routes.router)
 app.include_router(web_routes.router, tags=["Web Pages"])

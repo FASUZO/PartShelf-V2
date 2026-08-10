@@ -319,7 +319,12 @@
 
         const btn = document.getElementById('searchBtn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 查询中...';
+
+        // 清除上一次查询结果，显示加载状态
+        document.getElementById('resultArea').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'block';
+        document.getElementById('emptyState').innerHTML = '<div class="spinner-border text-primary mb-3" role="status"></div><p class="text-muted">正在加载中，请勿再次点击...</p>';
 
         try {
           const resp = await fetch(`/api/lcsc/query/${lcCode}`);
@@ -333,9 +338,16 @@
           showToast('查询失败: ' + e.message, 'danger');
           document.getElementById('resultArea').style.display = 'none';
           document.getElementById('emptyState').style.display = 'block';
+          document.getElementById('emptyState').innerHTML = '<i class="fas fa-exclamation-triangle fa-3x mb-3 text-warning" style="opacity:0.5;"></i><p class="text-danger">查询失败: ' + e.message + '</p>';
         } finally {
           btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-search"></i>';
+          btn.innerHTML = '<i class="fas fa-search"></i> 查询';
+          // 恢复空状态默认内容
+          if (document.getElementById('emptyState').style.display !== 'none') {
+            setTimeout(() => {
+              document.getElementById('emptyState').innerHTML = '<i class="fas fa-search fa-3x mb-3" style="opacity:0.3;"></i><p>输入LC编号开始查询立创商城零件信息</p>';
+            }, 3000);
+          }
         }
       }
 

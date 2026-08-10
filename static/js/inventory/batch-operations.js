@@ -278,6 +278,7 @@ function confirmBatchStockOut() {
         .catch(() => failed++)
         .finally(() => {
             if (completed + failed === okItems.length) {
+                console.info('[批量] 出库完成: %d 成功, %d 失败, 共 %d 项', completed, failed, okItems.length);
                 showToast(`批量出库完成: ${completed} 成功, ${failed} 失败`, failed > 0 ? 'warning' : 'success');
                 const modal = bootstrap.Modal.getInstance(document.getElementById('batchStockOutModal'));
                 if (modal) modal.hide();
@@ -559,6 +560,7 @@ function confirmBatchStockIn() {
         .catch(() => failed++)
         .finally(() => {
             if (completed + failed === okItems.length) {
+                console.info('[批量] 入库完成: %d 成功, %d 失败, 共 %d 项', completed, failed, okItems.length);
                 showToast(`批量入库完成: ${completed} 成功, ${failed} 失败`, failed > 0 ? 'warning' : 'success');
                 const modal = bootstrap.Modal.getInstance(document.getElementById('batchStockInModal'));
                 if (modal) modal.hide();
@@ -625,14 +627,6 @@ function downloadBatchTemplate(filename, rows) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '批量模板');
     XLSX.writeFile(wb, filename + '.xlsx');
-}
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('模板下载成功', 'success');
 }
 
 // 导出到全局

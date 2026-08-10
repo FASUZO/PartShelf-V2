@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import re
 import zipfile
@@ -9,6 +10,10 @@ from app.crud.file_templates import create_file_template, get_available_file_tem
 from app.models.file_template import FileTemplate
 from app.models.part import Part
 from app.models.inventory import Inventory
+from app.models.inventory_history import InventoryHistory
+from app.models.manufacturer import Manufacturer
+from app.models.package import Package as PackageModel
+from app.models.type import Type
 from app.models.config import Category, Subcategory
 from app.schemas.file_template import FileTemplateAdd, FileTemplateGet
 from app.schemas.inventory import PartToInventoryAdd
@@ -307,31 +312,45 @@ class FileService:
     
     def import_order_excel_file_direct(file_content: bytes, db: Session, import_mode: str = "append"):
         """直接导入Excel文件，使用预设的列映射
-        
+
         Args:
             file_content: Excel文件内容
             db: 数据库会话
             import_mode: 导入模式，"append"（追加）或 "overwrite"（覆盖）
+
+        Returns:
+            dict: 导入报告
         """
+        report = {
+            "total_rows": 0,
+            "imported": 0,
+            "updated": 0,
+            "skipped_empty": 0,
+            "skipped_no_name": 0,
+            "skipped_no_quantity": 0,
+            "skipped_bad_quantity": 0,
+            "errors": [],
+            "details": [],
+            "columns_detected": [],
+            "columns_mapped": {},
+            "mode": import_mode,
+        }
+
         # 如果是覆盖模式，先清空库存
         if import_mode == "overwrite":
-            # 删除所有库存记录
             db.query(Inventory).delete()
-            # 删除所有零件记录
             db.query(Part).delete()
             db.commit()
+            report["overwrite_cleared"] = True
         try:
-            # 使用新的parse_excel_file方法读取Excel文件
             import tempfile
             import os
-            
-            # 创建临时文件
+
             with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
                 tmp_file.write(file_content)
                 tmp_file_path = tmp_file.name
-            
+
             try:
-                # 解析Excel文件
                 data = FileService.parse_excel_file(tmp_file_path)
                 
                 # 预设的列名映射（支持中英文，不区分大小写）
@@ -383,6 +402,14 @@ class FileService:
                 # 已映射的列索引（用于识别额外参数列）
                 mapped_col_indices = set(col_mapping.values())
 
+                # 记录检测到的列
+                for idx, col_name in enumerate(header_row):
+                    if col_name and str(col_name).strip():
+                        report["columns_detected"].append(str(col_name).strip())
+                for field, idx in col_mapping.items():
+                    if idx < len(header_row) and header_row[idx]:
+                        report["columns_mapped"][field] = str(header_row[idx]).strip()
+
                 # 检查是否找到了所有必需的列
                 required_fields = ['name', 'manufacturer', 'package', 'quantity']
                 missing_fields = [f for f in required_fields if f not in col_mapping]
@@ -405,10 +432,13 @@ class FileService:
                 
                 # 遍历数据行（从列名行的下一行开始）
                 for row_idx, row in enumerate(data[data_start_row + 1:], start=data_start_row + 2):
-                    # 跳过空行（检查行是否为空或长度不足）
+                    report["total_rows"] += 1
+
+                    # 跳过空行
                     if not row or len(row) <= max(col_mapping.values()):
+                        report["skipped_empty"] += 1
                         continue
-                    
+
                     # 获取行数据
                     row_data = {}
                     extra_params = {}
@@ -419,7 +449,7 @@ class FileService:
                         else:
                             row_data[field] = ""
 
-                    # 收集额外的参数列（不在预设映射中的列）
+                    # 收集额外的参数列
                     for idx, cell in enumerate(row):
                         if idx not in mapped_col_indices and idx < len(header_row):
                             col_name = header_row[idx]
@@ -448,63 +478,145 @@ class FileService:
                                 "units": {}
                             }
                         row_data['other'] = _json.dumps(other_data, ensure_ascii=False)
-                    
-                    # 检查必需字段，但只跳过完全空白的行
-                    # 如果行中有任何数据，尝试处理
+
+                    # 检查是否有数据
                     has_data = any(row_data.get(field) for field in required_fields)
                     if not has_data:
-                        continue  # 跳过完全空白的行
-                    
-                    # 检查必需字段，根据要求只需要型号列（name字段）有数据就可以导入
-                    # 允许其他字段为空，但数量字段必须有值
+                        report["skipped_empty"] += 1
+                        continue
+
                     if not row_data.get('name'):
-                        continue  # 跳过型号字段为空的行的行
-                        
+                        report["skipped_no_name"] += 1
+                        report["details"].append({"row": row_idx, "status": "skipped", "reason": "型号为空"})
+                        continue
+
                     if not row_data.get('quantity'):
-                        continue  # 跳过数量字段为空的行的行
-                        
-                    # 转换数量字段
+                        report["skipped_no_quantity"] += 1
+                        report["details"].append({"row": row_idx, "status": "skipped", "reason": "数量为空", "name": row_data.get('name', '')})
+                        continue
+
                     try:
                         quantity = int(float(row_data['quantity']))
                     except ValueError:
-                        continue  # 跳过数量格式不正确的行
-                    
-                    # 提取信息
+                        report["skipped_bad_quantity"] += 1
+                        report["details"].append({"row": row_idx, "status": "skipped", "reason": "数量格式错误: " + row_data['quantity'], "name": row_data.get('name', '')})
+                        continue
+
                     description = row_data.get('description', '')
-                    # 优先使用Excel中的类型列数据，如果没有则从描述中提取
                     part_type = row_data.get('part_type', '')
                     if not part_type:
                         value, part_type = FileService.extract_info(description)
 
-                    # 如果文件中有独立的子类型列，组合为"类型/子类型"格式便于匹配
                     sub_type = row_data.get('subcategory', '')
                     if sub_type and part_type and '/' not in part_type:
                         part_type = f"{part_type}/{sub_type}"
 
-                    # 匹配类别
                     category_id, subcategory_id = FileService.match_category_by_type(db, part_type)
                     if category_id:
                         logger.info(f"行{row_idx}: 类型'{part_type}'匹配到类别ID={category_id}, 子类别ID={subcategory_id}")
-                    else:
-                        logger.debug(f"行{row_idx}: 类型'{part_type}'未匹配到类别")
-                    
-                    # 创建零件数据
-                    part_to_add = PartToInventoryAdd(
-                        name=row_data['name'],
-                        manufacturer=row_data['manufacturer'],
-                        package=row_data['package'],
-                        quantity=quantity,
-                        description=description,
-                        part_type=part_type,
-                        lc_number=row_data.get('lc_number', None),
-                        price=InventoryService._parse_price(row_data.get('price')),
-                        other=row_data.get('other', None),
-                        category_id=category_id,
-                        subcategory_id=subcategory_id
-                    )
 
-                    # 添加到库存
-                    InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
+                    try:
+                        part_to_add = PartToInventoryAdd(
+                            name=row_data['name'],
+                            manufacturer=row_data['manufacturer'],
+                            package=row_data['package'],
+                            quantity=quantity,
+                            description=description,
+                            part_type=part_type,
+                            lc_number=row_data.get('lc_number', None),
+                            price=InventoryService._parse_price(row_data.get('price')),
+                            other=row_data.get('other', None),
+                            category_id=category_id,
+                            subcategory_id=subcategory_id
+                        )
+                        InventoryService.add_part_to_inventory(db, part_to_add, record_history=False)
+                        report["imported"] += 1
+                        report["details"].append({
+                            "row": row_idx,
+                            "status": "ok",
+                            "name": row_data['name'],
+                            "quantity": quantity,
+                            "category": part_type or "-",
+                        })
+                    except Exception as e:
+                        report["errors"].append({"row": row_idx, "name": row_data.get('name', ''), "error": str(e)})
+                        report["details"].append({"row": row_idx, "status": "error", "name": row_data.get('name', ''), "reason": str(e)})
+
+                # 导入后数据库验证：检查实际入库数据是否完整
+                for detail in report["details"]:
+                    if detail["status"] != "ok":
+                        detail["verify_status"] = "跳过验证"
+                        detail["verify_issues"] = ""
+                        continue
+
+                    name = detail.get("name", "")
+                    issues = []
+
+                    # 查找刚导入的零件（按名称+数量匹配最近的记录）
+                    part = db.query(Part).filter(Part.name == name).order_by(Part.id.desc()).first()
+                    if not part:
+                        detail["verify_status"] = "未找到"
+                        detail["verify_issues"] = "数据库中未找到该零件"
+                        continue
+
+                    # 检查库存记录
+                    inv = db.query(Inventory).filter(Inventory.part_id == part.id).first()
+                    if not inv:
+                        issues.append("缺少库存记录")
+                    elif inv.quantity_available != detail.get("quantity", 0):
+                        issues.append("数量不匹配: 期望%d, 实际%d" % (detail.get("quantity", 0), inv.quantity_available))
+
+                    # 检查制造商
+                    if not part.manufacturer_id:
+                        mfr = db.query(Manufacturer).filter(Manufacturer.name == detail.get("manufacturer", "")).first()
+                        if not mfr:
+                            issues.append("制造商未关联")
+                    else:
+                        mfr = db.query(Manufacturer).filter(Manufacturer.id == part.manufacturer_id).first()
+                        detail["manufacturer_verified"] = mfr.name if mfr else "未知"
+
+                    # 检查封装
+                    if not part.package_id:
+                        issues.append("封装未关联")
+
+                    # 检查类别
+                    if not part.category_id:
+                        issues.append("未分配类别")
+                    else:
+                        cat = db.query(Category).filter(Category.id == part.category_id).first()
+                        detail["category_verified"] = cat.name if cat else "未知ID:%d" % part.category_id
+                        if not cat:
+                            issues.append("类别ID=%d不存在" % part.category_id)
+
+                        if part.subcategory_id:
+                            subcat = db.query(Subcategory).filter(Subcategory.id == part.subcategory_id).first()
+                            if subcat:
+                                detail["subcategory_verified"] = subcat.name
+                                # 验证子类别是否属于该类别
+                                if cat and subcat.category_id != cat.id:
+                                    issues.append("子类别'%s'不属于类别'%s'" % (subcat.name, cat.name))
+                            else:
+                                detail["subcategory_verified"] = "未知ID:%d" % part.subcategory_id
+                                issues.append("子类别ID=%d不存在" % part.subcategory_id)
+                        else:
+                            # 没有子类别 — 标记为问题
+                            expected_type = detail.get("category", "")
+                            if "/" in expected_type:
+                                expected_sub = expected_type.split("/", 1)[1].strip()
+                                issues.append("子类别'%s'未匹配到" % expected_sub)
+                            else:
+                                issues.append("未分配子类别")
+
+                    # 检查零件编号
+                    if not part.part_number:
+                        issues.append("未生成零件编号")
+
+                    detail["verify_status"] = "通过" if not issues else "有问题"
+                    detail["verify_issues"] = "; ".join(issues)
+
+                # 统计验证结果
+                report["verify_passed"] = sum(1 for d in report["details"] if d.get("verify_status") == "通过")
+                report["verify_issues"] = sum(1 for d in report["details"] if d.get("verify_status") == "有问题")
 
                 # 发送MQTT通知
                 try:
@@ -519,10 +631,9 @@ class FileService:
                 except Exception:
                     pass
 
-                return {"message": "Excel文件导入成功"}
+                return report
 
             finally:
-                # 删除临时文件
                 os.unlink(tmp_file_path)
             
         except Exception as e:

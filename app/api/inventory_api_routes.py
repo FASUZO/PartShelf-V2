@@ -58,6 +58,7 @@ def add_part_to_inventory(
         subcategory_id=subcategory_id
     )
     InventoryService.add_part_to_inventory(db, part_data)
+    logger.info("零件入库: %s (%s/%s), 数量=%d", name, manufacturer, package, quantity)
     return RedirectResponse("/inventory", status_code=303)
 
 @router.post("/update_quantity")
@@ -89,6 +90,8 @@ def update_quantity(
     )
     
     result = InventoryService.update_inventory_quantity(db, update_data, remark)
+    op_label = "入库" if quantity_change > 0 else ("出库" if quantity_change < 0 else "调整")
+    logger.info("库存%s: part_id=%d, 变动=%d, 备注=%s, 新库存=%d", op_label, part_id, quantity_change, remark, result.updatedQuantity)
     return {"success": True, "new_quantity": result.updatedQuantity, "message": "库存更新成功"}
 
 @router.get("/inventory_history")
@@ -162,14 +165,17 @@ async def import_order_excel_file(
     user=Depends(get_current_user_required)
 ):
     """导入Excel文件"""
-    logger.info(f"开始导入Excel文件: {order_file.filename}, 模式: {import_mode}")
+    logger.info("开始导入Excel文件: %s, 模式: %s", order_file.filename, import_mode)
     try:
         content = await order_file.read()
-        FileService.import_order_excel_file_direct(content, db, import_mode)
-        logger.info(f"Excel文件导入成功: {order_file.filename}")
-        return {"message": "导入成功"}
+        report = FileService.import_order_excel_file_direct(content, db, import_mode)
+        logger.info("Excel导入完成: %s, 导入=%d, 跳过=%d, 错误=%d",
+                     order_file.filename, report["imported"],
+                     report["skipped_empty"] + report["skipped_no_name"] + report["skipped_no_quantity"] + report["skipped_bad_quantity"],
+                     len(report["errors"]))
+        return report
     except Exception as e:
-        logger.error(f"Excel文件导入失败: {order_file.filename}, 错误: {str(e)}")
+        logger.error("Excel文件导入失败: %s, 错误: %s", order_file.filename, str(e))
         raise
 
 @router.get("/get_part_by_id")
@@ -188,11 +194,27 @@ def update_part(
     description: str = Form(None),
     other: str = Form(None),
     part_number: str = Form(None),
+    part_type: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(get_current_user_required)
 ):
     """更新零件信息"""
-    return InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number)
+    result = InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number)
+
+    # 处理零件类型
+    if part_type is not None and part_type.strip():
+        from app.crud.type import get_type_by_name, create_part_type
+        from app.models.part import Part
+        existing_type = get_type_by_name(db, part_type.strip())
+        if existing_type is None:
+            existing_type = create_part_type(db, part_type.strip())
+        part = db.query(Part).filter_by(id=part_id).first()
+        if part:
+            part.type_id = existing_type.id
+            db.commit()
+
+    logger.info("零件更新: part_id=%d, name=%s, manufacturer=%s, package=%s", part_id, name, manufacturer, package)
+    return result
 
 @router.post("/fix_missing_part_numbers")
 def fix_missing_part_numbers(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
@@ -246,6 +268,7 @@ def get_all_types(db: Session = Depends(get_db)):
 def delete_part_with_id(part_id:int, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """删除指定零件"""
     InventoryService.delete_part_with_id(part_id, db)
+    logger.info("零件删除: part_id=%d", part_id)
     return {"message": f"Part with ID {part_id} deleted successfully"}
 
 # ==================== 数据导出接口 ====================

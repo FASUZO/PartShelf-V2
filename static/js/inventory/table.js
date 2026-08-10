@@ -182,6 +182,23 @@ function updatePaginationInfo(pagination) {
 
 // 查看器件详情（打开模态框）
 function viewDetails(id) {
+    // 清除上一次的基本信息和详细参数
+    document.getElementById('detailPartId').textContent = '';
+    document.getElementById('detailPartName').textContent = '加载中...';
+    document.getElementById('detailPartManufacturer').textContent = '';
+    document.getElementById('detailPartType').textContent = '';
+    document.getElementById('detailPartPackage').textContent = '';
+    document.getElementById('detailPartQuantity').textContent = '';
+    document.getElementById('detailPartDescription').textContent = '加载中...';
+    document.getElementById('detailPartLcNumber').textContent = '-';
+    document.getElementById('detailPartPrice').textContent = '-';
+    document.getElementById('detailInStockStatus').textContent = '-';
+    document.getElementById('detailInStockStatus').className = '';
+    const paramsBody = document.getElementById('detailParamsBody');
+    if (paramsBody) paramsBody.innerHTML = '';
+    const paramsCard = document.getElementById('detailParamsCard');
+    if (paramsCard) paramsCard.style.display = 'none';
+
     const modal = new bootstrap.Modal(document.getElementById('componentDetailModal'));
     modal.show();
     loadComponentDetails(id);
@@ -377,6 +394,7 @@ async function updateDetailQuantity() {
             throw new Error(err.detail || '更新失败');
         }
 
+        console.info('[库存] 详情页更新数量: part_id=%d, 变动=%d', partId, change);
         alert('数量更新成功！');
         // 重新加载器件详情
         loadComponentDetails(partId);
@@ -492,6 +510,7 @@ async function deleteDetailPart() {
 
         if (!response.ok) throw new Error('删除失败');
 
+        console.info('[库存] 零件删除成功: part_id=%s', partId);
         alert('删除成功！');
         bootstrap.Modal.getInstance(modal).hide();
         applyAdvancedFilter();
@@ -563,6 +582,7 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     const container = document.getElementById('editParamTemplateFields');
     if (!container) return;
     container.innerHTML = '';
+    console.info('[模板] loadEditParamTemplate: catId=%s, subcatId=%s, existingParams=%s', catId, subcatId, existingParams ? (typeof existingParams === 'string' ? existingParams.substring(0, 100) : typeof existingParams) : 'null');
     
     // 查找最匹配的模板
     let templates = [];
@@ -586,64 +606,99 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
     }
     if (fields.length === 0) return;
     
-    // 过滤掉已经作为固定字段的参数
-    const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
-    fields = fields.filter(function(field) {
-        return !fixedFields.includes(field);
-    });
-    
     // 解析已有参数
     let params = {};
     let existingUnits = {};
+    let existingFields = null;
     if (existingParams) {
         try {
             const data = JSON.parse(existingParams);
-            // 检查是否是新格式
             if (data.fields && data.values) {
                 params = data.values || {};
                 existingUnits = data.units || {};
+                existingFields = data.fields || null;
             } else {
-                // 旧格式
                 params = data;
             }
-        } catch (e) {
-            // 忽略解析错误
-        }
+        } catch (e) {}
+    }
+
+    // 如果已有数据包含自定义字段，只用已有字段（不混入模板字段）
+    if (existingFields && existingFields.length > 0) {
+        console.info('[模板] 使用已有字段:', existingFields);
+        const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+        fields = existingFields.filter(function(f) {
+            return !fixedFields.includes(f);
+        });
+    } else {
+        console.info('[模板] 使用模板字段:', fields);
+        const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+        fields = fields.filter(function(field) {
+            return !fixedFields.includes(field);
+        });
     }
     
     // 常用单位列表
     const commonUnits = {
-        '阻值': ['Ω', 'kΩ', 'MΩ', 'mΩ'],
-        '功率': ['W', 'mW', 'kW'],
+        '阻值': ['Ω', 'kΩ', 'MΩ', 'GΩ', 'mΩ'],
+        '功率': ['W', 'mW', 'kW', 'dBm'],
         '精度': ['%', 'ppm'],
-        '耐压': ['V', 'mV', 'kV'],
-        '电流': ['A', 'mA', 'μA'],
+        '耐压': ['kV', 'V', 'mV', 'μV', 'nV', 'pV'],
+        '电压': ['kV', 'V', 'mV', 'μV', 'nV', 'pV'],
+        '电流': ['A', 'mA', 'μA', 'nA', 'pA'],
         '电容': ['F', 'μF', 'nF', 'pF'],
         '电感': ['H', 'mH', 'μH', 'nH'],
-        '频率': ['Hz', 'kHz', 'MHz', 'GHz'],
+        '频率': ['GHz', 'MHz', 'kHz', 'Hz'],
         '温度': ['℃', '℉'],
         '温度系数': ['ppm/℃', 'ppm/℉'],
-        '默认': ['Ω', 'kΩ', 'MΩ', 'W', 'mW', 'V', 'A', 'mA', 'μF', 'nF', 'pF', 'Hz', 'MHz', '%', '℃']
+        '灵敏度': ['dBm', 'dB'],
+        '发射功率': ['dBm', 'dB', 'W', 'mW'],
+        '默认': ['dBm', 'GHz', 'MHz', 'kHz', 'Hz', 'kΩ', 'MΩ', 'GΩ', 'Ω', 'mΩ', 'kW', 'W', 'mW', 'kV', 'V', 'mV', 'μV', 'A', 'mA', 'μA', 'nA', 'pA', 'F', 'μF', 'nF', 'pF', 'H', 'mH', 'μH', 'nH', '%', 'ppm', '℃', '℉']
     };
     
+    // 收集所有已知单位（按长度降序排列，优先匹配长单位如 GHz > Hz）
+    const allUnits = [];
+    for (const key in commonUnits) {
+        commonUnits[key].forEach(function(u) { if (u && !allUnits.includes(u)) allUnits.push(u); });
+    }
+    allUnits.sort(function(a, b) { return b.length - a.length; });
+
+    // 从值中提取单位（如 "120mA" → "120" + "mA"，"3.3V" → "3.3" + "V"）
+    function extractUnit(val) {
+        if (!val || typeof val !== 'string') return { num: val, unit: '' };
+        for (const u of allUnits) {
+            if (val.endsWith(u)) {
+                const num = val.slice(0, -u.length).trim();
+                if (num && /^[\d.\-+~±≤≥＜＞]+$/.test(num)) {
+                    return { num: num, unit: u };
+                }
+            }
+        }
+        return { num: val, unit: '' };
+    }
+
     // 渲染参数字段
     let html = '<div class="row g-2">';
     fields.forEach(function(field) {
         // 解析值和单位
         let value = params[field] || '';
         let selectedUnit = existingUnits[field] || units[field] || '';
-        
+
         // 获取该字段对应的单位列表
         const unitList = commonUnits[field] || commonUnits['默认'];
-        
+
         // 如果没有值，设置缺省值00
         if (!value) {
             value = '00';
         }
-        
-        // 如果没有选中的单位，默认选择第一个（跳过空值）
-        if (!selectedUnit && unitList.length > 0) {
-            selectedUnit = unitList[0] || '';
+
+        // 自动从值中提取单位
+        if (!selectedUnit && value !== '00') {
+            const extracted = extractUnit(value);
+            if (extracted.unit) {
+                value = extracted.num;
+                selectedUnit = extracted.unit;
+            }
         }
         
         // 生成单位下拉选项
@@ -727,6 +782,8 @@ async function saveEditPart() {
             throw new Error(err.detail || '更新失败');
         }
 
+        const partName = document.getElementById('editPartName').value;
+        console.info('[库存] 零件更新成功: id=%s, name=%s', formData.get('part_id'), partName);
         alert('更新成功！');
         bootstrap.Modal.getInstance(document.getElementById('editPartModal')).hide();
         applyAdvancedFilter();
@@ -753,29 +810,73 @@ async function queryLcFromEdit() {
         return;
     }
 
+    // 禁用查询按钮，显示加载提示
+    const btn = document.querySelector('button[onclick="queryLcFromEdit()"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 正在加载中，请勿再次点击';
+    }
+
+    // 清除上一次查询结果
+    const body = document.getElementById('lcscCompareBody');
+    if (body) {
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">查询中...</span></div><p class="mt-2 text-muted">正在加载中，请勿再次点击...</p></div>';
+    }
+    window._lcscCompareData = null;
+
+    // 确保弹窗可见
+    const modalEl = document.getElementById('lcscCompareModal');
+    if (modalEl && !modalEl.classList.contains('show')) {
+        new bootstrap.Modal(modalEl).show();
+    }
+
     try {
+        console.info('[LCSC] 开始查询: %s', lcCode);
+        const t0 = performance.now();
         const resp = await fetch(`/api/lcsc/query/${lcCode}`);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             throw new Error(err.detail || '查询失败');
         }
         const data = await resp.json();
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+        console.info('[LCSC] 查询成功: %s -> %s (%s), 耗时=%ss', lcCode, data.productModel || '?', data.brand || '?', elapsed);
 
-        // 获取当前编辑表单的零件数据
-        const partData = {
-            id: document.getElementById('editPartId').value,
+        // 获取当前编辑表单的零件数据（含参数）
+        const partId = document.getElementById('editPartId').value;
+        let partData = {
+            id: partId,
             name: document.getElementById('editPartName').value,
             manufacturer: document.getElementById('editPartManufacturer').value,
             package: document.getElementById('editPartPackage').value,
             description: document.getElementById('editPartDescription').value,
-            lc_number: document.getElementById('editPartLcNumber').value
+            lc_number: document.getElementById('editPartLcNumber').value,
+            other: null
         };
+        // 从 API 获取完整的 other 参数数据
+        try {
+            const partResp = await fetch('/api/inventory/get_part_by_id?part_id=' + partId);
+            if (partResp.ok) {
+                const fullPart = await partResp.json();
+                partData.other = fullPart.other || null;
+            }
+        } catch (_) {}
 
         // 显示对比弹窗
         showLcscCompareModal(data, partData);
 
     } catch (e) {
-        alert('查询失败: ' + e.message);
+        console.error('[LCSC] 查询失败:', e);
+        const body = document.getElementById('lcscCompareBody');
+        if (body) {
+            body.innerHTML = '<div class="text-center py-4"><i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i><p class="text-danger">查询失败: ' + e.message + '</p></div>';
+        }
+    } finally {
+        // 恢复按钮状态
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search me-1"></i> LC查询';
+        }
     }
 }
 
@@ -785,7 +886,8 @@ function showLcscCompareModal(lcscData, partData) {
     if (!body) return;
 
     const lcscParams = parseLcscParams(lcscData.params) || parseLcscRemarkPrefix(lcscData.remarkPrefix) || {};
-    const partParams = parsePartParams(partData.other) || {};
+    const parsed = parsePartParams(partData.other);
+    const partParams = parsed ? (parsed.values || {}) : {};
 
     let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;">';
     html += '<thead class="table-light"><tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr></thead><tbody>';
@@ -887,9 +989,20 @@ async function applyLcscToEditForm() {
         const modal = bootstrap.Modal.getInstance(document.getElementById('lcscCompareModal'));
         if (modal) modal.hide();
 
-        // 关闭编辑弹窗
-        const editModal = bootstrap.Modal.getInstance(document.getElementById('editPartModal'));
-        if (editModal) editModal.hide();
+        // 重新加载编辑表单的参数字段（不关闭编辑弹窗）
+        try {
+            const reloadResp = await fetch('/api/inventory/get_part_by_id?part_id=' + partId);
+            if (reloadResp.ok) {
+                const freshData = await reloadResp.json();
+                // 更新编辑表单的基本字段
+                if (data.productModel) document.getElementById('editPartName').value = data.productModel;
+                if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
+                if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
+                if (data.lcCode) document.getElementById('editPartLcNumber').value = data.lcCode;
+                // 重新加载参数模板（含最新保存的参数值）
+                loadEditParamTemplate(freshData.category_id, freshData.subcategory_id, freshData.other);
+            }
+        } catch (_) {}
 
         showToast('LCSC数据已保存到库存零件！', 'success');
         applyAdvancedFilter(); // 刷新列表

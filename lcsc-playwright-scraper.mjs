@@ -11,6 +11,14 @@ import { createServer } from 'http';
 
 const COOKIES_FILE = join(process.cwd(), 'lcsc-cookies.json');
 const BOM_API_BASE = 'https://bom.szlcsc.com/async/bom/match/page';
+const DEFAULT_BOM_UUID = 'B4CDDD24823706B049EA2218BB7552E6';
+
+// 持久化浏览器会话状态
+let _browser = null;
+let _context = null;
+let _page = null;
+let _bomReady = false;
+let _initPromise = null;
 
 /**
  * 加载保存的 cookie
@@ -56,6 +64,189 @@ async function launchBrowser(headless = true) {
   }
 
   return { browser, context };
+}
+
+// ─────────────────────────────────────────────
+// 持久化浏览器会话管理
+// ─────────────────────────────────────────────
+
+/**
+ * 初始化持久化浏览器会话（单例）
+ * @param {string} bomUuid - BOM 清单 UUID
+ * @returns {Promise<boolean>} 是否初始化成功
+ */
+async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
+  if (_initPromise) return _initPromise;
+
+  _initPromise = (async () => {
+    try {
+      console.log('[persistent] Launching browser...');
+      _browser = await chromium.launch({ headless: true, channel: 'msedge' });
+      _context = await _browser.newContext();
+
+      const cookies = loadCookies();
+      if (cookies && cookies.length > 0) {
+        await _context.addCookies(cookies);
+        console.log('[persistent] Loaded', cookies.length, 'cookies');
+      }
+
+      _page = await _context.newPage();
+      console.log('[persistent] Loading BOM page...');
+      await _page.goto(
+        `https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${bomUuid}`,
+        { waitUntil: 'networkidle', timeout: 60000 },
+      );
+
+      const title = await _page.title();
+      const content = await _page.content();
+      if (title.includes('登录') || content.includes('扫码登录') || content.includes('qrcode')) {
+        console.error('[persistent] Login required');
+        _initPromise = null;
+        return false;
+      }
+
+      _bomReady = true;
+      console.log('[persistent] BOM page ready');
+
+      const newCookies = await _context.cookies();
+      saveCookies(newCookies);
+      return true;
+    } catch (e) {
+      console.error('[persistent] Init failed:', e.message);
+      _initPromise = null;
+      return false;
+    }
+  })();
+
+  return _initPromise;
+}
+
+/**
+ * 确保会话可用，不可用则重新初始化
+ */
+async function ensureSession(bomUuid = DEFAULT_BOM_UUID) {
+  if (_bomReady && _page && !_page.isClosed()) return true;
+  _bomReady = false;
+  _initPromise = null;
+  if (_browser) {
+    try { await _browser.close(); } catch (_) {}
+    _browser = null; _context = null; _page = null;
+  }
+  return initPersistentSession(bomUuid);
+}
+
+/**
+ * 通过 CSV 上传将物料添加到 BOM 再查询
+ */
+async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
+  const { unlinkSync } = await import('fs');
+  const tmpFile = join(process.cwd(), 'tmp_bom_upload.csv');
+  writeFileSync(tmpFile, `Name,Quantity\n${lcCode},1`);
+
+  try {
+    const fileInput = _page.locator('input#file[type=file]');
+    if ((await fileInput.count()) === 0) return { error: 'File input not found' };
+
+    let newBomUuid = null;
+    const onRequest = (req) => {
+      if (req.url().includes('bom/match/finished/v2') && req.method() === 'POST') {
+        const m = (req.postData() || '').match(/bsuuid=([A-F0-9]+)/i);
+        if (m) newBomUuid = m[1];
+      }
+    };
+    _page.on('request', onRequest);
+
+    await fileInput.setInputFiles(tmpFile);
+    await _page.waitForTimeout(10000);
+    _page.off('request', onRequest);
+
+    const targetUuid = newBomUuid && newBomUuid !== bomUuid ? newBomUuid : bomUuid;
+    if (newBomUuid && newBomUuid !== bomUuid) {
+      console.log('[persistent] New BOM created:', newBomUuid);
+    }
+
+    const result = await _page.evaluate(async ({ lcCode, bomUuid }) => {
+      try {
+        const resp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+        });
+        const data = await resp.json();
+        const items = data?.result?.bom?.bomItemList;
+        if (!items) return null;
+        const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
+        if (!found?.frontProductVO) return null;
+        const p = found.frontProductVO;
+        return {
+          lcCode: p.code || lcCode,
+          productName: p.productName || '',
+          productModel: p.productModel || '',
+          brand: p.brand || '',
+          pack: p.pack || '',
+          price: p.price || '',
+          stock: p.stock || 0,
+          stockStatus: p.stockStatus || 'unknown',
+          moq: p.moq || 1,
+          params: p.remarkPrefix ? p.remarkPrefix.replace(/<\/br>/g, '; ') : '',
+        };
+      } catch (_) { return null; }
+    }, { lcCode, bomUuid: targetUuid });
+
+    return result || { error: 'Item not found after upload' };
+  } finally {
+    try { unlinkSync(tmpFile); } catch (_) {}
+  }
+}
+
+/**
+ * 使用持久化会话查询 LC 编号
+ */
+async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
+  const ready = await ensureSession(bomUuid);
+  if (!ready) return { error: 'Session not ready, login required' };
+
+  try {
+    const result = await _page.evaluate(async ({ lcCode, bomUuid }) => {
+      try {
+        const resp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+        });
+        const data = await resp.json();
+        const items = data?.result?.bom?.bomItemList;
+        if (!items) return null;
+        const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
+        if (found?.frontProductVO) {
+          const p = found.frontProductVO;
+          return {
+            lcCode: p.code || lcCode,
+            productName: p.productName || '',
+            productModel: p.productModel || '',
+            brand: p.brand || '',
+            pack: p.pack || '',
+            price: p.price || '',
+            stock: p.stock || 0,
+            stockStatus: p.stockStatus || 'unknown',
+            moq: p.moq || 1,
+            params: p.remarkPrefix ? p.remarkPrefix.replace(/<\/br>/g, '; ') : '',
+          };
+        }
+        return { notInBom: true };
+      } catch (e) { return { error: e.message }; }
+    }, { lcCode, bomUuid });
+
+    if (result?.notInBom) {
+      console.log(`[persistent] ${lcCode} not in BOM, uploading CSV...`);
+      return await addAndQueryBomItem(lcCode, bomUuid);
+    }
+    return result;
+  } catch (e) {
+    console.error('[persistent] Query error:', e.message);
+    _bomReady = false;
+    return { error: e.message };
+  }
 }
 
 /**
@@ -350,13 +541,17 @@ async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6')
  * 启动 HTTP 服务器，提供 REST API
  * @param {number} port - 端口号，默认 3000
  */
-async function startServer(port = 3000) {
+async function startServer(port = 3001) {
+  // 启动时预初始化浏览器会话
+  initPersistentSession().catch(e => {
+    console.error('[server] Pre-init failed:', e.message);
+  });
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${port}`);
     const path = url.pathname;
     const params = Object.fromEntries(url.searchParams);
 
-    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -369,44 +564,80 @@ async function startServer(port = 3000) {
     }
 
     try {
-      let result;
-
       switch (path) {
+        case '/health':
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            status: _bomReady ? 'ready' : 'initializing',
+            browserAlive: !!_browser,
+          }));
+          break;
+
         case '/query':
           if (!params.lcCode) {
             res.writeHead(400);
             res.end(JSON.stringify({ error: 'Missing lcCode parameter' }));
             return;
           }
-          result = await queryByLcCode(params.lcCode, params.bomUuid, true);
+          const qResult = await queryByLcCodePersistent(params.lcCode, params.bomUuid);
           res.writeHead(200);
-          res.end(JSON.stringify(result || { error: 'Query failed' }));
+          res.end(JSON.stringify(qResult || { error: 'Query failed' }));
           break;
 
-        case '/list':
-          const items = await queryAllItems(params.bomUuid, true);
+        case '/list': {
+          const ready = await ensureSession(params.bomUuid || DEFAULT_BOM_UUID);
+          if (!ready) {
+            res.writeHead(503);
+            res.end(JSON.stringify({ error: 'Session not ready' }));
+            return;
+          }
+          const bomId = params.bomUuid || DEFAULT_BOM_UUID;
+          const items = await _page.evaluate(async (bomUuid) => {
+            const resp = await fetch(`https://bom.szlcsc.com/async/bom/match/page?bomUuid=${bomUuid}`);
+            const data = await resp.json();
+            if (!data?.result?.bom?.bomItemList) return [];
+            return data.result.bom.bomItemList.map(item => {
+              const p = item.frontProductVO || {};
+              return {
+                lcCode: p.code || item.productCode,
+                productName: p.productName || item.firstModel,
+                productModel: p.productModel || item.firstModel,
+                brand: p.brand || item.firstBrand,
+                pack: p.pack || item.firstPack,
+                price: p.price, stock: p.stock, stockStatus: p.stockStatus,
+                moq: p.moq, quantity: item.quantity,
+              };
+            });
+          }, bomId);
           res.writeHead(200);
           res.end(JSON.stringify({ count: items.length, items }));
           break;
+        }
 
-        case '/cookies':
-          const cookies = loadCookies();
+        case '/cookies': {
+          const ck = loadCookies();
           res.writeHead(200);
-          res.end(JSON.stringify({ 
-            exists: !!cookies, 
-            count: cookies ? cookies.length : 0,
-            file: COOKIES_FILE 
-          }));
+          res.end(JSON.stringify({ exists: !!ck, count: ck ? ck.length : 0 }));
+          break;
+        }
+
+        case '/shutdown':
+          res.writeHead(200);
+          res.end(JSON.stringify({ message: 'Shutting down' }));
+          if (_browser) { try { await _browser.close(); } catch (_) {} }
+          process.exit(0);
           break;
 
         default:
           res.writeHead(404);
-          res.end(JSON.stringify({ 
+          res.end(JSON.stringify({
             error: 'Not found',
             endpoints: [
+              'GET /health',
               'GET /query?lcCode=<LC编号>&bomUuid=<可选>',
               'GET /list?bomUuid=<可选>',
               'GET /cookies',
+              'POST /shutdown',
             ]
           }));
       }
@@ -419,9 +650,11 @@ async function startServer(port = 3000) {
   server.listen(port, () => {
     console.log(`LCSC Scraper API running at http://localhost:${port}`);
     console.log(`Endpoints:`);
-    console.log(`  GET /query?lcCode=C192666`);
-    console.log(`  GET /list`);
-    console.log(`  GET /cookies`);
+    console.log(`  GET  /health`);
+    console.log(`  GET  /query?lcCode=C192666`);
+    console.log(`  GET  /list`);
+    console.log(`  GET  /cookies`);
+    console.log(`  POST /shutdown`);
   });
 }
 
@@ -562,6 +795,9 @@ export {
   getQrCode,
   checkLoginStatus,
   refreshCookies,
+  initPersistentSession,
+  ensureSession,
+  queryByLcCodePersistent,
 };
 
 // 命令行直接运行
@@ -635,12 +871,12 @@ if (process.argv[1] && process.argv[1].endsWith('lcsc-playwright-scraper.mjs')) 
       break;
 
     case 'serve':
-      startServer(parseInt(param) || 3000);
+      startServer(parseInt(param) || 3001);
       break;
 
     default:
       console.log(`
-LCSC Playwright Scraper
+LCSC Playwright Scraper (Persistent Mode)
 
 用法:
   node lcsc-playwright-scraper.mjs login [bomUuid]    # 扫码登录并保存 cookie
@@ -649,14 +885,12 @@ LCSC Playwright Scraper
   node lcsc-playwright-scraper.mjs qrcode             # 获取登录二维码
   node lcsc-playwright-scraper.mjs status             # 检查登录状态
   node lcsc-playwright-scraper.mjs refresh            # 刷新Cookie
-  node lcsc-playwright-scraper.mjs serve [port]       # 启动 HTTP 服务器
+  node lcsc-playwright-scraper.mjs serve [port]       # 启动持久化 HTTP 服务器 (默认 3001)
 
 示例:
-  node lcsc-playwright-scraper.mjs login
+  node lcsc-playwright-scraper.mjs serve              # 启动持久化服务器 (端口 3001)
   node lcsc-playwright-scraper.mjs query C192666
-  node lcsc-playwright-scraper.mjs list
-  node lcsc-playwright-scraper.mjs qrcode
-  node lcsc-playwright-scraper.mjs serve 3000
+  node lcsc-playwright-scraper.mjs login
       `);
   }
 }
