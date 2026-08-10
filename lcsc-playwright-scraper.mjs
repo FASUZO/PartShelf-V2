@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createServer } from 'http';
 
-const COOKIES_FILE = join(process.cwd(), 'lcsc-cookies.json');
+const COOKIES_FILE = join(process.cwd(), 'data', 'lcsc-cookies.json');
 const BOM_API_BASE = 'https://bom.szlcsc.com/async/bom/match/page';
 const DEFAULT_BOM_UUID = 'B4CDDD24823706B049EA2218BB7552E6';
 
@@ -25,13 +25,21 @@ let _initPromise = null;
  */
 function loadCookies() {
   if (!existsSync(COOKIES_FILE)) {
+    console.log('[cookies] File not found:', COOKIES_FILE);
     return null;
   }
   try {
+    const stat = require('fs').statSync(COOKIES_FILE);
+    if (stat.isDirectory()) {
+      console.error('[cookies] Path is a directory, not a file:', COOKIES_FILE);
+      return null;
+    }
     const data = JSON.parse(readFileSync(COOKIES_FILE, 'utf-8'));
-    return data.cookies || [];
+    const cookies = data.cookies || [];
+    console.log('[cookies] Loaded', cookies.length, 'cookies from', COOKIES_FILE);
+    return cookies;
   } catch (e) {
-    console.error('Failed to load cookies:', e.message);
+    console.error('[cookies] Failed to load:', e.message);
     return null;
   }
 }

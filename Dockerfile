@@ -33,6 +33,9 @@ COPY . .
 # 创建数据目录
 RUN mkdir -p /app/data /app/db
 
+# 创建空的 cookies 文件（如果不存在）
+RUN touch /app/data/lcsc-cookies.json && echo '{"cookies":[]}' > /app/data/lcsc-cookies.json
+
 # 暴露端口
 EXPOSE 8000
 

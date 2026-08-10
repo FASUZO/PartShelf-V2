@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./db:/app/db
-      - ./lcsc-cookies.json:/app/lcsc-cookies.json
+      - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/db/partshelf.db
       - LOG_LEVEL=WARNING
