@@ -148,21 +148,27 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 
   _initPromise = (async () => {
     try {
+      console.log('[persistent] Starting init...');
       // 如果已有浏览器会话（从 QR 登录转来），直接使用
       if (_browser && _context && _page && !_page.isClosed()) {
         console.log('[persistent] Using existing browser session...');
       } else {
         console.log('[persistent] Launching browser...');
         _browser = await chromium.launch({ headless: true });
+        console.log('[persistent] Browser launched');
         _context = await _browser.newContext();
+        console.log('[persistent] Context created');
 
         const cookies = loadCookies();
         if (cookies && cookies.length > 0) {
           await _context.addCookies(cookies);
           console.log('[persistent] Loaded', cookies.length, 'cookies');
+        } else {
+          console.log('[persistent] No cookies found');
         }
 
         _page = await _context.newPage();
+        console.log('[persistent] Page created');
       }
 
       console.log('[persistent] Loading BOM page...');
@@ -174,6 +180,8 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
       const title = await _page.title();
       const content = await _page.content();
       const url = _page.url();
+
+      console.log('[persistent] Page loaded, URL:', url, 'Title:', title);
 
       // 检查是否被重定向到登录页面或 404 页面
       const isLoginPage = url.includes('login') || url.includes('passport') ||
@@ -703,12 +711,17 @@ async function startServer(port = 3001) {
 
         case '/cookies': {
           const ck = loadCookies();
-          res.writeHead(200);
-          res.end(JSON.stringify({
+          const status = {
             exists: !!ck,
             count: ck ? ck.length : 0,
             sessionReady: _bomReady,
-          }));
+            browserAlive: !!_browser,
+            pageExists: !!_page,
+            pageClosed: _page ? _page.isClosed() : 'N/A',
+          };
+          console.log('[cookies] Status:', JSON.stringify(status));
+          res.writeHead(200);
+          res.end(JSON.stringify(status));
           break;
         }
 
