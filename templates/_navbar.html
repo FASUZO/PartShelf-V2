@@ -25,6 +25,7 @@
       <a href="/settings" class="nav-link px-2" title="MQTT 状态" id="navMqttIndicator" style="font-size:0.8rem;">
         <i class="fas fa-broadcast-tower" id="navMqttIcon" style="opacity:0.4;"></i>
       </a>
+      <span id="lcPreloadBadge" class="d-none" style="font-size:0.75rem; cursor:default;" title="LC预加载状态"></span>
       {% if active_page == 'inventory' %}
       <div class="d-flex align-items-center">
         <input class="form-control me-2" type="search" id="searchInput" placeholder="搜索名称/描述/编号/制造商/类型/封装，re:正则" aria-label="搜索" style="width:340px;">
@@ -88,5 +89,30 @@ async function logout() {
     else if (s.enabled) { icon.style.opacity='0.8'; icon.style.color='#d29922'; icon.parentElement.title='MQTT 已启用'; }
     else { icon.style.opacity='0.3'; icon.style.color=''; icon.parentElement.title='MQTT 未启用'; }
   }).catch(function(){});
+})();
+
+// LC 预加载状态（全局）
+(function() {
+  var badge = document.getElementById('lcPreloadBadge');
+  if (!badge) return;
+  var _polling = false;
+  var poll = setInterval(function() {
+    if (_polling) return;
+    _polling = true;
+    fetch('/api/lcsc/preload/status').then(function(r){return r.json();}).then(function(d) {
+      if (d.running) {
+        badge.className = 'badge bg-info text-white ms-1';
+        badge.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>LC ' + d.done + '/' + d.total;
+        badge.title = 'LC预加载: 缓存' + d.cached + ' 查询' + d.queried + ' 失败' + d.failed;
+        badge.style.cursor = 'default';
+      } else if (d.total > 0) {
+        badge.className = 'badge bg-success text-white ms-1';
+        badge.innerHTML = '<i class="fas fa-check me-1"></i>LC ' + d.total;
+        badge.title = 'LC预加载完成: 缓存' + d.cached + ' 查询' + d.queried + ' 失败' + d.failed;
+        clearInterval(poll);
+      }
+      _polling = false;
+    }).catch(function(){ _polling = false; });
+  }, 3000);
 })();
 </script>
