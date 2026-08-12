@@ -198,12 +198,23 @@ class InventoryService:
         # 处理库存
         db_inventory = get_inventory_by_part_id(db, db_part.id)
         if not db_inventory:
-            logger.info(f"Creating inventory for part {db_part.id}")
+            logger.info("Creating inventory for part %d", db_part.id)
             db_inventory = Inventory(
                 part_id=db_part.id,
                 quantity_available=part.quantity
             )
             create_inventory(db, db_inventory)
+            # 记录新建零件的入库历史
+            if record_history:
+                create_inventory_history(
+                    db=db,
+                    part_id=db_part.id,
+                    operation_type="in",
+                    quantity_change=part.quantity,
+                    quantity_before=0,
+                    quantity_after=part.quantity,
+                    remark="新建零件入库"
+                )
         else:
             logger.info(f"Updating inventory for part {db_part.id}: {db_inventory.quantity_available} -> {db_inventory.quantity_available + part.quantity}")
             InventoryService.update_inventory_quantity(
