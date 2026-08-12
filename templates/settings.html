@@ -148,12 +148,12 @@
           <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
             <span><i class="fas fa-database me-1"></i><strong style="font-size:0.85rem;">数据库</strong></span>
             <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt"></i></button>
-              <a class="btn btn-sm btn-outline-success py-0 px-1" style="font-size:0.75rem;" href="/api/config/database_report/export" target="_blank"><i class="fas fa-download"></i></a>
-              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="formatDatabase()"><i class="fas fa-broom"></i></button>
+              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="runDatabaseCheck()" title="检查"><i class="fas fa-sync-alt"></i></button>
+              <a class="btn btn-sm btn-outline-success py-0 px-1" style="font-size:0.75rem;" href="/api/config/database_report/export" target="_blank" title="导出"><i class="fas fa-download"></i></a>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="formatDatabase()" title="格式化"><i class="fas fa-broom"></i></button>
             </div>
           </div>
-          <div class="card-body py-2 px-3" id="dbReportBody" style="font-size:0.8rem; min-height:60px;">
+          <div class="card-body py-2 px-3" id="dbReportBody" style="font-size:0.78rem; height:180px; overflow-y:auto;">
             <p class="text-muted mb-0">点击检查数据库状态</p>
           </div>
         </div>
@@ -163,12 +163,12 @@
           <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
             <span><i class="fas fa-bolt me-1"></i><strong style="font-size:0.85rem;">LC缓存</strong></span>
             <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="checkLcCache()"><i class="fas fa-sync-alt"></i></button>
-              <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:0.75rem;" onclick="compactLcCache()"><i class="fas fa-compress"></i></button>
-              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="clearLcCache()"><i class="fas fa-trash"></i></button>
+              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="checkLcCache()" title="检查"><i class="fas fa-sync-alt"></i></button>
+              <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:0.75rem;" onclick="compactLcCache()" title="整理"><i class="fas fa-compress"></i></button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="clearLcCache()" title="清空"><i class="fas fa-trash"></i></button>
             </div>
           </div>
-          <div class="card-body py-2 px-3" id="lcCacheBody" style="font-size:0.8rem; min-height:60px;">
+          <div class="card-body py-2 px-3" id="lcCacheBody" style="font-size:0.78rem; height:180px; overflow-y:auto;">
             <p class="text-muted mb-0">LC查询结果缓存</p>
           </div>
         </div>
