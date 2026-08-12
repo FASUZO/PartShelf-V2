@@ -306,14 +306,16 @@ def preload_inventory_lc_codes():
         logger.info("Preloading %d LC codes (%d cached, %d to query)...",
                      len(lc_codes), _preload_status["cached"], len(uncached))
 
-        # 批量查询（每批 50 个，优化速度）
+        # 批量查询（每批 50 个，最优平衡点）
         BATCH_SIZE = 50
+        all_failed = []
+        import httpx
+
         for i in range(0, len(uncached), BATCH_SIZE):
             batch = uncached[i:i + BATCH_SIZE]
             _preload_status["current"] = batch[0] + '~' + batch[-1]
 
             try:
-                import httpx
                 with httpx.Client(timeout=120.0) as client:
                     resp = client.post(
                         f"{SCRAPER_BASE_URL}/batch_query",
@@ -324,14 +326,15 @@ def preload_inventory_lc_codes():
                         batch_results = data.get("results", {})
                         batch_errors = data.get("errors", [])
 
-                        # 缓存结果
                         for code, result in batch_results.items():
                             if result and "error" not in result:
                                 _cache[code] = result
                                 _preload_status["queried"] += 1
                             else:
+                                all_failed.append(code)
                                 _preload_status["failed"] += 1
 
+                        all_failed.extend(batch_errors)
                         _preload_status["failed"] += len(batch_errors)
                         _save_cache()
 
@@ -341,12 +344,39 @@ def preload_inventory_lc_codes():
                                      len(batch_results), len(batch_errors))
                     else:
                         logger.warning("Batch query HTTP error: %d", resp.status_code)
+                        all_failed.extend(batch)
                         _preload_status["failed"] += len(batch)
             except Exception as e:
                 logger.warning("Batch query failed: %s", e)
+                all_failed.extend(batch)
                 _preload_status["failed"] += len(batch)
 
             _preload_status["done"] = _preload_status["cached"] + min(i + BATCH_SIZE, len(uncached))
+
+        # 重试失败的编号（仅一次）
+        if all_failed:
+            logger.info("Retrying %d failed codes...", len(all_failed))
+            _preload_status["current"] = "重试 %d 个" % len(all_failed)
+            retry_batch = [c for c in all_failed if c not in _cache]
+            if retry_batch:
+                try:
+                    with httpx.Client(timeout=120.0) as client:
+                        resp = client.post(
+                            f"{SCRAPER_BASE_URL}/batch_query",
+                            json={"lcCodes": retry_batch},
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            retry_results = data.get("results", {})
+                            for code, result in retry_results.items():
+                                if result and "error" not in result:
+                                    _cache[code] = result
+                                    _preload_status["queried"] += 1
+                                    _preload_status["failed"] -= 1
+                            _save_cache()
+                            logger.info("Retry: %d recovered", len(retry_results))
+                except Exception as e:
+                    logger.warning("Retry failed: %s", e)
 
         logger.info("Preload complete: %d total, %d cached, %d queried, %d failed",
                      _preload_status["total"], _preload_status["cached"],
