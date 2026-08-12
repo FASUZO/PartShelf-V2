@@ -123,101 +123,97 @@
         </div>
       </div>
 
-      <!-- 分页 / 数据库 / 缓存 横向布局 -->
-      <div class="d-flex gap-3 mt-3 mb-4 flex-wrap" style="max-width:780px;">
+      <!-- MQTT / 数据库 / 缓存 三列布局 -->
+      <div class="row g-3 mt-3 mb-4">
 
-        <!-- 分页设置 -->
-        <div class="card flex-fill" style="min-width:200px;">
-          <div class="card-body d-flex align-items-center gap-3 py-3">
-            <i class="fas fa-file-alt text-muted"></i>
-            <div class="flex-grow-1">
-              <label class="form-label fw-bold mb-1" style="font-size:0.85rem;">每页显示条数</label>
-              <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)">
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
+        <!-- MQTT 配置 -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
+              <span><i class="fas fa-broadcast-tower me-1"></i><strong style="font-size:0.85rem;">MQTT 配置</strong></span>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)" style="width:70px;font-size:0.7rem;padding:1px 4px;" title="每页条数">
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                </select>
+                <span id="mqttStatusBadge" class="badge bg-secondary" style="font-size:0.7rem;">未连接</span>
+              </div>
+            </div>
+            <div class="card-body py-2 px-3" style="font-size:0.8rem;">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="mqttEnabled">
+                <label class="form-check-label fw-bold" for="mqttEnabled" style="font-size:0.8rem;">启用 MQTT</label>
+              </div>
+              <div id="mqttFields">
+                <div class="row g-1 mb-1">
+                  <div class="col-8">
+                    <label class="form-label mb-0" style="font-size:0.75rem;">Broker</label>
+                    <input type="text" class="form-control form-control-sm" id="mqttBroker" placeholder="127.0.0.1" style="font-size:0.8rem;">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label mb-0" style="font-size:0.75rem;">端口</label>
+                    <input type="number" class="form-control form-control-sm" id="mqttPort" placeholder="1883" style="font-size:0.8rem;">
+                  </div>
+                </div>
+                <div class="row g-1 mb-1">
+                  <div class="col-6">
+                    <label class="form-label mb-0" style="font-size:0.75rem;">用户名</label>
+                    <input type="text" class="form-control form-control-sm" id="mqttUsername" placeholder="可选" style="font-size:0.8rem;">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label mb-0" style="font-size:0.75rem;">密码</label>
+                    <input type="text" class="form-control form-control-sm" id="mqttPassword" placeholder="可选" style="font-size:0.8rem;">
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label mb-0" style="font-size:0.75rem;">Topic 前缀</label>
+                  <input type="text" class="form-control form-control-sm" id="mqttTopicPrefix" placeholder="partshelf" style="font-size:0.8rem;">
+                </div>
+              </div>
+              <div class="d-flex gap-1">
+                <button class="btn btn-dark btn-sm flex-fill py-1" style="font-size:0.75rem;" onclick="saveMqttConfig()"><i class="fas fa-save me-1"></i>保存</button>
+                <button class="btn btn-outline-secondary btn-sm flex-fill py-1" style="font-size:0.75rem;" onclick="testMqtt()"><i class="fas fa-plug me-1"></i>测试</button>
+              </div>
+              <div id="mqttTestResult" class="mt-1" style="font-size:0.75rem;"></div>
             </div>
           </div>
         </div>
 
         <!-- 数据库检查 -->
-        <div class="card flex-fill" style="min-width:260px;">
-          <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
-            <span><i class="fas fa-database me-1"></i><strong style="font-size:0.85rem;">数据库</strong></span>
-            <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="runDatabaseCheck()" title="检查"><i class="fas fa-sync-alt"></i></button>
-              <a class="btn btn-sm btn-outline-success py-0 px-1" style="font-size:0.75rem;" href="/api/config/database_report/export" target="_blank" title="导出"><i class="fas fa-download"></i></a>
-              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="formatDatabase()" title="格式化"><i class="fas fa-broom"></i></button>
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
+              <span><i class="fas fa-database me-1"></i><strong style="font-size:0.85rem;">数据库</strong></span>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="runDatabaseCheck()" title="检查"><i class="fas fa-sync-alt"></i></button>
+                <a class="btn btn-sm btn-outline-success py-0 px-1" style="font-size:0.75rem;" href="/api/config/database_report/export" target="_blank" title="导出"><i class="fas fa-download"></i></a>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="formatDatabase()" title="格式化"><i class="fas fa-broom"></i></button>
+              </div>
             </div>
-          </div>
-          <div class="card-body py-2 px-3" id="dbReportBody" style="font-size:0.78rem; height:180px; overflow-y:auto;">
-            <p class="text-muted mb-0">点击检查数据库状态</p>
+            <div class="card-body py-2 px-3" id="dbReportBody" style="font-size:0.78rem; height:220px; overflow-y:auto;">
+              <p class="text-muted mb-0">点击检查数据库状态</p>
+            </div>
           </div>
         </div>
 
         <!-- LC缓存管理 -->
-        <div class="card flex-fill" style="min-width:260px;">
-          <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
-            <span><i class="fas fa-bolt me-1"></i><strong style="font-size:0.85rem;">LC缓存</strong></span>
-            <div class="d-flex gap-1">
-              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="checkLcCache()" title="检查"><i class="fas fa-sync-alt"></i></button>
-              <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:0.75rem;" onclick="compactLcCache()" title="整理"><i class="fas fa-compress"></i></button>
-              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="clearLcCache()" title="清空"><i class="fas fa-trash"></i></button>
-            </div>
-          </div>
-          <div class="card-body py-2 px-3" id="lcCacheBody" style="font-size:0.78rem; height:180px; overflow-y:auto;">
-            <p class="text-muted mb-0">LC查询结果缓存</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- MQTT 配置 -->
-      <div class="card mt-3 mb-4" style="max-width:520px;">
-        <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
-          <span><i class="fas fa-broadcast-tower me-2"></i><strong>MQTT 配置</strong></span>
-          <span id="mqttStatusBadge" class="badge bg-secondary">未连接</span>
-        </div>
-        <div class="card-body">
-          <div class="form-check form-switch mb-3">
-            <input class="form-check-input" type="checkbox" id="mqttEnabled">
-            <label class="form-check-label fw-bold" for="mqttEnabled">启用 MQTT</label>
-          </div>
-          <div id="mqttFields">
-            <div class="row g-2 mb-2">
-              <div class="col-8">
-                <label class="form-label" style="font-size:0.8rem;">Broker 地址</label>
-                <input type="text" class="form-control form-control-sm" id="mqttBroker" placeholder="127.0.0.1">
-                <div class="form-text" style="font-size:0.7rem;">本机: 127.0.0.1 | 局域网: 192.168.x.x | 公网: 域名或IP</div>
-              </div>
-              <div class="col-4">
-                <label class="form-label" style="font-size:0.8rem;">端口</label>
-                <input type="number" class="form-control form-control-sm" id="mqttPort" placeholder="1883">
-                <div class="form-text" style="font-size:0.7rem;">默认 1883</div>
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
+              <span><i class="fas fa-bolt me-1"></i><strong style="font-size:0.85rem;">LC缓存</strong></span>
+              <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="checkLcCache()" title="检查"><i class="fas fa-sync-alt"></i></button>
+                <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:0.75rem;" onclick="compactLcCache()" title="整理"><i class="fas fa-compress"></i></button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="clearLcCache()" title="清空"><i class="fas fa-trash"></i></button>
               </div>
             </div>
-            <div class="row g-2 mb-2">
-              <div class="col-6">
-                <label class="form-label" style="font-size:0.8rem;">用户名</label>
-                <input type="text" class="form-control form-control-sm" id="mqttUsername" placeholder="可选">
-              </div>
-              <div class="col-6">
-                <label class="form-label" style="font-size:0.8rem;">密码</label>
-                <input type="text" class="form-control form-control-sm" id="mqttPassword" placeholder="可选">
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" style="font-size:0.8rem;">Topic 前缀</label>
-              <input type="text" class="form-control form-control-sm" id="mqttTopicPrefix" placeholder="partshelf">
+            <div class="card-body py-2 px-3" id="lcCacheBody" style="font-size:0.78rem; height:220px; overflow-y:auto;">
+              <p class="text-muted mb-0">LC查询结果缓存</p>
             </div>
           </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-dark btn-sm flex-fill" onclick="saveMqttConfig()"><i class="fas fa-save me-1"></i>保存配置</button>
-            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="testMqtt()"><i class="fas fa-plug me-1"></i>测试连接</button>
-          </div>
-          <div id="mqttTestResult" class="mt-2" style="font-size:0.8rem;"></div>
         </div>
       </div>
 
