@@ -1021,7 +1021,7 @@ async function startServer(port = 3001) {
     }
   });
 
-  server.listen(port, () => {
+  server.listen(port, '127.0.0.1', () => {
     console.log(`LCSC Scraper API running at http://localhost:${port}`);
     console.log(`Endpoints:`);
     console.log(`  GET  /health`);

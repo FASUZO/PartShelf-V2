@@ -164,6 +164,9 @@ app.include_router(project_api_routes.router, prefix="/api/project")
 app.include_router(config_api_routes.router, prefix="/api/config", tags=["Config"])
 app.include_router(lcsc_routes.router, prefix="/api/lcsc", tags=["LCSC"])
 
-# 新增：允许通过 python app/main.py 直接启动
+# 本地开发启动（默认绑定 127.0.0.1，仅本机访问）
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    host = os.getenv("APP_HOST", "127.0.0.1")
+    port = int(os.getenv("APP_PORT", "8000"))
+    reload = os.getenv("APP_RELOAD", "false").lower() == "true"
+    uvicorn.run("app.main:app", host=host, port=port, reload=reload)
