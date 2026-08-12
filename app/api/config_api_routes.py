@@ -158,13 +158,14 @@ def _set_config_value(db: Session, key: str, value: str):
 
 
 @router.get("/mqtt", response_model=MqttConfigOut)
-def get_mqtt_config(db: Session = Depends(get_db)):
+def get_mqtt_config(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
+    pwd = _get_config_value(db, "mqtt_password") or ""
     return MqttConfigOut(
         mqtt_enabled=_get_config_value(db, "mqtt_enabled").lower() in ("true", "1", "yes"),
         mqtt_broker=_get_config_value(db, "mqtt_broker"),
         mqtt_port=int(_get_config_value(db, "mqtt_port") or 1883),
         mqtt_username=_get_config_value(db, "mqtt_username"),
-        mqtt_password=_get_config_value(db, "mqtt_password"),
+        mqtt_password="********" if pwd else "",
         mqtt_topic_prefix=_get_config_value(db, "mqtt_topic_prefix"),
     )
 
