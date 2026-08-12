@@ -137,6 +137,26 @@ async def no_cache_static_js(request, call_next):
         response.headers["Expires"] = "0"
     return response
 
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # CSP: 允许自身、CDN 的样式和脚本、内联样式（Bootstrap需要）
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.sheetjs.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' https://cdnjs.cloudflare.com; "
+        "connect-src 'self';"
+    )
+    return response
+
+
 app.include_router(auth_routes.router)
 app.include_router(web_routes.router, tags=["Web Pages"])
 app.include_router(inventory_api_routes.router, prefix="/api/inventory")

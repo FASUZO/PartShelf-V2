@@ -4,6 +4,8 @@
 """
 
 import logging
+import time
+from collections import defaultdict
 from fastapi import APIRouter, Depends, Response, Request, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,6 +15,11 @@ from app.services.auth_service import authenticate_user, create_access_token, de
 logger = logging.getLogger("partshelf.auth.api")
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
+
+# 登录失败速率限制: {ip: [timestamp, ...]}
+_login_failures = defaultdict(list)
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_LOCKOUT_SECONDS = 300  # 5 分钟锁定
 
 
 class LoginRequest(BaseModel):
@@ -25,12 +32,34 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+def _check_rate_limit(ip: str):
+    """检查登录速率限制"""
+    now = time.time()
+    attempts = _login_failures[ip]
+    # 清理过期记录
+    _login_failures[ip] = [t for t in attempts if now - t < _LOGIN_LOCKOUT_SECONDS]
+    if len(_login_failures[ip]) >= _LOGIN_MAX_ATTEMPTS:
+        remaining = int(_LOGIN_LOCKOUT_SECONDS - (now - _login_failures[ip][0]))
+        raise HTTPException(
+            status_code=429,
+            detail=f"登录失败次数过多，请 {remaining} 秒后重试"
+        )
+
+
 @router.post("/login")
-def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """登录"""
+    ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(ip)
+
     user = authenticate_user(db, body.username, body.password)
     if not user:
+        _login_failures[ip].append(time.time())
+        logger.warning("登录失败: username=%s, ip=%s", body.username, ip)
         raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    # 登录成功，清除失败记录
+    _login_failures.pop(ip, None)
 
     token = create_access_token({"sub": user.username, "uid": user.id})
 
@@ -38,10 +67,12 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
         key="access_token",
         value=token,
         httponly=True,
-        max_age=7 * 24 * 60 * 60,  # 7 天
+        secure=False,  # HTTP 环境设为 False，HTTPS 环境设为 True
+        max_age=24 * 60 * 60,  # 24 小时（原 7 天过长）
         samesite="lax"
     )
 
+    logger.info("登录成功: username=%s, ip=%s", user.username, ip)
     return {"success": True, "username": user.username, "is_admin": user.is_admin}
 
 
