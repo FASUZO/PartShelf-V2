@@ -244,6 +244,19 @@
     </div>
 
     <script>
+      // closeModal 备份（utils.js 加载失败时使用）
+      if (typeof closeModal === 'undefined') {
+        function closeModal(modalId) {
+          var el = document.getElementById(modalId);
+          if (!el) return;
+          var modal = bootstrap.Modal.getInstance(el);
+          if (modal) modal.hide();
+          document.querySelectorAll('.modal-backdrop').forEach(function(b) { b.remove(); });
+          document.body.classList.remove('modal-open');
+          document.body.style.removeProperty('padding-right');
+        }
+      }
+
       let currentLcData = null;
       let queryHistory = JSON.parse(localStorage.getItem('lcscHistory') || '[]');
 
