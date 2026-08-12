@@ -8,8 +8,12 @@
 """
 
 import logging
+import threading
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+
+# 库存操作锁（防止并发竞态导致超卖）
+_inventory_lock = threading.Lock()
 from typing import Dict, Any, List, Optional
 from app.crud.inventory import create_inventory, get_inventory_by_part_id, update_inventory_quantity
 from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
@@ -231,70 +235,71 @@ class InventoryService:
         更新库存数量
         - operation_mode: add(增加) / subtract(减少) / set(直接设置)
         - 自动记录库存变更历史
+        - 使用锁防止并发竞态导致超卖
         """
-        db_inventory = get_inventory_by_part_id(db, inventory_quantity.part_id)
-        if not db_inventory:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Inventory record not found."
-            )
+        with _inventory_lock:
+            db_inventory = get_inventory_by_part_id(db, inventory_quantity.part_id)
+            if not db_inventory:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Inventory record not found."
+                )
 
-        # 记录操作前数量
-        quantity_before = db_inventory.quantity_available
+            quantity_before = db_inventory.quantity_available
 
-        # 根据操作模式计算新数量
-        if inventory_quantity.operation_mode == "add":
-            # 增加模式
-            new_quantity = db_inventory.quantity_available + inventory_quantity.quantity
-            operation_type = "in"
-            quantity_change = inventory_quantity.quantity
-        elif inventory_quantity.operation_mode == "subtract":
-            # 减少模式
-            new_quantity = db_inventory.quantity_available - inventory_quantity.quantity
-            operation_type = "out"
-            quantity_change = -inventory_quantity.quantity
-        else:  # "set" 或默认模式
-            # 直接设置模式
-            new_quantity = inventory_quantity.quantity
-            operation_type = "adjust"
-            quantity_change = new_quantity - quantity_before
+            # 根据操作模式计算新数量
+            if inventory_quantity.operation_mode == "add":
+                # 增加模式
+                new_quantity = db_inventory.quantity_available + inventory_quantity.quantity
+                operation_type = "in"
+                quantity_change = inventory_quantity.quantity
+            elif inventory_quantity.operation_mode == "subtract":
+                # 减少模式
+                new_quantity = db_inventory.quantity_available - inventory_quantity.quantity
+                operation_type = "out"
+                quantity_change = -inventory_quantity.quantity
+            else:  # "set" 或默认模式
+                # 直接设置模式
+                new_quantity = inventory_quantity.quantity
+                operation_type = "adjust"
+                quantity_change = new_quantity - quantity_before
 
-        # 检查库存是否足够（仅对减少模式）
-        if inventory_quantity.operation_mode == "subtract" and new_quantity < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Not enough stock to remove {abs(inventory_quantity.quantity)} items. Available: {db_inventory.quantity_available}"
-            )
+            # 检查库存是否足够（仅对减少模式）
+            if inventory_quantity.operation_mode == "subtract" and new_quantity < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Not enough stock to remove {abs(inventory_quantity.quantity)} items. Available: {db_inventory.quantity_available}"
+                )
 
-        # 检查新数量是否为负数
-        if new_quantity < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Quantity cannot be negative. Calculated quantity: {new_quantity}"
-            )
+            # 检查新数量是否为负数
+            if new_quantity < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Quantity cannot be negative. Calculated quantity: {new_quantity}"
+                )
 
-        # 更新库存
-        db_inventory.quantity_available = new_quantity
-        update_inventory_quantity(db, db_inventory)
+            # 更新库存
+            db_inventory.quantity_available = new_quantity
+            update_inventory_quantity(db, db_inventory)
 
-        # 记录历史
-        if record_history:
-            create_inventory_history(
-                db=db,
-                part_id=inventory_quantity.part_id,
-                operation_type=operation_type,
-                quantity_change=quantity_change,
-                quantity_before=quantity_before,
-                quantity_after=new_quantity,
-                remark=remark
-            )
+            # 记录历史
+            if record_history:
+                create_inventory_history(
+                    db=db,
+                    part_id=inventory_quantity.part_id,
+                    operation_type=operation_type,
+                    quantity_change=quantity_change,
+                    quantity_before=quantity_before,
+                    quantity_after=new_quantity,
+                    remark=remark
+                )
         
-        try:
-            publish_event("inventory.update", f'{"part_id": {inventory_quantity.part_id}, "new_quantity": {db_inventory.quantity_available}}')
-        except Exception:
-            pass
+            try:
+                publish_event("inventory.update", f'{"part_id": {inventory_quantity.part_id}, "new_quantity": {db_inventory.quantity_available}}')
+            except Exception:
+                pass
 
-        return PartInventoryQuantity(updatedQuantity = db_inventory.quantity_available)
+            return PartInventoryQuantity(updatedQuantity = db_inventory.quantity_available)
 
 
 
