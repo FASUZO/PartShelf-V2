@@ -236,7 +236,7 @@ def test_mqtt_connection(db: Session = Depends(get_db), user=Depends(get_current
 
 
 @router.get("/database_report")
-def get_database_report(db: Session = Depends(get_db)):
+def get_database_report(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """获取数据库健康检查报告"""
     from app.services.inventory_service import InventoryService
     return InventoryService.get_database_report(db)
@@ -250,7 +250,7 @@ def format_database(db: Session = Depends(get_db), user=Depends(get_current_user
 
 
 @router.get("/database_report/export")
-def export_database_report(db: Session = Depends(get_db)):
+def export_database_report(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """导出数据库详细报告为Excel"""
     import io
     from datetime import datetime

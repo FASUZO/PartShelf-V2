@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 from db.database import get_db
 from app.services.project_service import ProjectService
 from app.schemas.project import ProjectCreate
+from app.api.deps import get_current_user_required
 
 router = APIRouter()
 
 @router.post("/create_project")
-def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(project: ProjectCreate, db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     return ProjectService.create_project(db, project)
 
 @router.get("/get_projects")

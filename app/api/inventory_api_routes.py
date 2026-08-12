@@ -421,7 +421,7 @@ def export_import_template_excel(db: Session = Depends(get_db)):
     )
 
 @router.get("/export_excel")
-def export_inventory_excel(db: Session = Depends(get_db)):
+def export_inventory_excel(db: Session = Depends(get_db), user=Depends(get_current_user_required)):
     """导出库存数据为Excel格式"""
     import json as _json
     inventory_data = _get_inventory_data(db)

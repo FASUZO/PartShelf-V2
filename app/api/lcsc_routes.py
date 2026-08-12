@@ -4,8 +4,9 @@ LCSC 查询 API 路由
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.services.lcsc_service import query_lcsc_part, query_lcsc_list, check_cookies
+from app.api.deps import get_current_user_required
 
 logger = logging.getLogger("partshelf.api.lcsc")
 router = APIRouter()
@@ -160,7 +161,7 @@ async def get_preload_status():
 
 
 @router.post("/preload/start")
-async def start_preload():
+async def start_preload(user=Depends(get_current_user_required)):
     """启动 LC 预加载"""
     import threading
     from app.services.lcsc_service import preload_inventory_lc_codes, get_preload_status
@@ -188,7 +189,7 @@ async def get_cache_info():
 
 
 @router.post("/cache/clear")
-async def clear_cache():
+async def clear_cache(user=Depends(get_current_user_required)):
     """清空 LC 缓存"""
     from app.services.lcsc_service import clear_lcsc_cache
     result = clear_lcsc_cache()
@@ -196,7 +197,7 @@ async def clear_cache():
 
 
 @router.post("/cache/compact")
-async def compact_cache():
+async def compact_cache(user=Depends(get_current_user_required)):
     """整理 LC 缓存（去除无效条目）"""
     from app.services.lcsc_service import _cache, _save_cache
     before = len(_cache)
