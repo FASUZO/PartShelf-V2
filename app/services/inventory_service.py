@@ -1175,12 +1175,8 @@ class InventoryService:
                 if match:
                     filtered_ids.append(part.id)
 
-            query = db.query(Part).join(Inventory).filter(Part.id.in_(filtered_ids))
-            # 重新应用 category_id 筛选（因为 query 被替换了）
-            if filter_data.category_id:
-                query = query.filter(Part.category_id == filter_data.category_id)
-            if filter_data.subcategory_id:
-                query = query.filter(Part.subcategory_id == filter_data.subcategory_id)
+            # 在现有 query 基础上筛选，保留所有已有条件
+            query = query.filter(Part.id.in_(filtered_ids))
 
         # 应用排序
         if sort_field:
