@@ -884,8 +884,12 @@ function showLcscCompareModal(lcscData, partData) {
     if (!body) return;
 
     const lcscParams = parseLcscParams(lcscData.params) || parseLcscRemarkPrefix(lcscData.remarkPrefix) || {};
+    console.info('[LCSC] partData.other:', partData.other ? partData.other.substring(0, 100) : 'null');
     const parsed = parsePartParams(partData.other);
+    console.info('[LCSC] parsed:', parsed ? JSON.stringify(parsed).substring(0, 200) : 'null');
     const partParams = parsed ? (parsed.values || {}) : {};
+    console.info('[LCSC] partParams keys:', Object.keys(partParams));
+    console.info('[LCSC] lcscParams keys:', Object.keys(lcscParams));
 
     let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;">';
     html += '<thead class="table-light"><tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr></thead><tbody>';
