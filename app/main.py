@@ -9,14 +9,26 @@ sys.path.append(app_root)
 
 # 配置日志
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, log_level, logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+numeric_level = getattr(logging, log_level, logging.INFO)
 
-# 设置SQLAlchemy日志级别（避免显示SQL查询日志）
+# 配置根日志器
+root_logger = logging.getLogger()
+root_logger.setLevel(numeric_level)
+
+# 清除已有处理器（避免重复）
+if root_logger.handlers:
+    root_logger.handlers.clear()
+
+# 添加控制台处理器
+_handler = logging.StreamHandler()
+_handler.setLevel(numeric_level)
+_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+root_logger.addHandler(_handler)
+
+# SQLAlchemy 日志始终为 WARNING（不随 LOG_LEVEL 变化）
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 
 logger = logging.getLogger("partshelf")
 logger.info(f"日志级别: {log_level}")
