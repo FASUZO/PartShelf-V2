@@ -319,6 +319,130 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
 }
 
 /**
+ * 批量查询多个 LC 编号（单次 CSV 上传）
+ * @param {string[]} lcCodes - LC 编号数组
+ * @param {string} bomUuid - BOM UUID
+ * @returns {Promise<object>} { results: {lcCode: data}, errors: [lcCode] }
+ */
+async function batchQueryByLcCodes(lcCodes, bomUuid = DEFAULT_BOM_UUID) {
+  const ready = await ensureSession(bomUuid);
+  if (!ready) return { error: 'Session not ready', results: {}, errors: lcCodes };
+
+  const results = {};
+  const errors = [];
+
+  // 1. 先检查 BOM 中已有的物料
+  try {
+    const bomItems = await _page.evaluate(async (bomUuid) => {
+      const resp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+      });
+      const data = await resp.json();
+      return data?.result?.bom?.bomItemList || [];
+    }, bomUuid);
+
+    for (const item of bomItems) {
+      const code = item.productCode || item.firstProductCode;
+      if (lcCodes.includes(code) && item.frontProductVO) {
+        const p = item.frontProductVO;
+        results[code] = {
+          lcCode: p.code || code,
+          productName: p.productName || '',
+          productModel: cleanProductModel(p.productModel, p.brand),
+          brand: p.brand || '',
+          pack: p.pack || '',
+          price: p.price || '',
+          stock: p.stock || 0,
+          stockStatus: p.stockStatus || 'unknown',
+          moq: p.moq || 1,
+          params: p.remarkPrefix ? p.remarkPrefix.replace(/<\/br>/g, '; ') : '',
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[batch] BOM query failed:', e.message);
+  }
+
+  // 2. 找出不在 BOM 中的编号
+  const missing = lcCodes.filter(c => !results[c]);
+  if (missing.length === 0) return { results, errors };
+
+  console.log(`[batch] ${Object.keys(results).length} found in BOM, ${missing.length} need upload`);
+
+  // 3. 批量上传 CSV
+  const { unlinkSync } = await import('fs');
+  const tmpFile = join(process.cwd(), 'tmp_bom_batch.csv');
+  const csvContent = 'Name,Quantity\n' + missing.map(c => `${c},1`).join('\n');
+  writeFileSync(tmpFile, csvContent);
+
+  try {
+    const fileInput = _page.locator('input#file[type=file]');
+    if ((await fileInput.count()) === 0) {
+      errors.push(...missing);
+      return { results, errors, error: 'File input not found' };
+    }
+
+    let newBomUuid = null;
+    const onRequest = (req) => {
+      if (req.url().includes('bom/match/finished/v2') && req.method() === 'POST') {
+        const m = (req.postData() || '').match(/bsuuid=([A-F0-9]+)/i);
+        if (m) newBomUuid = m[1];
+      }
+    };
+    _page.on('request', onRequest);
+
+    console.log(`[batch] Uploading CSV with ${missing.length} items...`);
+    await fileInput.setInputFiles(tmpFile);
+    await _page.waitForTimeout(12000);
+    _page.off('request', onRequest);
+
+    const targetUuid = newBomUuid && newBomUuid !== bomUuid ? newBomUuid : bomUuid;
+    if (newBomUuid) console.log('[batch] New BOM:', newBomUuid);
+
+    // 4. 查询新 BOM 获取结果
+    const newItems = await _page.evaluate(async (bomUuid) => {
+      const resp = await fetch('https://bom.szlcsc.com/async/bom/match/finished/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `bsuuid=${bomUuid}&bomUuid=${bomUuid}&bomItemIdStr=&pageSource=sheet`,
+      });
+      const data = await resp.json();
+      return data?.result?.bom?.bomItemList || [];
+    }, targetUuid);
+
+    for (const code of missing) {
+      const found = newItems.find(i => i.productCode === code || i.firstProductCode === code);
+      if (found?.frontProductVO) {
+        const p = found.frontProductVO;
+        results[code] = {
+          lcCode: p.code || code,
+          productName: p.productName || '',
+          productModel: cleanProductModel(p.productModel, p.brand),
+          brand: p.brand || '',
+          pack: p.pack || '',
+          price: p.price || '',
+          stock: p.stock || 0,
+          stockStatus: p.stockStatus || 'unknown',
+          moq: p.moq || 1,
+          params: p.remarkPrefix ? p.remarkPrefix.replace(/<\/br>/g, '; ') : '',
+        };
+      } else {
+        errors.push(code);
+      }
+    }
+  } catch (e) {
+    console.error('[batch] Upload failed:', e.message);
+    errors.push(...missing.filter(c => !results[c]));
+  } finally {
+    try { unlinkSync(tmpFile); } catch (_) {}
+  }
+
+  return { results, errors };
+}
+
+/**
  * 使用持久化会话查询 LC 编号
  */
 async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
@@ -780,6 +904,31 @@ async function startServer(port = 3001) {
           const qrStatus = await checkQrLoginStatus();
           res.writeHead(200);
           res.end(JSON.stringify(qrStatus));
+          break;
+        }
+
+        case '/batch_query': {
+          // 批量查询 LC 编号
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          let lcCodes;
+          try {
+            const parsed = JSON.parse(body);
+            lcCodes = parsed.lcCodes || parsed;
+          } catch (_) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid JSON body, expected {lcCodes: [...]}' }));
+            return;
+          }
+          if (!Array.isArray(lcCodes) || lcCodes.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'lcCodes must be a non-empty array' }));
+            return;
+          }
+          console.log(`[server] Batch query: ${lcCodes.length} codes`);
+          const batchResult = await batchQueryByLcCodes(lcCodes, params.bomUuid);
+          res.writeHead(200);
+          res.end(JSON.stringify(batchResult));
           break;
         }
 

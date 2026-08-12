@@ -267,7 +267,7 @@ def get_preload_status() -> Dict[str, Any]:
 
 
 def preload_inventory_lc_codes():
-    """预加载所有库存 LC 编号到缓存（后台线程运行）"""
+    """预加载所有库存 LC 编号到缓存（后台线程运行，批量查询优化）"""
     global _preload_status
 
     if _preload_status["running"]:
@@ -293,20 +293,60 @@ def preload_inventory_lc_codes():
         finally:
             db.close()
 
+        # 过滤出未缓存的编号
+        uncached = [c for c in lc_codes if c not in _cache]
         _preload_status["total"] = len(lc_codes)
-        logger.info("Preloading %d LC codes...", len(lc_codes))
+        _preload_status["cached"] = len(lc_codes) - len(uncached)
+        _preload_status["done"] = _preload_status["cached"]
 
-        for lc_code in lc_codes:
-            if lc_code in _cache:
-                _preload_status["cached"] += 1
-            else:
-                _preload_status["current"] = lc_code
-                result = query_lcsc_part(lc_code)
-                if result:
-                    _preload_status["queried"] += 1
-                else:
-                    _preload_status["failed"] += 1
-            _preload_status["done"] += 1
+        if not uncached:
+            logger.info("All %d LC codes already cached", len(lc_codes))
+            return
+
+        logger.info("Preloading %d LC codes (%d cached, %d to query)...",
+                     len(lc_codes), _preload_status["cached"], len(uncached))
+
+        # 批量查询（每批 20 个）
+        BATCH_SIZE = 20
+        for i in range(0, len(uncached), BATCH_SIZE):
+            batch = uncached[i:i + BATCH_SIZE]
+            _preload_status["current"] = batch[0] + '~' + batch[-1]
+
+            try:
+                import httpx
+                with httpx.Client(timeout=120.0) as client:
+                    resp = client.post(
+                        f"{SCRAPER_BASE_URL}/batch_query",
+                        json={"lcCodes": batch},
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        batch_results = data.get("results", {})
+                        batch_errors = data.get("errors", [])
+
+                        # 缓存结果
+                        for code, result in batch_results.items():
+                            if result and "error" not in result:
+                                _cache[code] = result
+                                _preload_status["queried"] += 1
+                            else:
+                                _preload_status["failed"] += 1
+
+                        _preload_status["failed"] += len(batch_errors)
+                        _save_cache()
+
+                        logger.info("Batch %d/%d: %d found, %d errors",
+                                     i // BATCH_SIZE + 1,
+                                     (len(uncached) + BATCH_SIZE - 1) // BATCH_SIZE,
+                                     len(batch_results), len(batch_errors))
+                    else:
+                        logger.warning("Batch query HTTP error: %d", resp.status_code)
+                        _preload_status["failed"] += len(batch)
+            except Exception as e:
+                logger.warning("Batch query failed: %s", e)
+                _preload_status["failed"] += len(batch)
+
+            _preload_status["done"] = _preload_status["cached"] + min(i + BATCH_SIZE, len(uncached))
 
         logger.info("Preload complete: %d total, %d cached, %d queried, %d failed",
                      _preload_status["total"], _preload_status["cached"],
