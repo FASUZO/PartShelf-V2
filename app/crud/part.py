@@ -82,7 +82,11 @@ def get_parts_containing_key(db: Session, search_key: str):
     ).all()
 
 def delete_part(db: Session, part_to_delete: Part):
-    # 先删除相关的库存记录
+    # 先删除相关的历史记录
+    from app.models.inventory_history import InventoryHistory
+    db.query(InventoryHistory).filter(InventoryHistory.part_id == part_to_delete.id).delete()
+    
+    # 删除库存记录
     if part_to_delete.inventory:
         db.delete(part_to_delete.inventory)
     

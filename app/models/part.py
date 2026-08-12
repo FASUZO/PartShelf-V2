@@ -26,5 +26,5 @@ class Part(Base):
     manufacturer = relationship("Manufacturer", back_populates="parts")
     package= relationship("Package", back_populates="parts")
     type = relationship("Type", back_populates="parts")
-    inventory = relationship("Inventory", back_populates="part", uselist=False)
-    inventory_history = relationship("InventoryHistory", back_populates="part")
+    inventory = relationship("Inventory", back_populates="part", uselist=False, cascade="all, delete-orphan")
+    inventory_history = relationship("InventoryHistory", back_populates="part", cascade="all, delete-orphan")

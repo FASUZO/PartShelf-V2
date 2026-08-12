@@ -27,8 +27,10 @@ class DatabaseConfig:
     @staticmethod
     def get_engine_kwargs():
         """获取数据库引擎参数"""
+        import os
+        log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         return {
-            "echo": True,  # 是否显示SQL语句（开发环境开启）
+            "echo": log_level == "DEBUG",  # 仅 DEBUG 级别显示SQL语句
             "pool_pre_ping": True,  # 连接池预检查
             "pool_recycle": 3600,  # 连接回收时间（秒）
             "connect_args": {"check_same_thread": False},  # SQLite连接参数
