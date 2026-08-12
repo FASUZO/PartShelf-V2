@@ -59,7 +59,7 @@ def add_part_to_inventory(
     )
     InventoryService.add_part_to_inventory(db, part_data)
     logger.info("零件入库: %s (%s/%s), 数量=%d", name, manufacturer, package, quantity)
-    return RedirectResponse("/inventory", status_code=303)
+    return {"success": True, "message": "入库成功", "name": name}
 
 @router.post("/update_quantity")
 def update_quantity(
