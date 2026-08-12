@@ -169,3 +169,40 @@ async def start_preload():
         return {"message": "预加载已在运行中", "status": status}
     threading.Thread(target=preload_inventory_lc_codes, daemon=True).start()
     return {"message": "预加载已启动"}
+
+
+@router.get("/cache/info")
+async def get_cache_info():
+    """获取 LC 缓存信息"""
+    import os
+    from app.services.lcsc_service import _cache, _CACHE_FILE
+    cache_size = 0
+    if os.path.exists(_CACHE_FILE):
+        cache_size = os.path.getsize(_CACHE_FILE)
+    return {
+        "entries": len(_cache),
+        "file": _CACHE_FILE,
+        "size_bytes": cache_size,
+        "size_kb": round(cache_size / 1024, 1),
+    }
+
+
+@router.post("/cache/clear")
+async def clear_cache():
+    """清空 LC 缓存"""
+    from app.services.lcsc_service import clear_lcsc_cache
+    result = clear_lcsc_cache()
+    return result
+
+
+@router.post("/cache/compact")
+async def compact_cache():
+    """整理 LC 缓存（去除无效条目）"""
+    from app.services.lcsc_service import _cache, _save_cache
+    before = len(_cache)
+    # 去除值为 None 或空的条目
+    to_remove = [k for k, v in _cache.items() if not v or "error" in (v or {})]
+    for k in to_remove:
+        del _cache[k]
+    _save_cache()
+    return {"message": f"整理完成: 移除 {len(to_remove)} 个无效条目", "before": before, "after": len(_cache)}

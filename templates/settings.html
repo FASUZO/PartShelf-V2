@@ -201,6 +201,21 @@
           <p class="text-muted mb-0" style="font-size:0.85rem;">点击"检查"按钮查看数据库健康状态，点击"导出"下载详细报告。</p>
         </div>
       </div>
+
+      <!-- LC缓存管理 -->
+      <div class="card mb-4" style="max-width:520px;">
+        <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
+          <span><i class="fas fa-bolt me-2"></i><strong>LC缓存管理</strong></span>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-light" onclick="checkLcCache()"><i class="fas fa-sync-alt me-1"></i>检查</button>
+            <button class="btn btn-sm btn-outline-warning" onclick="compactLcCache()"><i class="fas fa-compress me-1"></i>整理</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="clearLcCache()"><i class="fas fa-trash me-1"></i>清空</button>
+          </div>
+        </div>
+        <div class="card-body" id="lcCacheBody">
+          <p class="text-muted mb-0" style="font-size:0.85rem;">LC查询结果缓存，加速重复查询。点击"检查"查看详情。</p>
+        </div>
+      </div>
     </div>
 
     <!-- 模态框 -->
@@ -848,6 +863,47 @@
           }
         } catch (e) {
           body.innerHTML = '<div class="alert alert-danger mb-0 py-2" style="font-size:0.85rem;"><i class="fas fa-times-circle me-1"></i>修复失败: ' + e.message + '</div>';
+        }
+      }
+
+      // ==================== LC缓存管理 ====================
+      async function checkLcCache() {
+        var body = document.getElementById('lcCacheBody');
+        body.innerHTML = '<p class="text-muted mb-0" style="font-size:0.85rem;"><i class="fas fa-spinner fa-spin me-1"></i>正在检查...</p>';
+        try {
+          var resp = await fetch('/api/lcsc/cache/info');
+          var info = await resp.json();
+          var html = '<div style="font-size:0.85rem;">';
+          html += '<div class="d-flex justify-content-between mb-1"><span>缓存条目</span><strong>' + info.entries + ' 条</strong></div>';
+          html += '<div class="d-flex justify-content-between mb-1"><span>文件大小</span><strong>' + info.size_kb + ' KB</strong></div>';
+          html += '<div class="d-flex justify-content-between mb-1"><span>文件路径</span><small class="text-muted">' + escapeHtml(info.file) + '</small></div>';
+          html += '</div>';
+          body.innerHTML = html;
+        } catch (e) {
+          body.innerHTML = '<p class="text-danger mb-0" style="font-size:0.85rem;"><i class="fas fa-times-circle me-1"></i>检查失败: ' + e.message + '</p>';
+        }
+      }
+
+      async function clearLcCache() {
+        if (!confirm('确定要清空LC缓存吗？\n\n清空后所有LC查询需要重新从立创商城获取。')) return;
+        try {
+          var resp = await fetch('/api/lcsc/cache/clear', { method: 'POST' });
+          var result = await resp.json();
+          showToast('缓存已清空: ' + (result.cleared || 0) + ' 条', 'success');
+          checkLcCache();
+        } catch (e) {
+          showToast('清空失败: ' + e.message, 'danger');
+        }
+      }
+
+      async function compactLcCache() {
+        try {
+          var resp = await fetch('/api/lcsc/cache/compact', { method: 'POST' });
+          var result = await resp.json();
+          showToast(result.message || '整理完成', 'success');
+          checkLcCache();
+        } catch (e) {
+          showToast('整理失败: ' + e.message, 'danger');
         }
       }
 
