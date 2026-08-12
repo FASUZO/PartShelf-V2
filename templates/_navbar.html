@@ -74,6 +74,8 @@
             <i class="fas fa-user-circle me-1"></i> {{ user.username }}
           </a>
           <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+            <li><a class="dropdown-item" href="#" onclick="showChangePasswordModal()"><i class="fas fa-key me-2"></i>修改密码</a></li>
+            <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="#" onclick="logout()"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
           </ul>
         </li>
@@ -94,6 +96,49 @@ var isAuthenticated = {{ 'true' if user else 'false' }};
 async function logout() {
   await fetch('/api/auth/logout', {method: 'POST'});
   window.location.href = '/';
+}
+
+// 修改密码
+function showChangePasswordModal() {
+  var modal = document.getElementById('changePasswordModal');
+  if (modal) {
+    document.getElementById('oldPassword').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmPassword').value = '';
+    document.getElementById('changePasswordError').textContent = '';
+    new bootstrap.Modal(modal).show();
+  }
+}
+
+async function submitChangePassword() {
+  var oldPwd = document.getElementById('oldPassword').value;
+  var newPwd = document.getElementById('newPassword').value;
+  var confirmPwd = document.getElementById('confirmPassword').value;
+  var errEl = document.getElementById('changePasswordError');
+  errEl.textContent = '';
+
+  if (!oldPwd || !newPwd) { errEl.textContent = '请填写所有字段'; return; }
+  if (newPwd !== confirmPwd) { errEl.textContent = '两次输入的新密码不一致'; return; }
+  if (newPwd.length < 4) { errEl.textContent = '新密码至少4位'; return; }
+
+  try {
+    var resp = await fetch('/api/auth/change_password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({old_password: oldPwd, new_password: newPwd})
+    });
+    var data = await resp.json();
+    if (resp.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+      alert('密码修改成功，请重新登录');
+      await fetch('/api/auth/logout', {method: 'POST'});
+      window.location.href = '/login';
+    } else {
+      errEl.textContent = data.detail || '修改失败';
+    }
+  } catch (e) {
+    errEl.textContent = '网络错误';
+  }
 }
 
 // 分页设置
@@ -140,3 +185,34 @@ function savePageSize(val) {
   }, 3000);
 })();
 </script>
+
+<!-- 修改密码弹窗 -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white py-2">
+        <h6 class="modal-title"><i class="fas fa-key me-1"></i> 修改密码</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label" style="font-size:0.85rem;">旧密码</label>
+          <input type="password" class="form-control form-control-sm" id="oldPassword">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:0.85rem;">新密码</label>
+          <input type="password" class="form-control form-control-sm" id="newPassword" placeholder="至少4位">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:0.85rem;">确认新密码</label>
+          <input type="password" class="form-control form-control-sm" id="confirmPassword">
+        </div>
+        <p id="changePasswordError" class="text-danger mb-0" style="font-size:0.8rem;"></p>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary btn-sm" onclick="submitChangePassword()">确认修改</button>
+      </div>
+    </div>
+  </div>
+</div>
