@@ -336,12 +336,6 @@ class FileService:
             "mode": import_mode,
         }
 
-        # 如果是覆盖模式，先清空库存
-        if import_mode == "overwrite":
-            db.query(Inventory).delete()
-            db.query(Part).delete()
-            db.commit()
-            report["overwrite_cleared"] = True
         try:
             import tempfile
             import os
@@ -429,7 +423,19 @@ class FileService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=detail_msg
                     )
-                
+
+                # 覆盖模式：验证通过后再清空数据（防止无效文件导致数据丢失）
+                if import_mode == "overwrite":
+                    from app.models.inventory_history import InventoryHistory
+                    # 先删除历史记录（外键约束）
+                    db.query(InventoryHistory).delete()
+                    # 再删除库存和零件
+                    db.query(Inventory).delete()
+                    db.query(Part).delete()
+                    db.commit()
+                    report["overwrite_cleared"] = True
+                    logger.info("覆盖模式：已清空库存和历史记录")
+
                 # 遍历数据行（从列名行的下一行开始）
                 for row_idx, row in enumerate(data[data_start_row + 1:], start=data_start_row + 2):
                     report["total_rows"] += 1
