@@ -46,6 +46,21 @@
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="#" onclick="showInventoryHistory()"><i class="fas fa-history me-2"></i>使用历史</a></li>
             <li><hr class="dropdown-divider"></li>
+            <li>
+              <div class="dropdown-item-text d-flex align-items-center gap-2">
+                <i class="fas fa-list-ol text-muted"></i>
+                <span style="font-size:0.85rem;">每页</span>
+                <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)" style="width:70px;font-size:0.8rem;">
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                </select>
+                <span style="font-size:0.85rem;">条</span>
+              </div>
+            </li>
+            <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/api/inventory/export_excel" target="_blank"><i class="fas fa-file-excel me-2"></i>导出 Excel</a></li>
           </ul>
         </li>
@@ -80,6 +95,15 @@ async function logout() {
   await fetch('/api/auth/logout', {method: 'POST'});
   window.location.href = '/';
 }
+
+// 分页设置
+function savePageSize(val) {
+  localStorage.setItem('pageSize', val);
+}
+(function() {
+  var sel = document.getElementById('pageSizeSelect');
+  if (sel) sel.value = localStorage.getItem('pageSize') || '100';
+})();
 
 (function() {
   var icon = document.getElementById('navMqttIcon');

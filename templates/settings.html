@@ -131,16 +131,7 @@
           <div class="card h-100">
             <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
               <span><i class="fas fa-broadcast-tower me-1"></i><strong style="font-size:0.85rem;">MQTT 配置</strong></span>
-              <div class="d-flex align-items-center gap-2">
-                <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)" style="width:70px;font-size:0.7rem;padding:1px 4px;" title="每页条数">
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                  <option value="200">200</option>
-                  <option value="500">500</option>
-                </select>
-                <span id="mqttStatusBadge" class="badge bg-secondary" style="font-size:0.7rem;">未连接</span>
-              </div>
+              <span id="mqttStatusBadge" class="badge bg-secondary" style="font-size:0.7rem;">未连接</span>
             </div>
             <div class="card-body py-2 px-3" style="font-size:0.8rem;">
               <div class="form-check form-switch mb-2">
@@ -746,7 +737,6 @@
       }
 
       // 初始化分页设置
-      document.getElementById('pageSizeSelect').value = localStorage.getItem('pageSize') || '100';
 
       // 数据库检查
       async function runDatabaseCheck() {
