@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-python-jose
+PyJWT
+bcrypt
 python-multipart
 sqlalchemy
 pydantic
