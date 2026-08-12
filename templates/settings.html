@@ -123,19 +123,53 @@
         </div>
       </div>
 
-      <!-- 分页设置 -->
-      <div class="card mt-3 mb-4" style="max-width:400px;">
-        <div class="card-body d-flex align-items-center gap-3">
-          <i class="fas fa-file-alt text-muted"></i>
-          <div class="flex-grow-1">
-            <label class="form-label fw-bold mb-1" style="font-size:0.85rem;">每页显示条数</label>
-            <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)">
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="200">200</option>
-              <option value="500">500</option>
-            </select>
+      <!-- 分页 / 数据库 / 缓存 横向布局 -->
+      <div class="d-flex gap-3 mt-3 mb-4 flex-wrap" style="max-width:780px;">
+
+        <!-- 分页设置 -->
+        <div class="card flex-fill" style="min-width:200px;">
+          <div class="card-body d-flex align-items-center gap-3 py-3">
+            <i class="fas fa-file-alt text-muted"></i>
+            <div class="flex-grow-1">
+              <label class="form-label fw-bold mb-1" style="font-size:0.85rem;">每页显示条数</label>
+              <select class="form-select form-select-sm" id="pageSizeSelect" onchange="savePageSize(this.value)">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据库检查 -->
+        <div class="card flex-fill" style="min-width:260px;">
+          <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
+            <span><i class="fas fa-database me-1"></i><strong style="font-size:0.85rem;">数据库</strong></span>
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt"></i></button>
+              <a class="btn btn-sm btn-outline-success py-0 px-1" style="font-size:0.75rem;" href="/api/config/database_report/export" target="_blank"><i class="fas fa-download"></i></a>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="formatDatabase()"><i class="fas fa-broom"></i></button>
+            </div>
+          </div>
+          <div class="card-body py-2 px-3" id="dbReportBody" style="font-size:0.8rem; min-height:60px;">
+            <p class="text-muted mb-0">点击检查数据库状态</p>
+          </div>
+        </div>
+
+        <!-- LC缓存管理 -->
+        <div class="card flex-fill" style="min-width:260px;">
+          <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:#21252b;color:#c9d1d9;">
+            <span><i class="fas fa-bolt me-1"></i><strong style="font-size:0.85rem;">LC缓存</strong></span>
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:0.75rem;" onclick="checkLcCache()"><i class="fas fa-sync-alt"></i></button>
+              <button class="btn btn-sm btn-outline-warning py-0 px-1" style="font-size:0.75rem;" onclick="compactLcCache()"><i class="fas fa-compress"></i></button>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" style="font-size:0.75rem;" onclick="clearLcCache()"><i class="fas fa-trash"></i></button>
+            </div>
+          </div>
+          <div class="card-body py-2 px-3" id="lcCacheBody" style="font-size:0.8rem; min-height:60px;">
+            <p class="text-muted mb-0">LC查询结果缓存</p>
           </div>
         </div>
       </div>
@@ -187,35 +221,7 @@
         </div>
       </div>
 
-      <!-- 数据库检查 -->
-      <div class="card mt-3 mb-4" style="max-width:520px;">
-        <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
-          <span><i class="fas fa-database me-2"></i><strong>数据库检查</strong></span>
-          <div class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-light" onclick="runDatabaseCheck()"><i class="fas fa-sync-alt me-1"></i>检查</button>
-            <a class="btn btn-sm btn-outline-success" href="/api/config/database_report/export" target="_blank"><i class="fas fa-download me-1"></i>导出</a>
-            <button class="btn btn-sm btn-outline-danger" onclick="formatDatabase()"><i class="fas fa-broom me-1"></i>格式化</button>
-          </div>
-        </div>
-        <div class="card-body" id="dbReportBody">
-          <p class="text-muted mb-0" style="font-size:0.85rem;">点击"检查"按钮查看数据库健康状态，点击"导出"下载详细报告。</p>
-        </div>
-      </div>
 
-      <!-- LC缓存管理 -->
-      <div class="card mb-4" style="max-width:520px;">
-        <div class="card-header d-flex align-items-center justify-content-between" style="background:#21252b;color:#c9d1d9;">
-          <span><i class="fas fa-bolt me-2"></i><strong>LC缓存管理</strong></span>
-          <div class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-light" onclick="checkLcCache()"><i class="fas fa-sync-alt me-1"></i>检查</button>
-            <button class="btn btn-sm btn-outline-warning" onclick="compactLcCache()"><i class="fas fa-compress me-1"></i>整理</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="clearLcCache()"><i class="fas fa-trash me-1"></i>清空</button>
-          </div>
-        </div>
-        <div class="card-body" id="lcCacheBody">
-          <p class="text-muted mb-0" style="font-size:0.85rem;">LC查询结果缓存，加速重复查询。点击"检查"查看详情。</p>
-        </div>
-      </div>
     </div>
 
     <!-- 模态框 -->
