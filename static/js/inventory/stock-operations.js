@@ -106,8 +106,8 @@ function bindStockInModal() {
         
         if (partData) {
             document.getElementById('stockInPartInfo').innerHTML = `
-                <strong>${partData.name}</strong> - ${partData.manufacturer}<br>
-                <small class="text-muted">当前库存: ${partData.quantity}</small>
+                <strong>${escapeHtml(partData.name)}</strong> - ${escapeHtml(partData.manufacturer)}<br>
+                <small class="text-muted">当前库存: ${escapeHtml(String(partData.quantity))}</small>
             `;
         }
     });
@@ -129,7 +129,7 @@ function bindStockOutModal() {
         
         if (partData) {
             document.getElementById('stockOutPartInfo').innerHTML = `
-                <strong>${partData.name}</strong> - ${partData.manufacturer}
+                <strong>${escapeHtml(partData.name)}</strong> - ${escapeHtml(partData.manufacturer)}
             `;
             document.getElementById('stockOutCurrentQty').textContent = partData.quantity;
         }

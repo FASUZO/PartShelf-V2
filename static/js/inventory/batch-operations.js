@@ -135,7 +135,7 @@ function renderBatchStockOutPreview() {
 // 渲染多匹配项
 function renderBatchOutMultipleMatch(item, index) {
     const selectOptions = item.matchedParts.map((p, i) => {
-        return `<option value="${i}">${p.name} | ${p.manufacturer || '-'} | ${p.package || '-'} | 库存:${p.quantity}</option>`;
+        return `<option value="${i}">${escapeHtml(p.name)} | ${escapeHtml(p.manufacturer || '-')} | ${escapeHtml(p.package || '-')} | 库存:${p.quantity}</option>`;
     }).join('');
     
     return `
@@ -186,8 +186,8 @@ function renderBatchOutMatched(item, index) {
             <td>${escapeHtml(item.requestName)}</td>
             <td>${item.requestQuantity}</td>
             <td>
-                <div><strong>${part.name}</strong></div>
-                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${getDisplayType(part)}</small>
+                <div><strong>${escapeHtml(part.name)}</strong></div>
+                <small class="text-muted">${escapeHtml(part.manufacturer || '-')} | ${escapeHtml(part.package || '-')} | ${escapeHtml(getDisplayType(part))}</small>
             </td>
             <td>${part.quantity}</td>
             <td class="${afterQty < 0 ? 'text-danger fw-bold' : ''}">${afterQty}</td>
@@ -468,8 +468,8 @@ function renderBatchInMatched(item) {
             <td>${escapeHtml(item.requestName)}</td>
             <td>${item.requestQuantity}</td>
             <td>
-                <div><strong>${part.name}</strong></div>
-                <small class="text-muted">${part.manufacturer || '-'} | ${part.package || '-'} | ${getDisplayType(part)}</small>
+                <div><strong>${escapeHtml(part.name)}</strong></div>
+                <small class="text-muted">${escapeHtml(part.manufacturer || '-')} | ${escapeHtml(part.package || '-')} | ${escapeHtml(getDisplayType(part))}</small>
             </td>
             <td>${part.quantity}</td>
             <td class="text-success fw-bold">${afterQty}</td>
