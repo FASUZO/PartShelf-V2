@@ -26,6 +26,32 @@ let _qrContext = null;
 let _qrPage = null;
 
 /**
+ * 清理产品型号名称：去除品牌名、保质期等多余信息
+ * @param {string} model - 原始型号
+ * @param {string} brand - 品牌名
+ * @returns {string} 清理后的型号
+ */
+function cleanProductModel(model, brand) {
+  if (!model) return '';
+  let cleaned = model;
+  // 去除尾部保质期信息 (如 "2年内", "3年内")
+  cleaned = cleaned.replace(/\d+年内$/, '');
+  // 去除品牌名及其括号内容 (如 "Slkor(韩国萨科微)")
+  if (brand) {
+    const brandEscaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(brandEscaped + '\\([^)]*\\)', 'gi'), '');
+    cleaned = cleaned.replace(new RegExp(brandEscaped, 'gi'), '');
+  }
+  // 去除常见的品牌模式：英文名(中文名)
+  cleaned = cleaned.replace(/[A-Za-z]+\([^)]*(?:韩国|日本|美国|台湾|中国|德国)[^)]*\)/g, '');
+  // 去除 "2年内" 等残留
+  cleaned = cleaned.replace(/\d+年内/g, '');
+  // 去除首尾空白和多余空格
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  return cleaned || model;
+}
+
+/**
  * 加载保存的 cookie
  */
 function loadCookies() {
@@ -271,13 +297,10 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
         if (!found?.frontProductVO) return null;
         const p = found.frontProductVO;
-        // 清理型号名称：去除品牌名、"2年内"等多余信息
-        let model = p.productModel || '';
-        model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
         return {
           lcCode: p.code || lcCode,
           productName: p.productName || '',
-          productModel: model,
+          productModel: cleanProductModel(p.productModel, p.brand),
           brand: p.brand || '',
           pack: p.pack || '',
           price: p.price || '',
@@ -316,12 +339,10 @@ async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
         if (found?.frontProductVO) {
           const p = found.frontProductVO;
-          let model = p.productModel || '';
-          model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
           return {
             lcCode: p.code || lcCode,
             productName: p.productName || '',
-            productModel: model,
+            productModel: cleanProductModel(p.productModel, p.brand),
             brand: p.brand || '',
             pack: p.pack || '',
             price: p.price || '',
@@ -698,12 +719,10 @@ async function startServer(port = 3001) {
             if (!data?.result?.bom?.bomItemList) return [];
             return data.result.bom.bomItemList.map(item => {
               const p = item.frontProductVO || {};
-              let model = p.productModel || item.firstModel || '';
-              model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
               return {
                 lcCode: p.code || item.productCode,
                 productName: p.productName || item.firstModel,
-                productModel: model,
+                productModel: cleanProductModel(p.productModel || item.firstModel, p.brand),
                 brand: p.brand || item.firstBrand,
                 pack: p.pack || item.firstPack,
                 price: p.price, stock: p.stock, stockStatus: p.stockStatus,
