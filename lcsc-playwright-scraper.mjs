@@ -9,7 +9,10 @@ import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { createServer } from 'http';
 
-const COOKIES_FILE = join(process.cwd(), 'data', 'lcsc-cookies.json');
+// Cookie 文件路径：优先 data/ 目录，其次项目根目录
+const COOKIES_FILE = existsSync(join(process.cwd(), 'data', 'lcsc-cookies.json'))
+  ? join(process.cwd(), 'data', 'lcsc-cookies.json')
+  : join(process.cwd(), 'lcsc-cookies.json');
 const BOM_API_BASE = 'https://bom.szlcsc.com/async/bom/match/page';
 const DEFAULT_BOM_UUID = 'B4CDDD24823706B049EA2218BB7552E6';
 
@@ -300,7 +303,7 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         return {
           lcCode: p.code || lcCode,
           productName: p.productName || '',
-          productModel: cleanProductModel(p.productModel, p.brand),
+          productModel: p.productModel || '',
           brand: p.brand || '',
           pack: p.pack || '',
           price: p.price || '',
@@ -312,6 +315,9 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
       } catch (_) { return null; }
     }, { lcCode, bomUuid: targetUuid });
 
+    if (result && result.productModel) {
+      result.productModel = cleanProductModel(result.productModel, result.brand);
+    }
     return result || { error: 'Item not found after upload' };
   } finally {
     try { unlinkSync(tmpFile); } catch (_) {}
@@ -466,7 +472,7 @@ async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
           return {
             lcCode: p.code || lcCode,
             productName: p.productName || '',
-            productModel: cleanProductModel(p.productModel, p.brand),
+            productModel: p.productModel || '',
             brand: p.brand || '',
             pack: p.pack || '',
             price: p.price || '',
@@ -479,6 +485,10 @@ async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         return { notInBom: true };
       } catch (e) { return { error: e.message }; }
     }, { lcCode, bomUuid });
+
+    if (result && result.productModel) {
+      result.productModel = cleanProductModel(result.productModel, result.brand);
+    }
 
     if (result?.notInBom) {
       console.log(`[persistent] ${lcCode} not in BOM, uploading CSV...`);
@@ -846,7 +856,7 @@ async function startServer(port = 3001) {
               return {
                 lcCode: p.code || item.productCode,
                 productName: p.productName || item.firstModel,
-                productModel: cleanProductModel(p.productModel || item.firstModel, p.brand),
+                productModel: p.productModel || item.firstModel || '',
                 brand: p.brand || item.firstBrand,
                 pack: p.pack || item.firstPack,
                 price: p.price, stock: p.stock, stockStatus: p.stockStatus,
@@ -854,6 +864,12 @@ async function startServer(port = 3001) {
               };
             });
           }, bomId);
+          // 清理型号名称
+          for (const item of items) {
+            if (item.productModel) {
+              item.productModel = cleanProductModel(item.productModel, item.brand);
+            }
+          }
           res.writeHead(200);
           res.end(JSON.stringify({ count: items.length, items }));
           break;
