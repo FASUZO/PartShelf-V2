@@ -976,6 +976,31 @@ class InventoryService:
 
             if is_regex:
                 # 正则表达式搜索模式
+                import re as regex_module
+
+                # 验证正则表达式有效性 + 防 ReDoS
+                try:
+                    compiled = regex_module.compile(pattern)
+                    # 测试编译是否成功（捕获无效正则）
+                except regex_module.error as e:
+                    logger.warning("无效正则 '%s': %s，回退普通搜索", pattern, e)
+                    is_regex = False
+
+                # 防 ReDoS：拒绝已知危险模式
+                if is_regex:
+                    dangerous_patterns = [
+                        r'\(\?\=', r'\(\?\!', r'\(\?\<\=', r'\(\?\<\!',  # lookahead/lookbehind
+                        r'\([^)]*\+[^)]*\)\+',  # (x+)+ catastrophic backtracking
+                        r'\([^)]*\*[^)]*\)\*',  # (x*)*
+                    ]
+                    for dp in dangerous_patterns:
+                        if regex_module.search(dp, pattern):
+                            logger.warning("危险正则模式 '%s'，回退普通搜索", pattern)
+                            is_regex = False
+                            break
+
+            if is_regex:
+                # 正则表达式搜索模式
                 # 确保连接 Manufacturer 和 Type 表
                 if "Manufacturer" not in joined_tables:
                     query = query.join(Manufacturer, isouter=True)
@@ -987,26 +1012,41 @@ class InventoryService:
                     query = query.join(Package, isouter=True)
                     joined_tables.add("Package")
 
-                # 注册 SQLite REGEXP 函数
+                # 注册 SQLite REGEXP 函数（带超时保护）
+                import signal
+                def _regexp_with_timeout(pattern_str, value):
+                    if not value:
+                        return 0
+                    try:
+                        def timeout_handler(signum, frame):
+                            raise TimeoutError()
+                        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(1)  # 1秒超时
+                        result = 1 if regex_module.search(pattern_str, str(value)) else 0
+                        signal.alarm(0)
+                        signal.signal(signal.SIGALRM, old_handler)
+                        return result
+                    except TimeoutError:
+                        logger.warning("正则超时: %s", pattern_str)
+                        return 0
+                    except Exception:
+                        return 0
+
                 @db.event.listens_for(db.get_bind(), "connect")
                 def _regexp(dbapi_conn, connection_rec):
-                    dbapi_conn.create_function("REGEXP", 2, lambda p, s: 1 if s and regex_module.search(p, str(s)) else 0)
+                    dbapi_conn.create_function("REGEXP", 2, _regexp_with_timeout)
 
                 # 对多个字段应用正则匹配
-                try:
-                    regex_filter = or_(
-                        Part.name.op('REGEXP')(pattern),
-                        Part.description.op('REGEXP')(pattern),
-                        Part.part_number.op('REGEXP')(pattern),
-                        Part.lc_number.op('REGEXP')(pattern),
-                        Manufacturer.name.op('REGEXP')(pattern),
-                        Type.part_type.op('REGEXP')(pattern),
-                        Package.package_type.op('REGEXP')(pattern),
-                    )
-                    query = query.filter(regex_filter)
-                except Exception:
-                    # 正则表达式无效时回退到普通搜索
-                    query = query.filter(Part.name.contains(search_key))
+                regex_filter = or_(
+                    Part.name.op('REGEXP')(pattern),
+                    Part.description.op('REGEXP')(pattern),
+                    Part.part_number.op('REGEXP')(pattern),
+                    Part.lc_number.op('REGEXP')(pattern),
+                    Manufacturer.name.op('REGEXP')(pattern),
+                    Type.part_type.op('REGEXP')(pattern),
+                    Package.package_type.op('REGEXP')(pattern),
+                )
+                query = query.filter(regex_filter)
             else:
                 # 普通搜索模式 - 搜索多个字段
                 # 确保连接 Manufacturer、Type 和 Package 表
