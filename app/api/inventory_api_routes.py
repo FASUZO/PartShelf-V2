@@ -31,7 +31,7 @@ router = APIRouter()
 def add_part_to_inventory(
     name: str = Form(...),
     manufacturer: str = Form(...),
-    part_type: str = Form(...),
+    part_type: str = Form(""),
     package: str = Form(...),
     quantity: int = Form(...),
     description: str = Form(None),

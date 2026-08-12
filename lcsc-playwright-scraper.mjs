@@ -271,10 +271,13 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
         if (!found?.frontProductVO) return null;
         const p = found.frontProductVO;
+        // 清理型号名称：去除品牌名、"2年内"等多余信息
+        let model = p.productModel || '';
+        model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
         return {
           lcCode: p.code || lcCode,
           productName: p.productName || '',
-          productModel: p.productModel || '',
+          productModel: model,
           brand: p.brand || '',
           pack: p.pack || '',
           price: p.price || '',
@@ -313,10 +316,12 @@ async function queryByLcCodePersistent(lcCode, bomUuid = DEFAULT_BOM_UUID) {
         const found = items.find(i => i.productCode === lcCode || i.firstProductCode === lcCode);
         if (found?.frontProductVO) {
           const p = found.frontProductVO;
+          let model = p.productModel || '';
+          model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
           return {
             lcCode: p.code || lcCode,
             productName: p.productName || '',
-            productModel: p.productModel || '',
+            productModel: model,
             brand: p.brand || '',
             pack: p.pack || '',
             price: p.price || '',
@@ -693,10 +698,12 @@ async function startServer(port = 3001) {
             if (!data?.result?.bom?.bomItemList) return [];
             return data.result.bom.bomItemList.map(item => {
               const p = item.frontProductVO || {};
+              let model = p.productModel || item.firstModel || '';
+              model = model.replace(/\d+年内$/, '').replace(/Slkor\([^)]*\)/i, '').trim();
               return {
                 lcCode: p.code || item.productCode,
                 productName: p.productName || item.firstModel,
-                productModel: p.productModel || item.firstModel,
+                productModel: model,
                 brand: p.brand || item.firstBrand,
                 pack: p.pack || item.firstPack,
                 price: p.price, stock: p.stock, stockStatus: p.stockStatus,
