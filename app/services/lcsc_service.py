@@ -306,8 +306,8 @@ def preload_inventory_lc_codes():
         logger.info("Preloading %d LC codes (%d cached, %d to query)...",
                      len(lc_codes), _preload_status["cached"], len(uncached))
 
-        # 批量查询（每批 20 个）
-        BATCH_SIZE = 20
+        # 批量查询（每批 50 个，优化速度）
+        BATCH_SIZE = 50
         for i in range(0, len(uncached), BATCH_SIZE):
             batch = uncached[i:i + BATCH_SIZE]
             _preload_status["current"] = batch[0] + '~' + batch[-1]

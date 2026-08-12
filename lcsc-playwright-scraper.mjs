@@ -401,7 +401,14 @@ async function batchQueryByLcCodes(lcCodes, bomUuid = DEFAULT_BOM_UUID) {
 
     console.log(`[batch] Uploading CSV with ${missing.length} items...`);
     await fileInput.setInputFiles(tmpFile);
-    await _page.waitForTimeout(12000);
+
+    // 轮询等待处理完成（最多 20 秒，每 2 秒检查一次）
+    let processed = false;
+    for (let i = 0; i < 10; i++) {
+      await _page.waitForTimeout(2000);
+      if (newBomUuid) { processed = true; break; }
+    }
+    if (!processed) await _page.waitForTimeout(4000); // 额外等待
     _page.off('request', onRequest);
 
     const targetUuid = newBomUuid && newBomUuid !== bomUuid ? newBomUuid : bomUuid;
