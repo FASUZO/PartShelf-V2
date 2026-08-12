@@ -1017,29 +1017,22 @@ class InventoryService:
                     query = query.join(Package, isouter=True)
                     joined_tables.add("Package")
 
-                # 注册 SQLite REGEXP 函数（带超时保护）
-                import signal
-                def _regexp_with_timeout(pattern_str, value):
-                    if not value:
-                        return 0
-                    try:
-                        def timeout_handler(signum, frame):
-                            raise TimeoutError()
-                        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                        signal.alarm(1)  # 1秒超时
-                        result = 1 if regex_module.search(pattern_str, str(value)) else 0
-                        signal.alarm(0)
-                        signal.signal(signal.SIGALRM, old_handler)
-                        return result
-                    except TimeoutError:
-                        logger.warning("正则超时: %s", pattern_str)
-                        return 0
-                    except Exception:
-                        return 0
+                # 注册 SQLite REGEXP 函数（仅注册一次，使用线程安全方式）
+                _regexp_registered = getattr(db.get_bind(), '_regexp_registered', False)
+                if not _regexp_registered:
+                    def _regexp_func(pattern_str, value):
+                        if not value:
+                            return 0
+                        try:
+                            return 1 if regex_module.search(pattern_str, str(value)) else 0
+                        except Exception:
+                            return 0
 
-                @db.event.listens_for(db.get_bind(), "connect")
-                def _regexp(dbapi_conn, connection_rec):
-                    dbapi_conn.create_function("REGEXP", 2, _regexp_with_timeout)
+                    @db.event.listens_for(db.get_bind(), "connect")
+                    def _regexp(dbapi_conn, connection_rec):
+                        dbapi_conn.create_function("REGEXP", 2, _regexp_func)
+
+                    db.get_bind()._regexp_registered = True
 
                 # 对多个字段应用正则匹配
                 regex_filter = or_(
