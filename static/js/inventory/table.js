@@ -905,44 +905,67 @@ async function queryLcFromEdit() {
     }
 }
 
-// 显示LCSC对比弹窗
+// 显示LCSC对比弹窗（支持逐字段选择 保留/替换）
 function showLcscCompareModal(lcscData, partData) {
     const body = document.getElementById('lcscCompareBody');
     if (!body) return;
 
     const lcscParams = parseLcscParams(lcscData.params) || parseLcscRemarkPrefix(lcscData.remarkPrefix) || {};
-    console.info('[LCSC] partData.other:', partData.other ? partData.other.substring(0, 100) : 'null');
     const parsed = parsePartParams(partData.other);
-    console.info('[LCSC] parsed:', parsed ? JSON.stringify(parsed).substring(0, 200) : 'null');
     const partParams = parsed ? (parsed.values || {}) : {};
-    console.info('[LCSC] partParams keys:', Object.keys(partParams));
-    console.info('[LCSC] lcscParams keys:', Object.keys(lcscParams));
+
+    // 生成一行对比（带"替换"复选框）
+    // hasLcsc=false 时复选框禁用；LCSC值与本地不同则默认勾选并高亮
+    function rowHtml(label, lcscVal, localVal, checkAttr) {
+        const hasLcsc = !!lcscVal;
+        const differ = hasLcsc && String(lcscVal) !== String(localVal || '');
+        const cls = differ ? (localVal ? ' class="table-danger"' : ' class="table-warning"') : '';
+        return '<tr' + cls + '><td>' + escapeHtml(label) + '</td>' +
+            '<td>' + escapeHtml(lcscVal ? String(lcscVal) : '-') + '</td>' +
+            '<td>' + escapeHtml(localVal ? String(localVal) : '-') + '</td>' +
+            '<td class="text-center"><input type="checkbox" class="form-check-input lcsc-replace-check" ' +
+            checkAttr + (differ ? ' checked' : '') + (hasLcsc ? '' : ' disabled') + '></td></tr>';
+    }
+
+    const selectAllHead = '<th style="width:12%" class="text-center">替换<br>' +
+        '<input type="checkbox" class="form-check-input" title="全选/全不选" ' +
+        'onchange="this.closest(\'table\').querySelectorAll(\'.lcsc-replace-check:not(:disabled)\').forEach(function(c){c.checked=this.checked}.bind(this))"></th>';
+
+    // 基础字段对比（描述使用 LCSC 的 productName）
+    const baseFields = [
+        ['型号', lcscData.productModel || '', partData.name || '', 'name'],
+        ['品牌', lcscData.brand || '', partData.manufacturer || '', 'manufacturer'],
+        ['封装', lcscData.pack || lcscData.package || '', partData.package || '', 'package'],
+        ['LC编号', lcscData.lcCode || '', partData.lc_number || '', 'lc_number'],
+        ['描述', lcscData.productName || '', partData.description || '', 'description']
+    ];
 
     let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;">';
-    html += '<thead class="table-light"><tr><th style="width:25%">字段</th><th style="width:37%">LCSC数据</th><th style="width:37%">库存数据</th></tr></thead><tbody>';
-    html += '<tr><td>型号</td><td>' + escapeHtml(lcscData.productModel || '-') + '</td><td>' + escapeHtml(partData.name || '-') + '</td></tr>';
-    html += '<tr><td>品牌</td><td>' + escapeHtml(lcscData.brand || '-') + '</td><td>' + escapeHtml(partData.manufacturer || '-') + '</td></tr>';
-    html += '<tr><td>封装</td><td>' + escapeHtml(lcscData.pack || lcscData.package || '-') + '</td><td>' + escapeHtml(partData.package || '-') + '</td></tr>';
-    html += '<tr><td>LC编号</td><td>' + escapeHtml(lcscData.lcCode || '-') + '</td><td>' + escapeHtml(partData.lc_number || '-') + '</td></tr>';
+    html += '<thead class="table-light"><tr><th style="width:22%">字段</th><th style="width:33%">LCSC数据</th><th style="width:33%">库存数据</th>' + selectAllHead + '</tr></thead><tbody>';
+    baseFields.forEach(function(f) {
+        html += rowHtml(f[0], f[1], f[2], 'data-field="' + f[3] + '" ');
+    });
     html += '</tbody></table></div>';
 
-    // 参数对比
+    // 参数对比（复选框用索引关联，避免参数名特殊字符问题）
+    window._lcscCompareParams = [];
     const allKeys = new Set([...Object.keys(lcscParams), ...Object.keys(partParams)]);
     if (allKeys.size > 0) {
         html += '<h6 class="mt-3 mb-2 text-muted">参数对比</h6>';
-        html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;"><thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th></tr></thead><tbody>';
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:0.85rem;"><thead class="table-light"><tr><th>参数</th><th>LCSC</th><th>库存</th>' + selectAllHead + '</tr></thead><tbody>';
         for (const key of allKeys) {
-            const lcscVal = lcscParams[key] || '-';
-            const partVal = partParams[key] || '-';
-            const cls = (!partParams[key] && lcscParams[key]) ? ' class="table-warning"' : (lcscVal !== partVal ? ' class="table-danger"' : '');
-            html += '<tr' + cls + '><td>' + escapeHtml(key) + '</td><td>' + escapeHtml(String(lcscVal)) + '</td><td>' + escapeHtml(String(partVal)) + '</td></tr>';
+            const idx = window._lcscCompareParams.length;
+            window._lcscCompareParams.push({ key: key, lcscVal: lcscParams[key] || '', partVal: partParams[key] || '' });
+            html += rowHtml(key, lcscParams[key] || '', partParams[key] || '', 'data-param-idx="' + idx + '" ');
         }
         html += '</tbody></table></div>';
     }
 
+    html += '<div class="form-text mt-2"><i class="fas fa-info-circle me-1"></i>勾选"替换"的字段将用 LCSC 数据覆盖本地值，未勾选的保持本地值不变。</div>';
+
     // 操作按钮
     html += '<div class="mt-3 d-flex gap-2">';
-    html += '<button class="btn btn-warning flex-fill" onclick="applyLcscToEditForm()"><i class="fas fa-sync me-1"></i> 应用LCSC数据到编辑表单</button>';
+    html += '<button class="btn btn-warning flex-fill" onclick="applyLcscToEditForm()"><i class="fas fa-sync me-1"></i> 应用选中项到库存零件</button>';
     html += '</div>';
 
     body.innerHTML = html;
@@ -973,7 +996,7 @@ function normalizeOtherParams(other) {
     return Object.keys(result).length > 0 ? result : null;
 }
 
-// 将LCSC数据直接保存到库存零件
+// 将选中的LCSC数据保存到库存零件（只替换勾选的字段/参数）
 async function applyLcscToEditForm() {
     const data = window._lcscCompareData;
     if (!data) return;
@@ -981,9 +1004,25 @@ async function applyLcscToEditForm() {
     const partId = document.getElementById('editPartId').value;
     if (!partId) { showToast('未找到零件ID', 'danger'); return; }
 
-    const lcscParams = parseLcscParams(data.params) || parseLcscRemarkPrefix(data.remarkPrefix) || {};
+    // 收集勾选的基础字段
+    const selectedFields = {};
+    document.querySelectorAll('#lcscCompareBody .lcsc-replace-check[data-field]:checked').forEach(function(cb) {
+        selectedFields[cb.dataset.field] = true;
+    });
 
-    // 获取现有参数并合并
+    // 收集勾选的参数（key → LCSC值）
+    const selectedParams = {};
+    document.querySelectorAll('#lcscCompareBody .lcsc-replace-check[data-param-idx]:checked').forEach(function(cb) {
+        const p = (window._lcscCompareParams || [])[parseInt(cb.dataset.paramIdx)];
+        if (p && p.lcscVal) selectedParams[p.key] = p.lcscVal;
+    });
+
+    if (Object.keys(selectedFields).length === 0 && Object.keys(selectedParams).length === 0) {
+        showToast('未勾选任何要替换的字段', 'warning');
+        return;
+    }
+
+    // 合并参数：本地参数全部保留，仅勾选的参数键用 LCSC 值覆盖/新增
     let existingOther = {};
     try {
         const resp = await fetch(`/api/inventory/get_part_by_id?part_id=${partId}`);
@@ -992,15 +1031,17 @@ async function applyLcscToEditForm() {
     } catch (e) {}
 
     const existingValues = normalizeOtherParams(existingOther) || {};
-    const mergedValues = { ...existingValues, ...lcscParams };
+    const mergedValues = { ...existingValues, ...selectedParams };
 
+    // update_part 的 name/manufacturer/package 为必填：未勾选替换时回退为当前表单值
+    const lcscPackage = data.pack || data.package || '';
     const formData = new FormData();
     formData.append('part_id', partId);
-    if (data.productModel) formData.append('name', data.productModel);
-    if (data.brand) formData.append('manufacturer', data.brand);
-    if (data.pack || data.package) formData.append('package', data.pack || data.package);
-    if (data.lcCode) formData.append('lc_number', data.lcCode);
-    if (data.description) formData.append('description', data.description);
+    formData.append('name', (selectedFields.name && data.productModel) ? data.productModel : document.getElementById('editPartName').value);
+    formData.append('manufacturer', (selectedFields.manufacturer && data.brand) ? data.brand : document.getElementById('editPartManufacturer').value);
+    formData.append('package', (selectedFields.package && lcscPackage) ? lcscPackage : document.getElementById('editPartPackage').value);
+    if (selectedFields.lc_number && data.lcCode) formData.append('lc_number', data.lcCode);
+    if (selectedFields.description && data.productName) formData.append('description', data.productName);
     if (Object.keys(mergedValues).length > 0) {
         formData.append('other', JSON.stringify({ fields: Object.keys(mergedValues), values: mergedValues, units: {} }));
     }
@@ -1017,22 +1058,22 @@ async function applyLcscToEditForm() {
         // 关闭对比弹窗
         closeModal('lcscCompareModal');
 
-        // 重新加载编辑表单的参数字段（不关闭编辑弹窗）
+        // 重新加载编辑表单（不关闭编辑弹窗），只同步勾选替换的字段
         try {
             const reloadResp = await fetch('/api/inventory/get_part_by_id?part_id=' + partId);
             if (reloadResp.ok) {
                 const freshData = await reloadResp.json();
-                // 更新编辑表单的基本字段
-                if (data.productModel) document.getElementById('editPartName').value = data.productModel;
-                if (data.brand) document.getElementById('editPartManufacturer').value = data.brand;
-                if (data.pack || data.package) document.getElementById('editPartPackage').value = data.pack || data.package;
-                if (data.lcCode) document.getElementById('editPartLcNumber').value = data.lcCode;
+                if (selectedFields.name && data.productModel) document.getElementById('editPartName').value = data.productModel;
+                if (selectedFields.manufacturer && data.brand) document.getElementById('editPartManufacturer').value = data.brand;
+                if (selectedFields.package && lcscPackage) document.getElementById('editPartPackage').value = lcscPackage;
+                if (selectedFields.lc_number && data.lcCode) document.getElementById('editPartLcNumber').value = data.lcCode;
+                if (selectedFields.description && data.productName) document.getElementById('editPartDescription').value = data.productName;
                 // 重新加载参数模板（含最新保存的参数值）
                 loadEditParamTemplate(freshData.category_id, freshData.subcategory_id, freshData.other);
             }
         } catch (_) {}
 
-        showToast('LCSC数据已保存到库存零件！', 'success');
+        showToast('选中的LCSC数据已保存到库存零件！', 'success');
         applyAdvancedFilter(); // 刷新列表
     } catch (e) {
         showToast('保存失败: ' + e.message, 'danger');
