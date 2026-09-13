@@ -114,10 +114,56 @@ def update_subcategory(db: Session, subcategory_id: int, payload: SubcategoryUpd
     row = db.query(Subcategory).filter(Subcategory.id == subcategory_id).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subcategory not found")
+
     if payload.name is not None:
-        row.name = payload.name
-    if payload.category_id is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="子类别名称不能为空")
+        # 同类别下名称唯一（排除自身）
+        dup = db.query(Subcategory).filter(
+            Subcategory.category_id == row.category_id,
+            Subcategory.name == name,
+            Subcategory.id != subcategory_id,
+        ).first()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"类别下已存在同名子类别「{name}」")
+        row.name = name
+
+    if payload.category_id is not None and payload.category_id != row.category_id:
+        # 类别切换时检查新类别下不存在同名子类别
+        dup = db.query(Subcategory).filter(
+            Subcategory.category_id == payload.category_id,
+            Subcategory.name == row.name,
+            Subcategory.id != subcategory_id,
+        ).first()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"目标类别下已存在同名子类别「{row.name}」，无法迁移")
         row.category_id = payload.category_id
+
+    if payload.letter is not None:
+        # 显式提交了 letter 字段（含空串）。空串 = 清除并让系统自动重新分配
+        raw = payload.letter.strip().upper() if payload.letter.strip() else ""
+        if raw == "":
+            new_letter = None
+        else:
+            # 合法性：必须是 1 位 ASCII A-Z 字母（中文/数字/多字符都算非法）
+            if len(raw) != 1 or not ("A" <= raw <= "Z"):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail="前缀必须是 1 位 A-Z 字母")
+            new_letter = raw
+            # 同类别下字母唯一（排除自身）。空 letter 不参与冲突检查
+            dup = db.query(Subcategory).filter(
+                Subcategory.category_id == row.category_id,
+                Subcategory.letter == new_letter,
+                Subcategory.id != subcategory_id,
+            ).first()
+            if dup:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                    detail=f"类别下已存在前缀「{new_letter}」（{dup.name}）")
+        row.letter = new_letter
+
     db.commit()
     db.refresh(row)
     return SubcategoryOut.model_validate(row)

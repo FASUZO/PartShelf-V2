@@ -88,6 +88,8 @@ class CategoryUpdate(BaseModel):
 class SubcategoryUpdate(BaseModel):
     name: Optional[str] = None
     category_id: Optional[int] = None
+    # 编号前缀字母（1 位 A-Z）。空串视为「保持原值」以外的清空请求；非法字母会回退为 None 由系统重分配
+    letter: Optional[str] = None
 
 
 class ParamTemplateUpdate(BaseModel):

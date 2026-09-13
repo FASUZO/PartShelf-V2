@@ -229,6 +229,11 @@
         <input type="hidden" id="subEditId">
         <div class="mb-3"><label class="form-label">所属类别</label><input type="text" class="form-control" id="subCatDisplay" disabled></div>
         <div class="mb-3"><label class="form-label">名称 *</label><input type="text" class="form-control" id="subEditName" placeholder="如 单片机"></div>
+        <div class="mb-3">
+          <label class="form-label">编号前缀</label>
+          <input type="text" class="form-control" id="subEditLetter" placeholder="留空则自动分配" maxlength="1" style="font-family:monospace;font-weight:700;width:6rem;text-align:center;text-transform:uppercase">
+          <div class="form-text">1 位 A-Z 字母。用作零件编号的第 3 位（<code>类别+序号+字母+流水</code>）。同类别下必须唯一。留空 = 由系统按字母表顺序自动分配。已生成的零件编号不会被修改。</div>
+        </div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button class="btn btn-success" onclick="saveSubcategory()">保存</button></div>
     </div></div></div>
@@ -472,6 +477,8 @@
         if (!selectedCatId) return;
         document.getElementById('subEditId').value = '';
         document.getElementById('subEditName').value = '';
+        document.getElementById('subEditLetter').value = '';
+        document.getElementById('subEditLetter').disabled = true;  // 新增场景：letter 由系统自动分配
         var cat = bundle.categories.find(function(c) { return c.id === selectedCatId; });
         document.getElementById('subCatDisplay').value = cat ? cat.name : '';
         document.getElementById('subModalTitle').textContent = '新增子类别';
@@ -483,6 +490,8 @@
         if (!s) return;
         document.getElementById('subEditId').value = s.id;
         document.getElementById('subEditName').value = s.name;
+        document.getElementById('subEditLetter').value = s.letter || '';
+        document.getElementById('subEditLetter').disabled = false;
         var cat = bundle.categories.find(function(c) { return c.id === s.category_id; });
         document.getElementById('subCatDisplay').value = cat ? cat.name : '';
         document.getElementById('subModalTitle').textContent = '编辑子类别';
@@ -494,9 +503,23 @@
         var name = document.getElementById('subEditName').value.trim();
         if (!name) { alert('名称必填'); return; }
         if (id) {
-          await fetch('/api/config/subcategories/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: name}) });
+          // 编辑：显式提交 letter（含空串 = 交由后端按空处理）
+          var letterRaw = document.getElementById('subEditLetter').value.trim().toUpperCase();
+          if (letterRaw && (letterRaw.length !== 1 || !letterRaw.match(/[A-Z]/))) {
+            alert('前缀必须是 1 位 A-Z 字母，留空表示由系统自动分配');
+            return;
+          }
+          await fetch('/api/config/subcategories/' + id, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({name: name, letter: letterRaw})
+          });
         } else {
-          await fetch('/api/config/subcategories', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({category_id: selectedCatId, name: name}) });
+          await fetch('/api/config/subcategories', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({category_id: selectedCatId, name: name})
+          });
         }
         bootstrap.Modal.getInstance(document.getElementById('subcategoryModal')).hide();
         await loadBundle();
