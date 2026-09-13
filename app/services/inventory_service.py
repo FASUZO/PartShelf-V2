@@ -447,9 +447,13 @@ class InventoryService:
         part.name = name
         part.manufacturer_id = db_manufacturer.id
         part.package_id = db_package.id
-        part.price = price if price else None
-        part.lc_number = lc_number if lc_number else None
-        part.description = description if description else None
+        # 可选字段：未提交（None）→ 保持原值；提交空字符串 → 清空
+        if price is not None:
+            part.price = price if price else None
+        if lc_number is not None:
+            part.lc_number = lc_number if lc_number else None
+        if description is not None:
+            part.description = description if description else None
 
         # 更新类别/子类别（前端显式提交时才变更）
         category_changed = False
@@ -484,17 +488,18 @@ class InventoryService:
             except Exception as e:
                 logger.warning(f"Failed to generate part_number: {e}")
         
-        # 处理 other 字段：确保是有效的JSON或None
-        if other and other.strip() and other.strip() != 'None':
-            try:
-                import json as _json
-                # 验证是否为有效JSON
-                _json.loads(other)
-                part.other = other
-            except (ValueError, TypeError):
+        # 处理 other 字段：未提交（None）→ 保持原值；提交时须为有效JSON否则清空
+        if other is not None:
+            if other.strip() and other.strip() != 'None':
+                try:
+                    import json as _json
+                    # 验证是否为有效JSON
+                    _json.loads(other)
+                    part.other = other
+                except (ValueError, TypeError):
+                    part.other = None
+            else:
                 part.other = None
-        else:
-            part.other = None
         
         try:
             db.commit()
