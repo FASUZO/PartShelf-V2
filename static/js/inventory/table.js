@@ -518,6 +518,17 @@ async function deleteDetailPart() {
     }
 }
 
+// 收集当前参数区已填的值（简单 {字段名: 值} 映射），用于切换类别/子类别时保留同名参数
+function collectCurrentEditParamValues() {
+    const current = {};
+    document.querySelectorAll('#editParamTemplateFields .edit-param-value').forEach(function(f) {
+        const v = f.value.trim();
+        // '00' 是模板的占位缺省值，不视为用户已填
+        if (v && v !== '00') current[f.dataset.paramName] = v;
+    });
+    return Object.keys(current).length > 0 ? JSON.stringify(current) : null;
+}
+
 // 填充编辑模态框的类别下拉
 function populateEditCategorySelect(selectedCatId) {
     const select = document.getElementById('editPartCategory');
@@ -571,7 +582,9 @@ function populateEditSubcategorySelect(catId, selectedSubcatId) {
         const subcatId = parseInt(this.value) || null;
         document.getElementById('editPartSubcategoryId').value = subcatId || '';
         const catId = parseInt(document.getElementById('editPartCategory').value) || null;
-        loadEditParamTemplate(catId, subcatId, null);
+        // 切换前保留当前已填参数值，同名字段在新模板中不丢失
+        const preserved = collectCurrentEditParamValues();
+        loadEditParamTemplate(catId, subcatId, preserved);
     });
 }
 
@@ -769,6 +782,12 @@ async function saveEditPart() {
     formData.append('description', document.getElementById('editPartDescription').value || '');
     formData.append('other', serializeEditParamFields());
 
+    // 提交类别/子类别（空值不提交，避免后端 int 解析失败）
+    const editCatId = document.getElementById('editPartCategoryId').value;
+    const editSubcatId = document.getElementById('editPartSubcategoryId').value;
+    if (editCatId) formData.append('category_id', editCatId);
+    if (editSubcatId) formData.append('subcategory_id', editSubcatId);
+
     try {
         const response = await fetch('/api/inventory/update_part', {
             method: 'POST',
@@ -780,9 +799,17 @@ async function saveEditPart() {
             throw new Error(err.detail || '更新失败');
         }
 
+        const result = await response.json();
         const partName = document.getElementById('editPartName').value;
         console.info('[库存] 零件更新成功: id=%s, name=%s', formData.get('part_id'), partName);
-        alert('更新成功！');
+
+        // 类别/子类别变更导致编号被重新生成时，明确告知用户
+        const submittedPn = (formData.get('part_number') || '').trim();
+        if (result.part_number && result.part_number !== submittedPn) {
+            alert('更新成功！\n类别已变更，编号已重新生成: ' + result.part_number);
+        } else {
+            alert('更新成功！');
+        }
         closeModal('editPartModal');
         applyAdvancedFilter();
     } catch (error) {

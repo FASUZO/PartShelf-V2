@@ -415,7 +415,7 @@ class InventoryService:
             pass
 
     @staticmethod
-    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None):
+    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None, category_id: int = None, subcategory_id: int = None):
         """更新零件信息"""
         from app.crud.part import update_part, get_part_by_part_number
         from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
@@ -439,35 +439,10 @@ class InventoryService:
         if not db_package:
             db_package = create_part_package(db, package)
 
-        # 处理手动指定的编号
-        if part_number is not None and part_number.strip():
-            # 检查编号唯一性（排除自身）
-            existing = get_part_by_part_number(db, part_number.strip())
-            if existing and existing.id != part_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"零件编号 {part_number} 已存在"
-                )
-            part.part_number = part_number.strip()
-        # 如果编号为空且没有手动指定，自动生成
-        elif not part.part_number and part.category_id:
-            try:
-                from app.services.part_id_service import generate_part_number
-                for attempt in range(3):
-                    try:
-                        new_part_number = generate_part_number(db, part.category_id, part.subcategory_id)
-                        # 检查编号是否已存在
-                        if not get_part_by_part_number(db, new_part_number):
-                            part.part_number = new_part_number
-                            break
-                        logger.warning(f"Part number {new_part_number} already exists, retrying...")
-                    except Exception as e:
-                        logger.warning(f"Attempt {attempt + 1} failed: {e}")
-                        if attempt == 2:
-                            raise
-            except Exception as e:
-                logger.warning(f"Failed to generate part_number: {e}")
-        
+        # 记录原类别/子类别，用于判断是否需要重新生成编号
+        old_category_id = part.category_id
+        old_subcategory_id = part.subcategory_id
+
         # 更新零件信息
         part.name = name
         part.manufacturer_id = db_manufacturer.id
@@ -475,6 +450,39 @@ class InventoryService:
         part.price = price if price else None
         part.lc_number = lc_number if lc_number else None
         part.description = description if description else None
+
+        # 更新类别/子类别（前端显式提交时才变更）
+        category_changed = False
+        if category_id is not None and category_id != old_category_id:
+            part.category_id = category_id
+            category_changed = True
+            # 类别变更但子类别未提交时，清空子类别避免脏数据
+            if subcategory_id is None:
+                part.subcategory_id = None
+        if subcategory_id is not None and subcategory_id != old_subcategory_id:
+            part.subcategory_id = subcategory_id
+            category_changed = True
+
+        # 处理编号：手动修改优先；否则类别/子类别变更或编号缺失时自动重新生成
+        manual_pn = part_number.strip() if part_number else ''
+        old_pn = (part.part_number or '').strip()
+        if manual_pn and manual_pn != old_pn:
+            # 用户手动修改了编号 → 检查唯一性（排除自身）
+            existing = get_part_by_part_number(db, manual_pn)
+            if existing and existing.id != part_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"零件编号 {manual_pn} 已存在"
+                )
+            part.part_number = manual_pn
+        elif (category_changed or not part.part_number) and part.category_id:
+            # 类别/子类别变更 → 编号中的类别序号和子类别字母已失效，重新生成
+            # （generate_part_number 内部已保证唯一性）
+            try:
+                from app.services.part_id_service import generate_part_number
+                part.part_number = generate_part_number(db, part.category_id, part.subcategory_id)
+            except Exception as e:
+                logger.warning(f"Failed to generate part_number: {e}")
         
         # 处理 other 字段：确保是有效的JSON或None
         if other and other.strip() and other.strip() != 'None':
@@ -501,7 +509,7 @@ class InventoryService:
             else:
                 raise
         
-        return {"success": True, "message": "零件更新成功"}
+        return {"success": True, "message": "零件更新成功", "part_number": part.part_number}
 
     @staticmethod
     def fix_missing_part_numbers(db: Session):
