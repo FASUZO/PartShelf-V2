@@ -799,9 +799,17 @@ async function saveEditPart() {
             throw new Error(err.detail || '更新失败');
         }
 
+        const result = await response.json();
         const partName = document.getElementById('editPartName').value;
         console.info('[库存] 零件更新成功: id=%s, name=%s', formData.get('part_id'), partName);
-        alert('更新成功！');
+
+        // 类别/子类别变更导致编号被重新生成时，明确告知用户
+        const submittedPn = (formData.get('part_number') || '').trim();
+        if (result.part_number && result.part_number !== submittedPn) {
+            alert('更新成功！\n类别已变更，编号已重新生成: ' + result.part_number);
+        } else {
+            alert('更新成功！');
+        }
         closeModal('editPartModal');
         applyAdvancedFilter();
     } catch (error) {
