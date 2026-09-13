@@ -170,3 +170,4 @@ downloads/
 # 用户上传的文件（如果有）
 uploads/
 media/
+.workbuddy

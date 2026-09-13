@@ -195,11 +195,13 @@ def update_part(
     other: str = Form(None),
     part_number: str = Form(None),
     part_type: str | None = Form(None),
+    category_id: int | None = Form(None),
+    subcategory_id: int | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(get_current_user_required)
 ):
     """更新零件信息"""
-    result = InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number)
+    result = InventoryService.update_part(db, part_id, name, manufacturer, package, price, lc_number, description, other, part_number, category_id, subcategory_id)
 
     # 处理零件类型
     if part_type is not None and part_type.strip():

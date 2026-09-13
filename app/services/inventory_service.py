@@ -415,7 +415,7 @@ class InventoryService:
             pass
 
     @staticmethod
-    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None):
+    def update_part(db: Session, part_id: int, name: str, manufacturer: str, package: str, price: str = None, lc_number: str = None, description: str = None, other: str = None, part_number: str = None, category_id: int = None, subcategory_id: int = None):
         """更新零件信息"""
         from app.crud.part import update_part, get_part_by_part_number
         from app.crud.manufacturer import get_manufacturer_by_name, create_manufacturer
@@ -475,6 +475,15 @@ class InventoryService:
         part.price = price if price else None
         part.lc_number = lc_number if lc_number else None
         part.description = description if description else None
+
+        # 更新类别/子类别（前端显式提交时才变更）
+        if category_id is not None:
+            part.category_id = category_id
+            # 类别变更但子类别未提交时，清空子类别避免脏数据
+            if subcategory_id is None:
+                part.subcategory_id = None
+        if subcategory_id is not None:
+            part.subcategory_id = subcategory_id
         
         # 处理 other 字段：确保是有效的JSON或None
         if other and other.strip() and other.strip() != 'None':
