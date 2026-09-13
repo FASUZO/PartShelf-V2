@@ -518,15 +518,22 @@ async function deleteDetailPart() {
     }
 }
 
-// 收集当前参数区已填的值（简单 {字段名: 值} 映射），用于切换类别/子类别时保留同名参数
-function collectCurrentEditParamValues() {
-    const current = {};
+// 收集当前参数区的完整参数结构（fields/values/units），用于切换类别/子类别时保留全部已有参数
+// '00' 是模板的占位缺省值，不视为用户已填
+function collectCurrentEditParams() {
+    const fields = [];
+    const values = {};
+    const units = {};
     document.querySelectorAll('#editParamTemplateFields .edit-param-value').forEach(function(f) {
+        const name = f.dataset.paramName;
+        fields.push(name);
         const v = f.value.trim();
-        // '00' 是模板的占位缺省值，不视为用户已填
-        if (v && v !== '00') current[f.dataset.paramName] = v;
+        if (v && v !== '00') values[name] = v;
     });
-    return Object.keys(current).length > 0 ? JSON.stringify(current) : null;
+    document.querySelectorAll('#editParamTemplateFields .edit-param-unit').forEach(function(f) {
+        if (f.value) units[f.dataset.paramName] = f.value;
+    });
+    return fields.length > 0 ? JSON.stringify({ fields: fields, values: values, units: units }) : null;
 }
 
 // 填充编辑模态框的类别下拉
@@ -552,8 +559,10 @@ function populateEditCategorySelect(selectedCatId) {
     select.addEventListener('change', function() {
         const catId = parseInt(this.value) || null;
         document.getElementById('editPartCategoryId').value = catId || '';
+        // 切换前保留当前全部参数字段和值，新模板独有的字段会追加显示
+        const preserved = collectCurrentEditParams();
         populateEditSubcategorySelect(catId, null);
-        loadEditParamTemplate(catId, null, null);
+        loadEditParamTemplate(catId, null, preserved);
     });
 }
 
@@ -582,8 +591,8 @@ function populateEditSubcategorySelect(catId, selectedSubcatId) {
         const subcatId = parseInt(this.value) || null;
         document.getElementById('editPartSubcategoryId').value = subcatId || '';
         const catId = parseInt(document.getElementById('editPartCategory').value) || null;
-        // 切换前保留当前已填参数值，同名字段在新模板中不丢失
-        const preserved = collectCurrentEditParamValues();
+        // 切换前保留当前全部参数字段和值，新模板独有的字段会追加显示
+        const preserved = collectCurrentEditParams();
         loadEditParamTemplate(catId, subcatId, preserved);
     });
 }
@@ -634,19 +643,24 @@ function loadEditParamTemplate(catId, subcatId, existingParams) {
         } catch (e) {}
     }
 
-    // 如果已有数据包含自定义字段，只用已有字段（不混入模板字段）
+    // 字段来源：已有字段（保留用户数据）在前，模板独有的新字段追加在后
+    const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
+    const tplFields = fields.filter(function(f) {
+        return !fixedFields.includes(f);
+    });
     if (existingFields && existingFields.length > 0) {
-        console.info('[模板] 使用已有字段:', existingFields);
-        const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
-        fields = existingFields.filter(function(f) {
+        const existFields = existingFields.filter(function(f) {
             return !fixedFields.includes(f);
         });
-    } else {
-        console.info('[模板] 使用模板字段:', fields);
-        const fixedFields = ['封装', '类型', '制造商', '单价', 'LC编号', '描述'];
-        fields = fields.filter(function(field) {
-            return !fixedFields.includes(field);
+        const merged = existFields.slice();
+        tplFields.forEach(function(f) {
+            if (merged.indexOf(f) === -1) merged.push(f);
         });
+        console.info('[模板] 字段合并: 已有%d个 + 模板新增%d个', existFields.length, merged.length - existFields.length);
+        fields = merged;
+    } else {
+        console.info('[模板] 使用模板字段:', tplFields);
+        fields = tplFields;
     }
     
     // 常用单位列表
@@ -744,7 +758,8 @@ function serializeEditParamFields() {
     valueFields.forEach(function(f) {
         const paramName = f.dataset.paramName;
         const value = f.value.trim();
-        if (value) {
+        // '00' 是模板占位缺省值，不保存
+        if (value && value !== '00') {
             params[paramName] = value;
         }
     });
