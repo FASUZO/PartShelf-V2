@@ -116,6 +116,38 @@ async def get_debug_screenshot(user=Depends(get_current_user_required)):
         return {"success": False, "error": str(e)}
 
 
+@router.get("/browser/status")
+async def get_browser_status(user=Depends(get_current_user_required)):
+    """受控浏览器会话状态"""
+    try:
+        from app.services.lcsc_service import _http_get
+        result = _http_get("/browser/status", timeout=10.0)
+        if result:
+            return result
+        return {"active": False, "error": "LCSC服务不可用"}
+    except Exception as e:
+        return {"active": False, "error": str(e)}
+
+
+@router.post("/browser/action")
+async def browser_action(payload: dict = Body(...), user=Depends(get_current_user_required)):
+    """
+    远程控制内置浏览器（容器内无 GUI 时用于人工完成滑块验证码 / 登录）。
+    action: screenshot | refresh | goto | reload | back | click | dblclick
+            | drag | type | key | scroll | click_selector | close
+    """
+    try:
+        from app.services.lcsc_service import _http_post
+        action = (payload or {}).get("action", "screenshot")
+        result = _http_post("/browser/action", payload, timeout=60.0)
+        if result:
+            return result
+        return {"success": False, "error": "LCSC服务不可用"}
+    except Exception as e:
+        logger.warning("browser action '%s' failed: %s", (payload or {}).get("action"), e)
+        return {"success": False, "error": str(e)}
+
+
 @router.post("/cookies/refresh")
 async def refresh_cookies(user=Depends(get_current_user_required)):
     """刷新 Cookie"""

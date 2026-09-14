@@ -58,25 +58,66 @@
         <div id="cookieStatusBadge" class="badge bg-secondary cookie-badge" style="cursor:pointer;" onclick="showCookieModal()">
           <i class="fas fa-cookie-bite me-1"></i> 检查中...
         </div>
-        <button class="btn btn-sm btn-outline-secondary" onclick="debugScreenshot()" title="调试截图">
-          <i class="fas fa-camera"></i> 调试
+        <button class="btn btn-sm btn-outline-secondary" onclick="debugScreenshot()" title="远程控制内置浏览器：点击 / 拖拽滑块 / 输入">
+          <i class="fas fa-desktop"></i> 调试
         </button>
       </div>
     </div>
 
-    <!-- 调试截图模态框 -->
+    <!-- 远程浏览器控制模态框 -->
     <div class="modal fade" id="debugScreenshotModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-          <div class="modal-header bg-dark text-white">
-            <h5 class="modal-title"><i class="fas fa-camera me-1"></i> 浏览器调试截图</h5>
+          <div class="modal-header bg-dark text-white py-2">
+            <h6 class="modal-title"><i class="fas fa-desktop me-1"></i> 远程浏览器控制 <small class="text-white-50 ms-2">直接操作内置浏览器，用于人工完成滑块验证码 / 登录</small></h6>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body text-center">
-            <div id="debugScreenshotContent">
-              <div class="spinner-border text-primary" role="status"></div>
-              <p class="mt-2 text-muted">正在截图...</p>
+          <div class="modal-body p-2">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+              <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="rcMode" id="rcModeClick" value="click" checked onchange="rcSyncCursor()">
+                <label class="btn btn-outline-primary" for="rcModeClick"><i class="fas fa-mouse-pointer me-1"></i>点击</label>
+                <input type="radio" class="btn-check" name="rcMode" id="rcModeDrag" value="drag" onchange="rcSyncCursor()">
+                <label class="btn btn-outline-primary" for="rcModeDrag"><i class="fas fa-arrows-alt-h me-1"></i>拖拽(滑块)</label>
+                <input type="radio" class="btn-check" name="rcMode" id="rcModeType" value="type" onchange="rcSyncCursor()">
+                <label class="btn btn-outline-primary" for="rcModeType"><i class="fas fa-keyboard me-1"></i>输入</label>
+              </div>
+              <input type="text" class="form-control form-control-sm" id="rcText" placeholder="待输入文本（输入模式用）" style="width:190px;">
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="checkbox" id="rcRight">
+                <label class="form-check-label small">右键</label>
+              </div>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="checkbox" id="rcAuto">
+                <label class="form-check-label small">自动刷新(2s)</label>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="rcRefresh()"><i class="fas fa-sync-alt me-1"></i>刷新</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="rcScroll(-400)" title="上滚"><i class="fas fa-arrow-up"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="rcScroll(400)" title="下滚"><i class="fas fa-arrow-down"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="rcSend({action:'back'})"><i class="fas fa-arrow-left me-1"></i>后退</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="rcSend({action:'reload'})"><i class="fas fa-redo me-1"></i>重载</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="rcSend({action:'key',key:'Enter'})">Enter</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="rcCloseSession()"><i class="fas fa-power-off me-1"></i>关闭会话</button>
             </div>
+            <div class="input-group input-group-sm mb-2">
+              <input type="text" class="form-control" id="rcUrl" placeholder="页面 URL">
+              <button class="btn btn-outline-primary" type="button" onclick="rcGoto()"><i class="fas fa-paper-plane me-1"></i>跳转</button>
+            </div>
+            <div id="rcStage" class="bg-dark bg-opacity-10 rounded overflow-hidden" style="min-height:320px;">
+              <div id="rcStageInner" class="text-center p-3">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted small">正在连接内置浏览器...</p>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
+              <small class="text-muted text-truncate" id="rcInfo">-</small>
+              <small class="text-muted font-monospace" id="rcCoord" style="white-space:nowrap;"></small>
+              <small id="rcLoginFlag"></small>
+            </div>
+          </div>
+          <div class="modal-footer py-2">
+            <span class="small text-muted me-auto">滑块验证码：切到「拖拽」模式，按住滑块从左拖到右；每次操作后会自动回传新截图。</span>
+            <button class="btn btn-sm btn-success" onclick="rcFinish()"><i class="fas fa-check me-1"></i>完成，刷新登录状态</button>
           </div>
         </div>
       </div>
@@ -415,7 +456,9 @@
         if (data.url) {
           html += `<p class="small text-muted">页面URL: ${escapeHtml(data.url)}</p>`;
         }
+        html += '<button class="btn btn-primary w-100 mb-2" onclick="debugScreenshot()"><i class="fas fa-desktop me-1"></i> 打开远程浏览器，手动通过验证</button>';
         html += '<div class="alert alert-info small mt-2">';
+        html += '<p class="mb-1"><strong>备选方案（导出 Cookie）：</strong></p>';
         html += '<p class="mb-1"><strong>手动解决方案：</strong></p>';
         html += '<ol class="mb-0 ps-3">';
         html += '<li>在<b>自己电脑的浏览器</b>打开 <a href="https://bom.szlcsc.com/member/bom-list.html" target="_blank">立创商城 BOM 页</a></li>';
@@ -777,28 +820,225 @@
         setTimeout(() => t.remove(), 3000);
       }
 
-      // 调试截图
-      async function debugScreenshot() {
-        new bootstrap.Modal(document.getElementById('debugScreenshotModal')).show();
-        const content = document.getElementById('debugScreenshotContent');
-        content.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">正在截图...</p>';
+      // ==================== 远程浏览器控制 ====================
+      // 容器内无 GUI，无法把浏览器弹到前台。改为：截图回传 → 前端点击/拖拽 → 坐标回传 → Playwright 真实操作。
+      const RC = { seq: 0, pending: 0, drag: null, viewport: null, loggedIn: false, toastShown: false, timer: null };
 
+      function rcMode() {
+        const el = document.querySelector('input[name="rcMode"]:checked');
+        return el ? el.value : 'click';
+      }
+
+      function rcSyncCursor() {
+        const img = document.getElementById('rcImg');
+        if (img) img.style.cursor = rcMode() === 'drag' ? 'grab' : 'crosshair';
+      }
+
+      async function debugScreenshot() {
+        const modalEl = document.getElementById('debugScreenshotModal');
+        let modal = bootstrap.Modal.getInstance(modalEl);
+        if (!modal) modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        await rcSend({ action: 'screenshot' });
+      }
+
+      function rcRefresh() { return rcSend({ action: 'screenshot' }); }
+
+      async function rcSend(payload) {
+        const seq = ++RC.seq;
+        RC.pending++;
         try {
-          const resp = await fetch('/api/lcsc/debug/screenshot');
+          const resp = await fetch('/api/lcsc/browser/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {})
+          });
           const data = await resp.json();
-          if (data.success) {
-            content.innerHTML = `
-              <p class="text-muted mb-2">URL: ${escapeHtml(data.url || '-')}</p>
-              <p class="text-muted mb-2">Title: ${escapeHtml(data.title || '-')}</p>
-              <img src="data:image/png;base64,${data.screenshot}" class="img-fluid border rounded" style="max-height:500px;">
-            `;
-          } else {
-            content.innerHTML = `<p class="text-danger">${escapeHtml(data.error || '截图失败')}</p>`;
-          }
+          if (seq !== RC.seq) return;   // 已有更新的请求，丢弃过期响应
+          if (!data.success) throw new Error(data.error || data.detail || '操作失败');
+          rcRender(data, payload);
         } catch (e) {
-          content.innerHTML = `<p class="text-danger">${escapeHtml(e.message)}</p>`;
+          if (seq !== RC.seq) return;
+          const info = document.getElementById('rcInfo');
+          if (info) info.innerHTML = '<span class="text-danger">' + escapeHtml(e.message) + '</span>';
+        } finally {
+          RC.pending = Math.max(0, RC.pending - 1);
         }
       }
+
+      function rcRender(data, payload) {
+        const stage = document.getElementById('rcStageInner');
+        const info = document.getElementById('rcInfo');
+        RC.loggedIn = !!data.logged_in;
+        RC.viewport = data.viewport || RC.viewport || { width: 1280, height: 820 };
+        const urlEl = document.getElementById('rcUrl');
+        if (urlEl && data.url) urlEl.value = data.url;
+
+        if (!data.screenshot) {
+          stage.innerHTML = '<p class="text-muted small mt-3">' +
+            escapeHtml(data.message || (RC.loggedIn ? '已登录' : '当前无画面')) + '</p>';
+          return;
+        }
+
+        stage.innerHTML =
+          '<div class="position-relative d-inline-block">' +
+            '<img id="rcImg" src="data:image/png;base64,' + data.screenshot + '" draggable="false" ' +
+                 'style="max-width:100%; max-height:60vh; display:block; margin:0 auto; user-select:none; cursor:' +
+                 (rcMode() === 'drag' ? 'grab' : 'crosshair') + ';">' +
+            '<svg id="rcOverlay" style="position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none;"></svg>' +
+          '</div>';
+        rcBindImage();
+
+        const act = (payload && payload.action && payload.action !== 'screenshot' && payload.action !== 'refresh')
+          ? ' · 上次操作: ' + payload.action + (payload.x != null ? ' (' + Math.round(payload.x) + ',' + Math.round(payload.y) + ')' : '')
+          : '';
+        info.innerHTML = '<span class="text-muted">' + escapeHtml(data.title || '') + ' · ' + escapeHtml(data.url || '') + act + '</span>';
+        document.getElementById('rcLoginFlag').innerHTML = RC.loggedIn
+          ? '<span class="badge bg-success">已登录</span>'
+          : '<span class="badge bg-secondary">未登录</span>';
+
+        if (RC.loggedIn && !RC.toastShown) {
+          RC.toastShown = true;
+          showToast('检测到已登录，Cookie 已自动保存', 'success');
+        }
+      }
+
+      function rcBindImage() {
+        const img = document.getElementById('rcImg');
+        if (!img) return;
+        img.addEventListener('mousedown', rcMouseDown);
+        img.addEventListener('mousemove', rcMouseMove);
+        img.addEventListener('mouseup', rcMouseUp);
+        img.addEventListener('mouseleave', rcMouseLeave);
+        img.addEventListener('contextmenu', e => e.preventDefault());
+      }
+
+      // 屏幕坐标 → 视口坐标（按实际显示尺寸等比换算，缩放/窗口大小无关）
+      function rcPoint(e, img) {
+        const rect = img.getBoundingClientRect();
+        return {
+          x: (e.clientX - rect.left) * (img.naturalWidth / rect.width),
+          y: (e.clientY - rect.top) * (img.naturalHeight / rect.height),
+        };
+      }
+
+      function rcMouseDown(e) {
+        const img = e.currentTarget;
+        if (rcMode() === 'drag') {
+          RC.drag = { start: rcPoint(e, img), cur: rcPoint(e, img) };
+          img.style.cursor = 'grabbing';
+          rcDrawOverlay();
+          e.preventDefault();
+        }
+      }
+
+      function rcMouseMove(e) {
+        const img = e.currentTarget;
+        const p = rcPoint(e, img);
+        const coord = document.getElementById('rcCoord');
+        if (coord) coord.textContent = Math.round(p.x) + ', ' + Math.round(p.y);
+        if (RC.drag) { RC.drag.cur = p; rcDrawOverlay(); }
+      }
+
+      function rcMouseUp(e) {
+        const img = e.currentTarget;
+        const mode = rcMode();
+        img.style.cursor = mode === 'drag' ? 'grab' : 'crosshair';
+
+        if (mode === 'drag') {
+          const d = RC.drag;
+          RC.drag = null;
+          rcDrawOverlay();
+          if (!d) return;
+          const end = rcPoint(e, img);
+          if (Math.abs(end.x - d.start.x) < 3 && Math.abs(end.y - d.start.y) < 3) return;  // 误触，忽略
+          rcSend({ action: 'drag', x: d.start.x, y: d.start.y, x2: end.x, y2: end.y, steps: 30, stepDelay: 25 });
+          return;
+        }
+
+        const p = rcPoint(e, img);
+        if (mode === 'type') {
+          const text = (document.getElementById('rcText').value || '');
+          if (!text.trim()) { showToast('请先在输入框填写要输入的文本', 'warning'); return; }
+          rcSend({ action: 'type', x: p.x, y: p.y, text: text });
+        } else {
+          const right = document.getElementById('rcRight') && document.getElementById('rcRight').checked;
+          rcSend({ action: 'click', x: p.x, y: p.y, button: right ? 'right' : 'left' });
+        }
+      }
+
+      function rcMouseLeave() {
+        if (RC.drag) { RC.drag = null; rcDrawOverlay(); }
+        const coord = document.getElementById('rcCoord');
+        if (coord) coord.textContent = '';
+      }
+
+      function rcDrawOverlay() {
+        const svg = document.getElementById('rcOverlay');
+        if (!svg) return;
+        const img = document.getElementById('rcImg');
+        if (!RC.drag || !img) { svg.innerHTML = ''; return; }
+        const rect = img.getBoundingClientRect();
+        const sx = img.naturalWidth / rect.width, sy = img.naturalHeight / rect.height;
+        const ax = RC.drag.start.x / sx, ay = RC.drag.start.y / sy;
+        const bx = RC.drag.cur.x / sx, by = RC.drag.cur.y / sy;
+        svg.innerHTML =
+          '<line x1="' + ax + '" y1="' + ay + '" x2="' + bx + '" y2="' + by + '" stroke="#ffc107" stroke-width="3" stroke-dasharray="6 4"/>' +
+          '<circle cx="' + ax + '" cy="' + ay + '" r="6" fill="#0d6efd"/>' +
+          '<circle cx="' + bx + '" cy="' + by + '" r="6" fill="#dc3545"/>';
+      }
+
+      function rcScroll(dy) {
+        const vp = RC.viewport || { width: 1280, height: 820 };
+        rcSend({ action: 'scroll', x: vp.width / 2, y: vp.height / 2, dy: dy });
+      }
+
+      function rcGoto() {
+        const url = (document.getElementById('rcUrl').value || '').trim();
+        if (!url) { showToast('请输入 URL', 'warning'); return; }
+        rcSend({ action: 'goto', url: url });
+      }
+
+      function rcCloseSession() {
+        if (!confirm('关闭受控浏览器会话？当前页面状态会丢失（Cookie 已保存的不受影响）。')) return;
+        rcSend({ action: 'close' }).then(() => {
+          const stage = document.getElementById('rcStageInner');
+          if (stage) stage.innerHTML = '<p class="text-muted small mt-3">会话已关闭，再次操作会自动新建浏览器。</p>';
+        });
+      }
+
+      function rcFinish() {
+        checkCookieStatus();
+        rcStopAuto();
+        const modalEl = document.getElementById('debugScreenshotModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        showToast('已刷新登录状态', 'info');
+      }
+
+      function rcStopAuto() {
+        if (RC.timer) { clearInterval(RC.timer); RC.timer = null; }
+        const chk = document.getElementById('rcAuto');
+        if (chk) chk.checked = false;
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const auto = document.getElementById('rcAuto');
+        if (auto) {
+          auto.addEventListener('change', function () {
+            if (RC.timer) { clearInterval(RC.timer); RC.timer = null; }
+            if (this.checked) {
+              RC.timer = setInterval(function () {
+                if (RC.pending === 0) rcSend({ action: 'screenshot' });
+              }, 2000);
+            }
+          });
+        }
+        const urlInput = document.getElementById('rcUrl');
+        if (urlInput) urlInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') rcGoto(); });
+        const modalEl = document.getElementById('debugScreenshotModal');
+        if (modalEl) modalEl.addEventListener('hidden.bs.modal', rcStopAuto);
+      });
 
       // ==================== LC 预加载 ====================
       let _preloadInterval = null;

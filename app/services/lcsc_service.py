@@ -69,6 +69,20 @@ def _http_get(path: str, params: dict = None, timeout: float = 30.0) -> Optional
     return None
 
 
+def _http_post(path: str, payload: dict = None, timeout: float = 30.0) -> Optional[dict]:
+    """向 scraper HTTP 服务发 POST 请求（JSON body）"""
+    try:
+        import httpx
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            resp = client.post(f"{SCRAPER_BASE_URL}{path}", json=payload or {})
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("LCSC HTTP POST %s returned %d: %s", path, resp.status_code, resp.text[:300])
+    except Exception as e:
+        logger.debug("LCSC HTTP POST %s failed: %s", path, e)
+    return None
+
+
 def start_scraper_server() -> bool:
     """启动 LCSC scraper HTTP 服务（如果未运行）"""
     global _scraper_process

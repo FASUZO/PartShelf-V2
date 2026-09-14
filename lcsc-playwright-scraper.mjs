@@ -906,6 +906,205 @@ async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6')
   return false;
 }
 
+// ─────────────────────────────────────────────
+// 远程浏览器控制
+// 容器/无 GUI 环境下无法把浏览器弹到前台，改为：
+//   后端截图回传 → 前端展示 → 用户点击/拖拽 → 坐标回传 → Playwright 真实操作
+// 典型用途：人工完成滑块验证码、扫码后的二次验证、手动登录。
+// ─────────────────────────────────────────────
+
+const CONTROL_VIEWPORT = { width: 1280, height: 820 };
+const CONTROL_ENTRY_URL = 'https://bom.szlcsc.com/member/bom-list.html';
+
+/**
+ * 取得（必要时新建）一个受人工控制的浏览器页面。
+ * 优先复用 QR 登录会话（用户可能正在上面操作），其次持久化查询会话；都没有则新建。
+ * @param {string} [url] - 新建会话时的起始地址
+ */
+async function ensureControlPage(url) {
+  if (_qrPage && !_qrPage.isClosed()) return _qrPage;
+  if (_page && !_page.isClosed()) return _page;
+
+  const headless = process.env.LCSC_HEADLESS !== '0';
+  console.log('[control] Launching controlled browser (headless=%s)...', headless);
+  _qrBrowser = await chromium.launch({ headless });
+  _qrContext = await _qrBrowser.newContext({
+    viewport: CONTROL_VIEWPORT,
+    locale: 'zh-CN',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  });
+
+  const cookies = loadCookies();
+  if (cookies && cookies.length > 0) {
+    try { await _qrContext.addCookies(cookies); } catch (e) {
+      console.warn('[control] addCookies failed:', e.message);
+    }
+  }
+
+  _qrPage = await _qrContext.newPage();
+  try {
+    await _qrPage.goto(url || CONTROL_ENTRY_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await _qrPage.waitForTimeout(1500);
+  } catch (e) {
+    console.warn('[control] initial goto failed:', e.message);
+  }
+  return _qrPage;
+}
+
+/** 判断当前页面是否已登录：必须是 BOM 会员页（其它页面一律不算，避免 www 首页误判触发 cookie 落盘） */
+async function isPageLoggedIn(page) {
+  try {
+    const url = page.url();
+    const title = await page.title();
+    const okUrl = /bom\.szlcsc\.com\/member/.test(url) &&
+                  !/login|passport|404/.test(url);
+    return okUrl && !title.includes('登录') && !title.includes('没有找到');
+  } catch (_) {
+    return false;
+  }
+}
+
+/** 截一张当前视口图，附带 URL/Title/视口尺寸，供前端换算坐标 */
+async function controlSnapshot(page) {
+  const buffer = await page.screenshot({ fullPage: false });
+  return {
+    success: true,
+    url: page.url(),
+    title: await page.title(),
+    screenshot: buffer.toString('base64'),
+    viewport: page.viewportSize() || CONTROL_VIEWPORT,
+  };
+}
+
+/**
+ * 执行一次远程控制动作，并返回操作后的截图
+ * @param {object} p - { action, x, y, x2, y2, text, key, dy, url, selector, steps, wait }
+ */
+async function handleControlAction(p) {
+  const payload = p || {};
+  const action = String(payload.action || 'screenshot').toLowerCase();
+  const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+
+  if (action === 'close') {
+    if (_qrBrowser) { try { await _qrBrowser.close(); } catch (_) {} }
+    _qrBrowser = null; _qrContext = null; _qrPage = null;
+    return { success: true, message: '受控会话已关闭' };
+  }
+
+  const page = await ensureControlPage(payload.url);
+
+  switch (action) {
+    case 'screenshot':
+    case 'refresh':
+      break;
+
+    case 'goto':
+      if (!payload.url) return { success: false, error: 'goto 需要 url 参数' };
+      await page.goto(payload.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(1500);
+      break;
+
+    case 'reload':
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(1500);
+      break;
+
+    case 'back':
+      try { await page.goBack({ waitUntil: 'domcontentloaded', timeout: 15000 }); } catch (_) {}
+      await page.waitForTimeout(800);
+      break;
+
+    case 'click':
+      await page.mouse.click(num(payload.x, 0), num(payload.y, 0), { button: payload.button || 'left' });
+      await page.waitForTimeout(num(payload.wait, 900));
+      break;
+
+    case 'dblclick':
+      await page.mouse.dblclick(num(payload.x, 0), num(payload.y, 0));
+      await page.waitForTimeout(num(payload.wait, 900));
+      break;
+
+    case 'drag': {
+      // 滑块验证码专用：分多步移动，模拟真人轨迹
+      const x1 = num(payload.x, 0), y1 = num(payload.y, 0);
+      const x2 = num(payload.x2, x1), y2 = num(payload.y2, y1);
+      const steps = Math.max(5, Math.min(80, num(payload.steps, 30)));
+      const stepDelay = Math.max(5, Math.min(200, num(payload.stepDelay, 25)));
+      await page.mouse.move(x1, y1);
+      await page.mouse.down();
+      await page.waitForTimeout(150);
+      for (let i = 1; i <= steps; i++) {
+        await page.mouse.move(x1 + (x2 - x1) * (i / steps), y1 + (y2 - y1) * (i / steps));
+        await page.waitForTimeout(stepDelay);
+      }
+      await page.waitForTimeout(150);
+      await page.mouse.up();
+      await page.waitForTimeout(num(payload.wait, 1200));
+      break;
+    }
+
+    case 'type':
+      if (payload.x != null && payload.y != null) {
+        await page.mouse.click(num(payload.x, 0), num(payload.y, 0));
+        await page.waitForTimeout(250);
+      }
+      await page.keyboard.type(String(payload.text ?? ''), { delay: num(payload.delay, 60) });
+      await page.waitForTimeout(400);
+      break;
+
+    case 'key':
+      await page.keyboard.press(String(payload.key || 'Enter'));
+      await page.waitForTimeout(num(payload.wait, 800));
+      break;
+
+    case 'scroll':
+      await page.mouse.move(num(payload.x, 640), num(payload.y, 410));
+      await page.mouse.wheel(0, num(payload.dy, 400));
+      await page.waitForTimeout(num(payload.wait, 600));
+      break;
+
+    case 'click_selector':
+      if (!payload.selector) return { success: false, error: 'click_selector 需要 selector 参数' };
+      await page.locator(payload.selector).first().click({ timeout: 8000 });
+      await page.waitForTimeout(num(payload.wait, 900));
+      break;
+
+    default:
+      return { success: false, error: `未知动作: ${action}` };
+  }
+
+  const result = await controlSnapshot(page);
+  result.logged_in = await isPageLoggedIn(page);
+
+  // 已登录 → 立即落盘 cookie，并把受控会话提升为持久化查询会话
+  if (result.logged_in) {
+    try {
+      const ctx = page.context();
+      saveCookies(await ctx.cookies());
+      result.saved_cookies = true;
+
+      if (page === _qrPage && _qrBrowser) {
+        // 受控会话原本是独立启动的：关掉旧的持久化会话，用受控会话顶替
+        if (_browser) { try { await _browser.close(); } catch (_) {} }
+        _browser = _qrBrowser;
+        _context = _qrContext;
+        _page = _qrPage;
+        _qrBrowser = null; _qrContext = null; _qrPage = null;
+      }
+      // 下一次查询时会重新导航到 BOM 工作表页
+      _bomReady = false;
+      _initPromise = null;
+      console.log('[control] Login confirmed via remote control, cookies saved');
+    } catch (e) {
+      result.saved_cookies = false;
+      console.error('[control] save cookies failed:', e.message);
+    }
+  } else {
+    result.saved_cookies = false;
+  }
+  return result;
+}
+
 /**
  * 启动 HTTP 服务器，提供 REST API
  * @param {number} port - 端口号，默认 3000
@@ -1119,6 +1318,43 @@ async function startServer(port = 3001) {
           break;
         }
 
+        case '/browser/status': {
+          const targetPage = _qrPage || _page;
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            active: !!(targetPage && !targetPage.isClosed()),
+            source: _qrPage && !_qrPage.isClosed() ? 'qr' : (_page && !_page.isClosed() ? 'persistent' : null),
+            url: targetPage && !targetPage.isClosed() ? targetPage.url() : null,
+            viewport: targetPage && !targetPage.isClosed() ? (targetPage.viewportSize() || CONTROL_VIEWPORT) : CONTROL_VIEWPORT,
+            bomReady: _bomReady,
+          }));
+          break;
+        }
+
+        case '/browser/action': {
+          let body = '';
+          for await (const chunk of req) body += chunk;
+          let payload;
+          try {
+            payload = body ? JSON.parse(body) : {};
+          } catch (_) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ success: false, error: 'Invalid JSON body' }));
+            return;
+          }
+          console.log('[control] action=%s', payload?.action || 'screenshot');
+          try {
+            const result = await handleControlAction(payload);
+            res.writeHead(200);
+            res.end(JSON.stringify(result));
+          } catch (e) {
+            console.error('[control] action failed:', e.message);
+            res.writeHead(500);
+            res.end(JSON.stringify({ success: false, error: e.message }));
+          }
+          break;
+        }
+
         case '/shutdown':
           res.writeHead(200);
           res.end(JSON.stringify({ message: 'Shutting down' }));
@@ -1152,6 +1388,8 @@ async function startServer(port = 3001) {
     console.log(`  GET  /query?lcCode=C192666`);
     console.log(`  GET  /list`);
     console.log(`  GET  /cookies`);
+    console.log(`  GET  /browser/status`);
+    console.log(`  POST /browser/action  {action: click|drag|type|key|scroll|goto|reload|back|screenshot|click_selector|close}`);
     console.log(`  POST /shutdown`);
   });
 }
