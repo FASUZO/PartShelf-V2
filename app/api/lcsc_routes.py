@@ -153,28 +153,35 @@ async def get_qr_code(user=Depends(get_current_user_required)):
 @router.get("/cookies/status")
 async def get_login_status(user=Depends(get_current_user_required)):
     """检查登录状态"""
+    # 优先以 scraper HTTP 会话为准（含"等待扫码"/"无QR会话"等中间态）。
+    # 不再无条件 fallback：CLI 路径会启动全新浏览器读取旧 cookie 文件，
+    # 永远报告"未登录"，会覆盖扫码成功的真实状态，且每 2 秒轮询一次开销极大。
     try:
         from app.services.lcsc_service import _http_get
-        qr_result = _http_get("/cookies/check_qr_login", timeout=5.0)
-        if qr_result and qr_result.get("logged_in"):
+        qr_result = _http_get("/cookies/check_qr_login", timeout=10.0)
+        if qr_result is not None:
             return qr_result
+    except Exception:
+        pass
 
+    # 仅当 scraper HTTP 服务完全不可用时，才回退到 CLI
+    try:
         import subprocess
         import os
+        import json
         scraper = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "lcsc-playwright-scraper.mjs")
         result = subprocess.run(
             ["node", scraper, "status"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=30,
             cwd=os.path.dirname(scraper), encoding='utf-8', errors='replace'
         )
         if result.returncode == 0:
-            import json
             data = json.loads(result.stdout[result.stdout.find('{'):])
             return data
         return {"logged_in": False}
     except FileNotFoundError:
         return {"logged_in": False, "message": "Node.js未安装"}
-    except Exception as e:
+    except Exception:
         return {"logged_in": False}
 
 

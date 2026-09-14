@@ -384,19 +384,21 @@
       }
 
       async function pollLoginStatus() {
-        for (let i = 0; i < 60; i++) {
+        let captchaShown = false;  // 验证码引导只渲染一次，且不中断轮询
+        for (let i = 0; i < 90; i++) {
           await new Promise(r => setTimeout(r, 2000));
           try {
             const resp = await fetch('/api/lcsc/cookies/status');
             const data = await resp.json();
-            if (data.need_captcha) {
-              showCaptchaGuide(data);
-              return;
-            }
             if (data.logged_in) {
               document.getElementById('qrImage').innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> 登录成功！Cookie已更新</div>';
               checkCookieStatus();
               return;
+            }
+            // 验证码提示：显示一次后继续轮询，用户自行处理完仍可感知登录成功
+            if (data.need_captcha && !captchaShown) {
+              captchaShown = true;
+              showCaptchaGuide(data);
             }
           } catch (e) {}
         }

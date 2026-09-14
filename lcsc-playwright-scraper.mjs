@@ -151,16 +151,16 @@ function clearCookies() {
 // 验证码检测与截图回传（容器内无法弹窗到前台，改用截图让用户感知）
 // ─────────────────────────────────────────────
 
+// 注意：不要用泛匹配（如 [class*="captcha"]、裸词"验证码"），
+// 立创登录页本身有"验证码登录"tab，泛匹配会把正常登录页误判为验证码页。
 const _CAPTCHA_SELECTORS = [
-  '[class*="captcha"]', '[id*="captcha"]',
-  '[class*="nc_"]', '#aliyunCaptcha', '#nc_1_wrapper',
+  '#aliyunCaptcha', '#nc_1_wrapper', '.nc_scale', '.nc-lang-cnt',
   '.J_MIDDLEWARE_CAPTURE', '.baxia-dialog',
-  'iframe[src*="captcha"]', 'iframe[src*="verify"]',
-  '.nc_iconfont', '.scale_text', '.nc-lang-cnt',
-  '.JbtnSlide', '.slidetounlock', '.slide-verify',
-  '#verifyBar', '.verify-bar', '.captcha_box',
+  'iframe[src*="captcha"]', 'iframe[src*="verify"]', 'iframe[src*="punish"]',
+  '.nc_iconfont', '.scale_text', '.slidetounlock', '.slide-verify',
+  '.JbtnSlide', '#verifyBar', '.verify-bar', '.captcha-box', '.captcha_container',
 ];
-const _CAPTCHA_TEXT_RE = /请完成验证|拖动|滑动|安全验证|拖动滑块|向右滑动|验证码|请按住滑块|identity verification|please verify/i;
+const _CAPTCHA_TEXT_RE = /请完成验证|请按住滑块|拖动滑块|拖动下方滑块|向右滑动|滑动验证|完成安全验证|请拖动|安全验证|identity verification|please complete the verification/i;
 
 /**
  * 检测页面是否出现验证码元素
@@ -867,7 +867,21 @@ async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6')
   const startTime = Date.now();
   const TIMEOUT_MS = 120000;
   while (Date.now() - startTime < TIMEOUT_MS) {
-    // 优先检测验证码
+    // 先检测登录成功（放宽判据：URL 不含 login 且 title 含 BOM/配单）
+    const title = await page.title().catch(() => '');
+    const url = page.url();
+    const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
+                       !url.includes('404') && !title.includes('登录') &&
+                       (title.includes('BOM') || title.includes('配单'));
+    if (isLoggedIn) {
+      console.log('登录成功！');
+      const cookies = await context.cookies();
+      saveCookies(cookies);
+      await browser.close();
+      return true;
+    }
+
+    // 未登录：再检测是否卡在验证码
     if (await detectCaptcha(page)) {
       const captchaInfo = await captureCaptchaInfo(page);
       _lastCaptchaInfo = captchaInfo;
@@ -882,20 +896,6 @@ async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6')
       } catch (_) {}
       await browser.close();
       return false;
-    }
-
-    // 检测登录成功（放宽判据：URL 不含 login 且 title 含 BOM/配单）
-    const title = await page.title().catch(() => '');
-    const url = page.url();
-    const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
-                       !url.includes('404') && !title.includes('登录') &&
-                       (title.includes('BOM') || title.includes('配单'));
-    if (isLoggedIn) {
-      console.log('登录成功！');
-      const cookies = await context.cookies();
-      saveCookies(cookies);
-      await browser.close();
-      return true;
     }
 
     await page.waitForTimeout(2000);
@@ -1177,22 +1177,12 @@ async function getQrCode() {
       timeout: 30000,
     });
 
-    // 检测验证码（容器内无法弹窗，截图回传让用户感知）
-    if (await detectCaptcha(_qrPage)) {
-      const captchaInfo = await captureCaptchaInfo(_qrPage);
-      _lastCaptchaInfo = captchaInfo;
-      console.warn('[qr] Captcha detected during getQrCode:', captchaInfo.url, captchaInfo.title);
-      // 关闭无法继续的会话，用户需手动上传 cookie
-      try { await _qrBrowser.close(); } catch (_) {}
-      _qrBrowser = null; _qrContext = null; _qrPage = null;
-      return { success: false, ...captchaInfo };
-    }
-
     const url = _qrPage.url();
     const content = await _qrPage.content();
     const hasQrCode = content.includes('qr') || content.includes('qrcode') || content.includes('二维码');
     const isLoginUrl = url.includes('login') || url.includes('passport');
 
+    // 1. 已登录判定优先（登录页含"验证码登录"等文案，不能先做验证码检测否则会误判）
     if (!hasQrCode && !isLoginUrl) {
       const cookies = await _qrContext.cookies();
       saveCookies(cookies);
@@ -1201,6 +1191,17 @@ async function getQrCode() {
       return { success: true, message: '已登录', logged_in: true };
     }
 
+    // 2. 确需验证码拦截时截图回传（此时二维码根本拿不到，关闭会话）
+    if (await detectCaptcha(_qrPage)) {
+      const captchaInfo = await captureCaptchaInfo(_qrPage);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[qr] Captcha detected during getQrCode:', captchaInfo.url, captchaInfo.title);
+      try { await _qrBrowser.close(); } catch (_) {}
+      _qrBrowser = null; _qrContext = null; _qrPage = null;
+      return { success: false, ...captchaInfo };
+    }
+
+    // 3. 正常流程：截图二维码，保持会话等待扫码
     await _qrPage.waitForTimeout(5000);
 
     let qrImageBase64 = null;
@@ -1248,18 +1249,7 @@ async function checkQrLoginStatus() {
     const title = await _qrPage.title();
     console.log('[qr] Result URL:', url, 'Title:', title);
 
-    // 先检测验证码：扫码后可能弹出滑块/图形验证码，容器内无法操作，截图回传
-    if (await detectCaptcha(_qrPage)) {
-      const captchaInfo = await captureCaptchaInfo(_qrPage);
-      _lastCaptchaInfo = captchaInfo;
-      console.warn('[qr] Captcha detected during checkQrLoginStatus:', captchaInfo.url, captchaInfo.title);
-      // 关闭无法继续的 QR 会话
-      try { await _qrBrowser.close(); } catch (_) {}
-      _qrBrowser = null; _qrContext = null; _qrPage = null;
-      return { logged_in: false, ...captchaInfo };
-    }
-
-    // 判断是否成功加载 BOM 页面
+    // 先判断登录成功（扫码成功优先判定，避免被验证码检测误伤）
     const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
                        !url.includes('404') && !title.includes('登录') &&
                        !title.includes('没有找到');
@@ -1280,6 +1270,16 @@ async function checkQrLoginStatus() {
       _initPromise = Promise.resolve(true);
       console.log('[qr] Session ready!');
       return { logged_in: true, message: '登录成功' };
+    }
+
+    // 未登录：再检测是否卡在验证码。
+    // 关键：此处绝不能销毁 QR 会话 —— 用户可能只是尚未扫完，或扫完后被要求二次验证。
+    // 一旦销毁，后续轮询永远返回"无QR会话"，即便扫码成功系统也无法感知。
+    if (await detectCaptcha(_qrPage)) {
+      const captchaInfo = await captureCaptchaInfo(_qrPage);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[qr] Captcha detected during checkQrLoginStatus:', captchaInfo.url, captchaInfo.title);
+      return { logged_in: false, ...captchaInfo };
     }
 
     return { logged_in: false, message: '等待扫码' };
@@ -1315,15 +1315,6 @@ async function checkLoginStatus() {
     const title = await page.title();
     const content = await page.content();
 
-    // 优先检测验证码（扫码后可能弹滑块/图形验证码）
-    if (await detectCaptcha(page)) {
-      const captchaInfo = await captureCaptchaInfo(page);
-      _lastCaptchaInfo = captchaInfo;
-      console.warn('[status] Captcha detected:', captchaInfo.url, captchaInfo.title);
-      await browser.close();
-      return { logged_in: false, ...captchaInfo };
-    }
-
     // 判断是否已登录：页面不包含登录相关内容
     const isLoginPage = url.includes('login') ||
                         title.includes('登录') ||
@@ -1335,12 +1326,25 @@ async function checkLoginStatus() {
 
     const isLoggedIn = !isLoginPage;
 
-    // 保存更新的 cookie
-    const newCookies = await context.cookies();
-    saveCookies(newCookies);
+    if (isLoggedIn) {
+      // 保存更新的 cookie
+      const newCookies = await context.cookies();
+      saveCookies(newCookies);
+      await browser.close();
+      return { logged_in: true, message: '已登录' };
+    }
+
+    // 未登录：再检测是否卡在验证码（登录页本身不算）
+    if (await detectCaptcha(page)) {
+      const captchaInfo = await captureCaptchaInfo(page);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[status] Captcha detected:', captchaInfo.url, captchaInfo.title);
+      await browser.close();
+      return { logged_in: false, ...captchaInfo };
+    }
 
     await browser.close();
-    return { logged_in: isLoggedIn, message: isLoggedIn ? '已登录' : '未登录' };
+    return { logged_in: false, message: '未登录' };
   } catch (e) {
     await browser.close();
     return { logged_in: false, message: e.message };
