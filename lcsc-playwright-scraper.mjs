@@ -335,6 +335,60 @@ async function ensureSession(bomUuid = DEFAULT_BOM_UUID) {
 }
 
 /**
+ * 自动处理立创 BOM 上传后的「匹配设置」确认弹窗。
+ * 上传 CSV 后立创会弹「匹配设置」（采购套数/匹配偏好）模态框，
+ * 不点「确定」匹配不会开始，查询流程会一直卡住。
+ * 默认选项即「智能匹配 + 1套」，直接确认即可。
+ *
+ * @param {Page} page - Playwright 页面
+ * @param {number} timeoutMs - 等待弹窗出现的最长时间
+ * @param {() => boolean} [done] - 提前完成判定（如匹配请求已发出则无需再等弹窗）
+ * @returns {Promise<boolean>} 弹窗是否被成功确认
+ */
+async function dismissMatchSettings(page, timeoutMs = 20000, done = null) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (done && done()) return true;  // 匹配已开始（可能未弹窗或已确认）
+    try {
+      const title = page.getByText('匹配设置').first();
+      if (await title.isVisible().catch(() => false)) {
+        console.log('[dialog] 检测到「匹配设置」弹窗，自动确认（智能匹配/1套）...');
+        for (let attempt = 0; attempt < 3; attempt++) {
+          // 多路兜底定位「确定」按钮（立创 DOM 结构可能变化）
+          const candidates = [
+            page.locator('button:visible', { hasText: /确\s*定/ }),
+            page.locator('a:visible', { hasText: /确\s*定/ }),
+            page.locator('span:visible', { hasText: /^确\s*定$/ }),
+            page.locator('div:visible', { hasText: /^确\s*定$/ }),
+          ];
+          let clicked = false;
+          for (const loc of candidates) {
+            const btn = loc.first();
+            if ((await btn.count()) > 0 && await btn.isVisible().catch(() => false)) {
+              try { await btn.click({ timeout: 3000 }); clicked = true; break; } catch (_) {}
+            }
+          }
+          if (!clicked) {
+            console.warn('[dialog] 找到弹窗但未定位到「确定」按钮');
+            break;
+          }
+          await page.waitForTimeout(1000);
+          // 点完验证弹窗是否消失，未消失则重试
+          if (!(await title.isVisible().catch(() => false))) {
+            console.log('[dialog] 「匹配设置」已确认');
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[dialog] dismiss error:', e.message);
+    }
+    await page.waitForTimeout(500);
+  }
+  return false;
+}
+
+/**
  * 通过 CSV 上传将物料添加到 BOM 再查询
  */
 async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
@@ -355,8 +409,17 @@ async function addAndQueryBomItem(lcCode, bomUuid = DEFAULT_BOM_UUID) {
     };
     _page.on('request', onRequest);
 
+    // 清掉上次残留的「匹配设置」弹窗（如有，短超时快速探测）
+    await dismissMatchSettings(_page, 1500, () => newBomUuid);
+
     await fileInput.setInputFiles(tmpFile);
-    await _page.waitForTimeout(10000);
+    // 上传后立创会弹「匹配设置」确认框，必须点「确定」匹配才会开始
+    const dismissed = await dismissMatchSettings(_page, 20000, () => newBomUuid);
+    if (!dismissed) console.log('[persistent] 未出现/未确认匹配设置弹窗，继续等待匹配结果');
+    // 轮询等匹配结果请求（最长 25 秒）
+    for (let i = 0; i < 25 && !newBomUuid; i++) {
+      await _page.waitForTimeout(1000);
+    }
     _page.off('request', onRequest);
 
     const targetUuid = newBomUuid && newBomUuid !== bomUuid ? newBomUuid : bomUuid;
@@ -477,7 +540,11 @@ async function batchQueryByLcCodes(lcCodes, bomUuid = DEFAULT_BOM_UUID) {
     _page.on('request', onRequest);
 
     console.log(`[batch] Uploading CSV with ${missing.length} items...`);
+    // 清掉上次残留的「匹配设置」弹窗（如有）
+    await dismissMatchSettings(_page, 1500, () => newBomUuid);
     await fileInput.setInputFiles(tmpFile);
+    // 上传后立创会弹「匹配设置」确认框，必须点「确定」匹配才会开始
+    await dismissMatchSettings(_page, 20000, () => newBomUuid);
 
     // 轮询等待处理完成（最多 20 秒，每 2 秒检查一次）
     let processed = false;
@@ -1716,3 +1783,6 @@ LCSC Playwright Scraper (Persistent Mode)
       `);
   }
 }
+
+// 供测试脚本导入验证（CLI 入口有 argv 守卫，import 本模块无副作用）
+export { dismissMatchSettings };
