@@ -371,6 +371,8 @@
           if (data.success && data.qrcode_base64) {
             qrImage.innerHTML = `<img src="data:image/png;base64,${data.qrcode_base64}" alt="登录二维码" style="max-width:250px; border:1px solid #ddd; padding:10px; border-radius:8px;"><p class="mt-2 small text-muted">请使用立创商城APP扫描二维码登录</p>`;
             pollLoginStatus();
+          } else if (data.need_captcha) {
+            showCaptchaGuide(data);
           } else if (data.logged_in) {
             qrImage.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> 已登录，无需扫码</div>';
           } else {
@@ -387,6 +389,10 @@
           try {
             const resp = await fetch('/api/lcsc/cookies/status');
             const data = await resp.json();
+            if (data.need_captcha) {
+              showCaptchaGuide(data);
+              return;
+            }
             if (data.logged_in) {
               document.getElementById('qrImage').innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> 登录成功！Cookie已更新</div>';
               checkCookieStatus();
@@ -395,6 +401,60 @@
           } catch (e) {}
         }
         document.getElementById('qrImage').innerHTML = '<div class="alert alert-warning"><i class="fas fa-clock me-1"></i> 二维码已过期，请重新获取</div>';
+      }
+
+      // 显示验证码引导（容器内无法弹窗到前台，截图回传让用户手动处理）
+      function showCaptchaGuide(data) {
+        const qrImage = document.getElementById('qrImage');
+        let html = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-1"></i> <strong>检测到验证码</strong>，容器环境无法自动完成，需手动处理。</div>';
+        if (data.screenshot) {
+          html += `<img src="data:image/png;base64,${data.screenshot}" alt="验证码截图" style="max-width:100%; border:1px solid #ddd; border-radius:8px; margin-bottom:0.5rem;">`;
+        }
+        if (data.url) {
+          html += `<p class="small text-muted">页面URL: ${escapeHtml(data.url)}</p>`;
+        }
+        html += '<div class="alert alert-info small mt-2">';
+        html += '<p class="mb-1"><strong>手动解决方案：</strong></p>';
+        html += '<ol class="mb-0 ps-3">';
+        html += '<li>在<b>自己电脑的浏览器</b>打开 <a href="https://bom.szlcsc.com/member/bom-list.html" target="_blank">立创商城 BOM 页</a></li>';
+        html += '<li>扫码或账号登录，完成验证码（滑块/图形验证）</li>';
+        html += '<li>登录成功后，用浏览器扩展（如 <b>Cookie-Editor</b>）导出 <code>.szlcsc.com</code> 域的所有 cookie（JSON 格式）</li>';
+        html += '<li>将导出的 JSON 粘贴到下方文本框，点击「上传 Cookie」</li>';
+        html += '</ol></div>';
+        html += '<textarea id="cookiePasteArea" class="form-control font-monospace" rows="6" placeholder="在此粘贴导出的 cookie JSON（数组或 {cookies: [...]} 格式）" style="font-size:0.75rem;"></textarea>';
+        html += '<button class="btn btn-success mt-2 w-100" onclick="uploadCookies()"><i class="fas fa-upload me-1"></i> 上传 Cookie</button>';
+        html += '<div id="cookieUploadResult" class="mt-2"></div>';
+        qrImage.innerHTML = html;
+      }
+
+      async function uploadCookies() {
+        const area = document.getElementById('cookiePasteArea');
+        if (!area || !area.value.trim()) { showToast('请先粘贴 cookie JSON', 'warning'); return; }
+        let payload;
+        try {
+          payload = JSON.parse(area.value.trim());
+        } catch (e) {
+          showToast('JSON 格式错误: ' + e.message, 'danger'); return;
+        }
+        const resultEl = document.getElementById('cookieUploadResult');
+        if (resultEl) resultEl.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> 上传中...';
+        try {
+          const resp = await fetch('/api/lcsc/cookies/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await resp.json();
+          if (resp.ok && data.success) {
+            if (resultEl) resultEl.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i> ${escapeHtml(data.message)}</div>`;
+            showToast('Cookie 上传成功', 'success');
+            setTimeout(() => { checkCookieStatus(); }, 1000);
+          } else {
+            if (resultEl) resultEl.innerHTML = `<div class="alert alert-danger"><i class="fas fa-times-circle me-1"></i> ${escapeHtml(data.detail || data.message || '上传失败')}</div>`;
+          }
+        } catch (e) {
+          if (resultEl) resultEl.innerHTML = `<div class="alert alert-danger">上传失败: ${escapeHtml(e.message)}</div>`;
+        }
       }
 
       async function searchLcCode() {

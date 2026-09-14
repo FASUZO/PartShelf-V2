@@ -4,7 +4,7 @@ LCSC 查询 API 路由
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from app.services.lcsc_service import query_lcsc_part, query_lcsc_list, check_cookies
 from app.api.deps import get_current_user_required
 
@@ -60,6 +60,47 @@ async def clear_cookies(user=Depends(get_current_user_required)):
         return {"success": False, "message": "LCSC服务不可用"}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+@router.post("/cookies/upload")
+async def upload_cookies(payload: dict = Body(...), user=Depends(get_current_user_required)):
+    """手动上传立创 cookie（用户在自己浏览器完成验证码登录后导出）"""
+    import os
+    import json
+
+    # 规范化 cookie 格式：接受 {cookies: [...]} 或直接数组
+    cookies = payload.get("cookies") if isinstance(payload, dict) else payload
+    if not isinstance(cookies, list):
+        raise HTTPException(status_code=400, detail="cookie 格式错误：应为 {cookies: [...]} 或直接为数组")
+    if not cookies:
+        raise HTTPException(status_code=400, detail="cookie 列表为空")
+
+    # 基本校验：每项至少有 name 和 value
+    invalid = [i for i, c in enumerate(cookies) if not isinstance(c, dict) or not c.get("name") or not c.get("value")]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"第 {invalid[0]} 项 cookie 缺少 name/value 字段")
+
+    # 写到与 scraper 一致的路径（项目根/data/lcsc-cookies.json）
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    cookie_file = os.path.join(project_root, "data", "lcsc-cookies.json")
+    os.makedirs(os.path.dirname(cookie_file), exist_ok=True)
+    with open(cookie_file, "w", encoding="utf-8") as f:
+        json.dump({"cookies": cookies}, f, ensure_ascii=False, indent=2)
+
+    # 通知 scraper 重置会话，重新加载 cookie（scraper 不在线也不阻塞，下次查询时自动加载）
+    reload_msg = ""
+    try:
+        from app.services.lcsc_service import _http_get
+        reload_result = _http_get("/cookies/reload", timeout=10.0)
+        reload_msg = reload_result.get("message", "") if reload_result else ""
+    except Exception as e:
+        reload_msg = f"scraper 未响应（{e}），下次查询时自动加载"
+
+    return {
+        "success": True,
+        "message": f"已保存 {len(cookies)} 个 cookie。{reload_msg}".strip(),
+        "count": len(cookies),
+    }
 
 
 @router.get("/debug/screenshot")

@@ -28,6 +28,11 @@ let _qrBrowser = null;
 let _qrContext = null;
 let _qrPage = null;
 
+// 最近一次检测到的验证码信息（供 ensureSession/initPersistentSession 调用方读取）
+let _lastCaptchaInfo = null;
+function getLastCaptchaInfo() { return _lastCaptchaInfo; }
+function clearLastCaptchaInfo() { _lastCaptchaInfo = null; }
+
 /**
  * 清理产品型号名称：去除品牌名、保质期等多余信息
  * @param {string} model - 原始型号
@@ -142,6 +147,73 @@ function clearCookies() {
   }
 }
 
+// ─────────────────────────────────────────────
+// 验证码检测与截图回传（容器内无法弹窗到前台，改用截图让用户感知）
+// ─────────────────────────────────────────────
+
+const _CAPTCHA_SELECTORS = [
+  '[class*="captcha"]', '[id*="captcha"]',
+  '[class*="nc_"]', '#aliyunCaptcha', '#nc_1_wrapper',
+  '.J_MIDDLEWARE_CAPTURE', '.baxia-dialog',
+  'iframe[src*="captcha"]', 'iframe[src*="verify"]',
+  '.nc_iconfont', '.scale_text', '.nc-lang-cnt',
+  '.JbtnSlide', '.slidetounlock', '.slide-verify',
+  '#verifyBar', '.verify-bar', '.captcha_box',
+];
+const _CAPTCHA_TEXT_RE = /请完成验证|拖动|滑动|安全验证|拖动滑块|向右滑动|验证码|请按住滑块|identity verification|please verify/i;
+
+/**
+ * 检测页面是否出现验证码元素
+ * @param {import('playwright').Page} page
+ * @returns {Promise<boolean>}
+ */
+async function detectCaptcha(page) {
+  try {
+    const url = page.url();
+    const title = await page.title();
+    // URL/title 关键字
+    if (/captcha|verify|安全验证|滑动|滑块/i.test(url + ' ' + title)) return true;
+
+    // DOM 元素检测
+    for (const sel of _CAPTCHA_SELECTORS) {
+      try {
+        if (await page.locator(sel).count() > 0) return true;
+      } catch (_) { /* selector 解析失败忽略 */ }
+    }
+
+    // 文本关键字（仅在元素检测未命中时做兜底，避免大页面全文正则性能问题）
+    const bodyText = await page.evaluate(() => document.body ? document.body.innerText.slice(0, 5000) : '').catch(() => '');
+    if (bodyText && _CAPTCHA_TEXT_RE.test(bodyText)) return true;
+
+    return false;
+  } catch (e) {
+    console.error('[captcha] detect error:', e.message);
+    return false;
+  }
+}
+
+/**
+ * 截取当前页面快照，返回带 base64 截图的状态对象
+ * @param {import('playwright').Page} page
+ * @returns {Promise<object>} { need_captcha: true, screenshot, url, title }
+ */
+async function captureCaptchaInfo(page) {
+  try {
+    const buffer = await page.screenshot({ fullPage: false });
+    const url = page.url();
+    const title = await page.title().catch(() => '');
+    return {
+      need_captcha: true,
+      screenshot: buffer.toString('base64'),
+      url,
+      title,
+      message: '检测到验证码，请在前端完成手动验证后上传 cookie',
+    };
+  } catch (e) {
+    return { need_captcha: true, error: e.message, message: '检测到验证码但截图失败: ' + e.message };
+  }
+}
+
 /**
  * 启动浏览器并加载 cookie
  */
@@ -219,6 +291,11 @@ async function initPersistentSession(bomUuid = DEFAULT_BOM_UUID) {
 
       if (isLoginPage || is404Page) {
         console.warn('[persistent] Login/404 page detected, URL:', url, 'Title:', title);
+        // 进一步检测是否是验证码页面（容器内无法弹窗，截图回传让用户感知）
+        if (await detectCaptcha(_page)) {
+          _lastCaptchaInfo = await captureCaptchaInfo(_page);
+          console.warn('[persistent] Captcha detected:', _lastCaptchaInfo.url, _lastCaptchaInfo.title);
+        }
         _initPromise = null;
         return false;
       }
@@ -769,32 +846,64 @@ async function queryAllItems(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6', headl
  * @param {string} bomUuid - BOM 清单 UUID
  */
 async function loginAndSaveCookies(bomUuid = 'B4CDDD24823706B049EA2218BB7552E6') {
-  const browser = await chromium.launch({
-    headless: false, // 必须有头模式才能扫码
-
-  });
-
+  // 容器内只能 headless；宿主机 CLI 可设 LCSC_HEADLESS=0 切有头模式
+  const headless = process.env.LCSC_HEADLESS !== '0';
+  const browser = await chromium.launch({ headless });
   const context = await browser.newContext();
   const page = await context.newPage();
 
   console.log('请扫码登录立创商城...');
-  await page.goto(`https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${bomUuid}`, {
-    timeout: 120000, // 2 分钟超时
-  });
+  try {
+    await page.goto(`https://bom.szlcsc.com/member/bom-sheet.html?bomUuid=${bomUuid}`, {
+      timeout: 120000,
+    });
+  } catch (e) {
+    console.error('页面加载失败:', e.message);
+    await browser.close();
+    return false;
+  }
 
-  // 等待页面跳转到 BOM 页面（表示登录成功）
-  await page.waitForFunction(() => {
-    return document.title.includes('BOM') || document.title.includes('配单');
-  }, { timeout: 120000 });
+  // 轮询：检测登录成功 或 验证码出现（原代码只等 title 含 BOM，验证码页面会永远等不到）
+  const startTime = Date.now();
+  const TIMEOUT_MS = 120000;
+  while (Date.now() - startTime < TIMEOUT_MS) {
+    // 优先检测验证码
+    if (await detectCaptcha(page)) {
+      const captchaInfo = await captureCaptchaInfo(page);
+      _lastCaptchaInfo = captchaInfo;
+      try {
+        const { writeFileSync } = await import('fs');
+        const { join } = await import('path');
+        const shotPath = join(process.cwd(), 'captcha_screenshot.png');
+        writeFileSync(shotPath, Buffer.from(captchaInfo.screenshot, 'base64'));
+        console.error('[login] 检测到验证码！截图已保存到:', shotPath);
+        console.error('[login] URL:', captchaInfo.url, 'Title:', captchaInfo.title);
+        console.error('[login] 容器环境无法自动完成验证码，请通过前端 cookie 上传功能手动导入');
+      } catch (_) {}
+      await browser.close();
+      return false;
+    }
 
-  console.log('登录成功！');
-  
-  // 保存 cookie
-  const cookies = await context.cookies();
-  saveCookies(cookies);
+    // 检测登录成功（放宽判据：URL 不含 login 且 title 含 BOM/配单）
+    const title = await page.title().catch(() => '');
+    const url = page.url();
+    const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
+                       !url.includes('404') && !title.includes('登录') &&
+                       (title.includes('BOM') || title.includes('配单'));
+    if (isLoggedIn) {
+      console.log('登录成功！');
+      const cookies = await context.cookies();
+      saveCookies(cookies);
+      await browser.close();
+      return true;
+    }
 
+    await page.waitForTimeout(2000);
+  }
+
+  console.error('[login] 登录超时（120s 未检测到成功跳转）');
   await browser.close();
-  return true;
+  return false;
 }
 
 /**
@@ -920,6 +1029,21 @@ async function startServer(port = 3001) {
           _browser = null; _context = null; _page = null;
           res.writeHead(200);
           res.end(JSON.stringify({ success: true, message: 'Cookies已清除' }));
+          break;
+        }
+
+        case '/cookies/reload': {
+          // 不清空 cookie 文件，只重置浏览器会话，让下次查询重新加载 cookie（用户手动上传 cookie 后调用）
+          _bomReady = false;
+          _initPromise = null;
+          _lastCaptchaInfo = null;
+          if (_browser) { try { await _browser.close(); } catch (_) {} }
+          _browser = null; _context = null; _page = null;
+          if (_qrBrowser) { try { await _qrBrowser.close(); } catch (_) {} }
+          _qrBrowser = null; _qrContext = null; _qrPage = null;
+          const ck = loadCookies();
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, message: '会话已重置，下次查询将重新加载 cookie', cookies_loaded: ck ? ck.length : 0 }));
           break;
         }
 
@@ -1053,6 +1177,17 @@ async function getQrCode() {
       timeout: 30000,
     });
 
+    // 检测验证码（容器内无法弹窗，截图回传让用户感知）
+    if (await detectCaptcha(_qrPage)) {
+      const captchaInfo = await captureCaptchaInfo(_qrPage);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[qr] Captcha detected during getQrCode:', captchaInfo.url, captchaInfo.title);
+      // 关闭无法继续的会话，用户需手动上传 cookie
+      try { await _qrBrowser.close(); } catch (_) {}
+      _qrBrowser = null; _qrContext = null; _qrPage = null;
+      return { success: false, ...captchaInfo };
+    }
+
     const url = _qrPage.url();
     const content = await _qrPage.content();
     const hasQrCode = content.includes('qr') || content.includes('qrcode') || content.includes('二维码');
@@ -1113,6 +1248,17 @@ async function checkQrLoginStatus() {
     const title = await _qrPage.title();
     console.log('[qr] Result URL:', url, 'Title:', title);
 
+    // 先检测验证码：扫码后可能弹出滑块/图形验证码，容器内无法操作，截图回传
+    if (await detectCaptcha(_qrPage)) {
+      const captchaInfo = await captureCaptchaInfo(_qrPage);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[qr] Captcha detected during checkQrLoginStatus:', captchaInfo.url, captchaInfo.title);
+      // 关闭无法继续的 QR 会话
+      try { await _qrBrowser.close(); } catch (_) {}
+      _qrBrowser = null; _qrContext = null; _qrPage = null;
+      return { logged_in: false, ...captchaInfo };
+    }
+
     // 判断是否成功加载 BOM 页面
     const isLoggedIn = !url.includes('login') && !url.includes('passport') &&
                        !url.includes('404') && !title.includes('登录') &&
@@ -1168,16 +1314,25 @@ async function checkLoginStatus() {
     const url = page.url();
     const title = await page.title();
     const content = await page.content();
-    
+
+    // 优先检测验证码（扫码后可能弹滑块/图形验证码）
+    if (await detectCaptcha(page)) {
+      const captchaInfo = await captureCaptchaInfo(page);
+      _lastCaptchaInfo = captchaInfo;
+      console.warn('[status] Captcha detected:', captchaInfo.url, captchaInfo.title);
+      await browser.close();
+      return { logged_in: false, ...captchaInfo };
+    }
+
     // 判断是否已登录：页面不包含登录相关内容
-    const isLoginPage = url.includes('login') || 
-                        title.includes('登录') || 
+    const isLoginPage = url.includes('login') ||
+                        title.includes('登录') ||
                         title.includes('Login') ||
                         content.includes('扫码登录') ||
                         content.includes('请登录') ||
                         content.includes('qrcode') ||
                         content.includes('二维码');
-    
+
     const isLoggedIn = !isLoginPage;
 
     // 保存更新的 cookie
@@ -1218,6 +1373,11 @@ export {
   initPersistentSession,
   ensureSession,
   queryByLcCodePersistent,
+  detectCaptcha,
+  captureCaptchaInfo,
+  getLastCaptchaInfo,
+  clearLastCaptchaInfo,
+  checkQrLoginStatus,
 };
 
 // 命令行直接运行
